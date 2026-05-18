@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { NeoCard } from '../components/ui/NeoCard'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
+import { InfoButton } from '../components/ui/InfoButton'
 import { GameSearch } from '../components/game/GameSearch'
 import { GuessRow } from '../components/game/GuessRow'
 import { useGameState } from '../hooks/useGameState'
@@ -62,6 +63,11 @@ function ScreenshotInner({
               src={currentImage}
               alt={`Puzzle still ${visibleStep + 1}`}
               className="absolute inset-0 w-full h-full object-cover [image-rendering:pixelated]"
+            />
+            <InfoButton
+              className="absolute top-3 right-3 z-20"
+              title="Screenshot game"
+              text="Guess today's game from six screenshots. Each wrong guess reveals a clearer, easier-to-identify image — see how few hints you need."
             />
             {finished && (
               <>

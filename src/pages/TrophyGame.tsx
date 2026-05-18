@@ -3,6 +3,7 @@ import { NeoCard } from '../components/ui/NeoCard'
 import { NeoButton } from '../components/ui/NeoButton'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
+import { InfoButton } from '../components/ui/InfoButton'
 import { GameSearch } from '../components/game/GameSearch'
 import { GuessRow } from '../components/game/GuessRow'
 import { useGameState } from '../hooks/useGameState'
@@ -49,7 +50,12 @@ function TrophyInner({
 
   return (
     <div className="max-w-3xl">
-      <NeoCard tone="ink" shadow="md" className="p-6">
+      <NeoCard tone="ink" shadow="md" className="p-6 relative">
+        <InfoButton
+          className="absolute top-3 right-3 z-20"
+          title="Trophy game"
+          text="Guess today's game from one of its trophies. Your first wrong guess reveals the trophy's description; each guess after that unlocks an extra clue."
+        />
         <div className="flex items-start gap-5">
           <NeoCard
             tone="mustard"
