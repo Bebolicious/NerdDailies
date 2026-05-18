@@ -1,0 +1,52 @@
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { cn } from '../../lib/cn'
+
+type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
+  children: ReactNode
+  tone?: 'coral' | 'lime' | 'mustard' | 'blue' | 'ink' | 'paper'
+  size?: 'sm' | 'md' | 'lg'
+}
+
+// Saturated-bg tones (coral/lime/mustard/blue) use *-static text so contrast
+// stays correct in both themes. Themed tones (ink/paper) naturally invert.
+const toneClass: Record<NonNullable<Props['tone']>, string> = {
+  coral: 'bg-coral text-ink-static hover:bg-coral-deep',
+  lime: 'bg-lime text-ink-static hover:bg-lime-deep',
+  mustard: 'bg-mustard text-ink-static hover:bg-mustard-deep',
+  blue: 'bg-blue text-paper-static hover:bg-blue-deep',
+  ink: 'bg-emphasis text-paper-static hover:bg-emphasis-hover',
+  paper: 'bg-paper text-ink hover:bg-cream-soft',
+}
+
+const sizeClass: Record<NonNullable<Props['size']>, string> = {
+  sm: 'px-3 py-1.5 text-xs',
+  md: 'px-5 py-3 text-sm',
+  lg: 'px-7 py-4 text-base',
+}
+
+export function NeoButton({
+  children,
+  tone = 'coral',
+  size = 'md',
+  className,
+  disabled,
+  ...rest
+}: Props) {
+  return (
+    <button
+      className={cn(
+        'border-neo shadow-neo font-display tracking-wider uppercase font-bold transition-all',
+        'hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-neo-lg',
+        'active:translate-x-[2px] active:translate-y-[2px] active:shadow-none',
+        'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-neo disabled:active:translate-x-0 disabled:active:translate-y-0 disabled:active:shadow-neo',
+        toneClass[tone],
+        sizeClass[size],
+        className,
+      )}
+      disabled={disabled}
+      {...rest}
+    >
+      {children}
+    </button>
+  )
+}

@@ -1,0 +1,181 @@
+@import 'tailwindcss';
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Color system
+   ─────────────────────────────────────────────────────────────────────────────
+   Two layers of variables:
+
+   1. Theme-aware surface tokens (defined here at :root, overridden by
+      [data-theme="dark"]). These are the only thing that changes between
+      light and dark mode.
+   2. Tailwind theme tokens (cream, paper, ink, ...) inside @theme that simply
+      point at the surface tokens. This means every existing `bg-cream`,
+      `border-ink`, `shadow-neo` utility automatically follows the active theme
+      without renaming a single class.
+
+   The accent colors (coral / lime / mustard / blue) are deliberately STATIC —
+   keeping the brand identity consistent across modes. Text that lives on top
+   of those accents uses `*-static` tokens so contrast stays correct when the
+   themed tokens flip.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Light theme — page surfaces & text */
+  --bg: #f5ebd6;
+  --surface: #fdf5e0;
+  --surface-2: #f1e6cc;
+  --fg: #1b1b3a;
+  --fg-soft: #2a2a55;
+  --divider: #d8cbb0;
+
+  /* Border + shadow color. Separate from --fg so dark mode can use a muted
+     stroke (less eye-burning) while keeping --fg bright for text legibility. */
+  --stroke: #1b1b3a;
+
+  /* Soft wash used by wrong-guess rows */
+  --wrong-bg: #f5c6d2;
+  --wrong-bg-soft: #fbe1e7;
+
+  /* "Emphasis" — always-dark surface used by the player, the countdown,
+     the puzzle frame, etc. Light mode keeps the brand-defining navy. */
+  --emphasis: #1b1b3a;
+  --emphasis-hover: #2a2a55;
+
+  /* Background dot pattern */
+  --dot-tint: rgba(27, 27, 58, 0.06);
+}
+
+[data-theme='dark'] {
+  --bg: #14141d;
+  --surface: #1f1f2c;
+  --surface-2: #181821;
+  --fg: #ebe2cd;
+  --fg-soft: #9c9686;
+  --divider: #2a2a38;
+
+  /* Muted warm-charcoal stroke — visible on every dark surface (page,
+     surface, emphasis) without the white-cream brightness of --fg. */
+  --stroke: #3d3a32;
+
+  --wrong-bg: #4a2028;
+  --wrong-bg-soft: #2e151b;
+
+  /* In dark mode emphasis stays dark but goes slightly darker than the page
+     bg so it reads as inset/punchy without being eye-burning bright. */
+  --emphasis: #0c0c14;
+  --emphasis-hover: #1a1a26;
+
+  --dot-tint: rgba(235, 226, 205, 0.04);
+}
+
+@theme {
+  /* Themed tokens — flip with [data-theme] */
+  --color-cream: var(--bg);
+  --color-cream-soft: var(--surface-2);
+  --color-paper: var(--surface);
+  --color-ink: var(--fg);
+  --color-ink-soft: var(--fg-soft);
+  --color-divider: var(--divider);
+  --color-pink: var(--wrong-bg);
+  --color-pink-soft: var(--wrong-bg-soft);
+
+  /* Static tokens — for text on saturated accents (never flip) */
+  --color-ink-static: #1b1b3a;
+  --color-paper-static: #fdf5e0;
+
+  /* Emphasis surface — always dark, used by `tone="ink"` cards/buttons.
+     Pair with text-paper-static for readable light text on dark. */
+  --color-emphasis: var(--emphasis);
+  --color-emphasis-hover: var(--emphasis-hover);
+
+  /* Stroke color — exposed as `border-stroke` for structural dividers. */
+  --color-stroke: var(--stroke);
+
+  /* Accent colors — constant across modes */
+  --color-coral: #ff5d5d;
+  --color-coral-deep: #e84444;
+  --color-lime: #b5e548;
+  --color-lime-deep: #99cf2a;
+  --color-mustard: #f4b73e;
+  --color-mustard-deep: #d99821;
+  --color-blue: #5167e8;
+  --color-blue-deep: #3a4fc7;
+
+  --font-pixel: 'Press Start 2P', monospace;
+  --font-display: 'VT323', 'JetBrains Mono', monospace;
+  --font-body: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    color-scheme: light;
+  }
+  html[data-theme='dark'] {
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+    background-image: radial-gradient(circle, var(--dot-tint) 1px, transparent 1px);
+    background-size: 16px 16px;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+  button {
+    font-family: inherit;
+  }
+  input,
+  textarea {
+    font-family: inherit;
+    color: inherit;
+  }
+}
+
+@utility shadow-neo {
+  box-shadow: 4px 4px 0 0 var(--stroke);
+}
+@utility shadow-neo-sm {
+  box-shadow: 2px 2px 0 0 var(--stroke);
+}
+@utility shadow-neo-lg {
+  box-shadow: 6px 6px 0 0 var(--stroke);
+}
+@utility shadow-neo-coral {
+  box-shadow: 4px 4px 0 0 var(--color-coral-deep);
+}
+@utility border-neo {
+  border-width: 3px;
+  border-color: var(--stroke);
+  border-style: solid;
+}
+@utility border-neo-2 {
+  border-width: 2px;
+  border-color: var(--stroke);
+  border-style: solid;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface-2);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--stroke);
+  border: 2px solid var(--surface-2);
+}
