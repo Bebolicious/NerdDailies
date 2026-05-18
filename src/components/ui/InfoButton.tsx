@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { Info } from 'lucide-react'
-import { cn } from '../../lib/cn'
 
 type Props = {
   text: string
