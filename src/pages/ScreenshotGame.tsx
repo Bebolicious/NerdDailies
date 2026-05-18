@@ -99,11 +99,11 @@ function ScreenshotInner({
                 Today's game was
               </div>
               {puzzle.cover_url && (
-                <div className="mt-2 border-neo bg-cream-soft overflow-hidden">
+                <div className="mt-2 mx-auto w-[170px] border-neo bg-cream-soft overflow-hidden">
                   <img
                     src={puzzle.cover_url}
                     alt={`${puzzle.game.name} cover`}
-                    className="w-full h-auto object-cover"
+                    className="w-full aspect-[2/3] object-cover"
                   />
                 </div>
               )}
