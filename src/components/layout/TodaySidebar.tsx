@@ -1,4 +1,5 @@
-import { Camera, Trophy, Music } from 'lucide-react'
+import { useEffect } from 'react'
+import { Camera, Music, Trophy, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { NeoCard } from '../ui/NeoCard'
 import { TagPill } from '../ui/TagPill'
@@ -21,13 +22,78 @@ const GAMES: Array<{
   { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name that theme.', path: '/soundtrack', tone: 'mustard', icon: Music },
 ]
 
-export function TodaySidebar() {
+type Props = {
+  mobileOpen?: boolean
+  onClose?: () => void
+}
+
+export function TodaySidebar({ mobileOpen, onClose }: Props) {
+  const location = useLocation()
+
+  useEffect(() => {
+    if (mobileOpen) onClose?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!mobileOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose?.()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mobileOpen, onClose])
+
+  return (
+    <>
+      <aside className="hidden lg:block w-[340px] shrink-0 border-l-[3px] border-stroke bg-cream-soft min-h-full">
+        <SidebarContent />
+      </aside>
+
+      <div
+        className={cn(
+          'lg:hidden fixed inset-0 z-50',
+          mobileOpen ? 'pointer-events-auto' : 'pointer-events-none',
+        )}
+        aria-hidden={!mobileOpen}
+      >
+        <div
+          onClick={onClose}
+          className={cn(
+            'absolute inset-0 bg-emphasis/60 backdrop-blur-sm transition-opacity',
+            mobileOpen ? 'opacity-100' : 'opacity-0',
+          )}
+        />
+        <aside
+          role="dialog"
+          aria-modal="true"
+          aria-label="Today's games"
+          className={cn(
+            'absolute right-0 top-0 bottom-0 w-[340px] max-w-[85vw] bg-cream-soft border-l-[3px] border-stroke overflow-y-auto transition-transform duration-200 ease-out',
+            mobileOpen ? 'translate-x-0' : 'translate-x-full',
+          )}
+        >
+          <button
+            onClick={onClose}
+            aria-label="Close games menu"
+            className="absolute top-4 right-4 z-10 border-neo-2 p-2 bg-paper hover:bg-coral hover:text-ink-static transition-colors"
+          >
+            <X className="h-3.5 w-3.5 stroke-[3]" />
+          </button>
+          <SidebarContent />
+        </aside>
+      </div>
+    </>
+  )
+}
+
+function SidebarContent() {
   const today = todayISO()
   const countdown = useCountdownToMidnight()
   const location = useLocation()
 
   return (
-    <aside className="hidden lg:block w-[340px] shrink-0 border-l-[3px] border-stroke bg-cream-soft min-h-full">
+    <>
       <div className="px-6 pt-6 pb-4 flex items-center justify-between">
         <div className="font-display text-xs uppercase tracking-[0.2em] font-bold">
           Today
@@ -114,7 +180,7 @@ export function TodaySidebar() {
         })}
       </div>
 
-      <div className="px-6 mt-6">
+      <div className="px-6 mt-6 pb-6">
         <NeoCard tone="ink" shadow="md" className="p-4">
           <div className="font-display text-[10px] uppercase tracking-[0.2em] opacity-70 mb-2">
             Next drop in
@@ -127,7 +193,7 @@ export function TodaySidebar() {
           </div>
         </NeoCard>
       </div>
-    </aside>
+    </>
   )
 }
 

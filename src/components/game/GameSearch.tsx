@@ -71,8 +71,8 @@ export function GameSearch({
   }
 
   return (
-    <div className="flex items-stretch gap-3">
-      <div ref={boxRef} className="relative flex-1">
+    <div className="flex flex-col md:flex-row md:items-stretch gap-3">
+      <div ref={boxRef} className="relative md:flex-1">
         <div
           className={cn(
             'border-neo bg-paper flex items-center gap-3 px-4 py-3 shadow-neo-sm',
@@ -144,24 +144,28 @@ export function GameSearch({
         )}
       </div>
 
-      <NeoButton
-        tone="lime"
-        size="md"
-        onClick={submit}
-        disabled={disabled || !selected}
-      >
-        Guess →
-      </NeoButton>
-      {onSkip && (
+      <div className="flex gap-3">
         <NeoButton
-          tone="paper"
+          tone="lime"
           size="md"
-          onClick={onSkip}
-          disabled={disabled}
+          onClick={submit}
+          disabled={disabled || !selected}
+          className="flex-1 md:flex-none"
         >
-          Skip
+          Guess
         </NeoButton>
-      )}
+        {onSkip && (
+          <NeoButton
+            tone="paper"
+            size="md"
+            onClick={onSkip}
+            disabled={disabled}
+            className="flex-1 md:flex-none"
+          >
+            Skip
+          </NeoButton>
+        )}
+      </div>
     </div>
   )
 }

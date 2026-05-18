@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { Flame, Settings } from 'lucide-react'
+import { Flame, Menu, Settings } from 'lucide-react'
 import { Link, NavLink } from 'react-router-dom'
 import { PixelLogo } from '../ui/PixelLogo'
 import { SettingsModal } from '../ui/SettingsModal'
 import { useStreak } from '../../hooks/useStreak'
 import { cn } from '../../lib/cn'
 
-export function NavBar() {
+export function NavBar({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
   const streak = useStreak()
   const [settingsOpen, setSettingsOpen] = useState(false)
   return (
@@ -19,7 +19,7 @@ export function NavBar() {
               Dailies
             </div>
             <div className="text-[10px] uppercase tracking-[0.2em] text-ink-soft mt-1">
-              / pixel puzzles for game nerds /
+              / Daily mini-games for nerds /
             </div>
           </div>
         </Link>
@@ -30,7 +30,6 @@ export function NavBar() {
           </div>
           <span className="text-ink-soft">|</span>
           <NavBarLink to="/how-to-play">How to play</NavBarLink>
-          <NavBarLink to="/stats">Stats</NavBarLink>
           <button
             onClick={() => setSettingsOpen(true)}
             aria-label="Open settings"
@@ -38,6 +37,15 @@ export function NavBar() {
           >
             <Settings className="h-3.5 w-3.5 stroke-[3]" />
           </button>
+          {onOpenSidebar && (
+            <button
+              onClick={onOpenSidebar}
+              aria-label="Open games menu"
+              className="lg:hidden border-neo-2 p-2 font-display text-xs uppercase tracking-wider font-bold hover:bg-emphasis hover:text-paper-static transition-colors"
+            >
+              <Menu className="h-3.5 w-3.5 stroke-[3]" />
+            </button>
+          )}
         </nav>
       </div>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
