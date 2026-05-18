@@ -106,6 +106,17 @@
   --font-body: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+/* Increased readability — swaps every themed font for Atkinson Hyperlegible,
+   a typeface designed for low-vision readability. Targets the same CSS
+   variables Tailwind reads, so every `font-pixel|display|body` utility and
+   anything inheriting body font flips automatically. `html[...]` outranks
+   the `:root` defaults Tailwind emits from @theme. */
+html[data-readable='true'] {
+  --font-pixel: 'Atkinson Hyperlegible', system-ui, sans-serif;
+  --font-display: 'Atkinson Hyperlegible', system-ui, sans-serif;
+  --font-body: 'Atkinson Hyperlegible', system-ui, sans-serif;
+}
+
 @layer base {
   html,
   body,

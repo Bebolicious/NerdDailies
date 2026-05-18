@@ -1,13 +1,14 @@
-import { Flame, Moon, Sun } from 'lucide-react'
+import { useState } from 'react'
+import { Flame, Settings } from 'lucide-react'
 import { Link, NavLink } from 'react-router-dom'
 import { PixelLogo } from '../ui/PixelLogo'
+import { SettingsModal } from '../ui/SettingsModal'
 import { useStreak } from '../../hooks/useStreak'
-import { useTheme } from '../../hooks/useTheme'
 import { cn } from '../../lib/cn'
 
 export function NavBar() {
   const streak = useStreak()
-  const { theme, toggle } = useTheme()
+  const [settingsOpen, setSettingsOpen] = useState(false)
   return (
     <header className="border-b-[3px] border-stroke bg-cream">
       <div className="flex items-center justify-between px-6 py-4">
@@ -31,18 +32,15 @@ export function NavBar() {
           <NavBarLink to="/how-to-play">How to play</NavBarLink>
           <NavBarLink to="/stats">Stats</NavBarLink>
           <button
-            onClick={toggle}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Open settings"
             className="border-neo-2 p-2 font-display text-xs uppercase tracking-wider font-bold hover:bg-emphasis hover:text-paper-static transition-colors"
           >
-            {theme === 'dark' ? (
-              <Sun className="h-3.5 w-3.5 stroke-[3]" />
-            ) : (
-              <Moon className="h-3.5 w-3.5 stroke-[3]" />
-            )}
+            <Settings className="h-3.5 w-3.5 stroke-[3]" />
           </button>
         </nav>
       </div>
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </header>
   )
 }

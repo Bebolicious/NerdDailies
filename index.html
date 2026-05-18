@@ -8,13 +8,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=JetBrains+Mono:wght@400;500;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=JetBrains+Mono:wght@400;500;700;800&family=Atkinson+Hyperlegible:wght@400;700&display=swap"
       rel="stylesheet"
     />
   </head>
   <body>
     <script>
-      // Apply theme before React mounts to avoid a flash. Default is light.
+      // Apply theme + readability before React mounts to avoid a flash.
       (function () {
         try {
           var stored = localStorage.getItem('dailies/theme');
@@ -22,6 +22,13 @@
           document.documentElement.setAttribute('data-theme', theme);
         } catch (e) {
           document.documentElement.setAttribute('data-theme', 'light');
+        }
+        try {
+          if (localStorage.getItem('dailies/readable') === 'true') {
+            document.documentElement.setAttribute('data-readable', 'true');
+          }
+        } catch (e) {
+          /* ignore */
         }
       })();
     </script>
