@@ -1,4 +1,5 @@
 import type {
+  BlurPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
   TrophyPuzzle,
@@ -69,6 +70,45 @@ export function getMockTrophyPuzzle(date: string): TrophyPuzzle {
     rarity_pct: 4.2,
     platform: game.platforms?.[0] ?? 'PC',
     gamerscore: 12,
+  }
+}
+
+// A vibrant SVG used as the mock blur game "key art" — a fake cover so the
+// blur/sharpen reveal has something readable to land on.
+function fakeKeyArt(seed: number, name: string): string {
+  const palettes = [
+    ['#5167e8', '#aabaff', '#f5ebd6', '#ff5d5d'],
+    ['#1b1b3a', '#b5e548', '#f5c6d2', '#f4b73e'],
+    ['#7ac8be', '#f4b73e', '#1b1b3a', '#ffb6b6'],
+  ]
+  const palette = palettes[seed % palettes.length]
+  const ringCount = 7
+  const rings = Array.from({ length: ringCount })
+    .map((_, i) => {
+      const r = 60 + i * 40
+      const c = palette[i % palette.length]
+      return `<circle cx='200' cy='150' r='${r}' fill='none' stroke='${c}' stroke-width='14'/>`
+    })
+    .join('')
+  const safeName = (name || '?').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>` +
+    `<rect width='400' height='300' fill='${palette[0]}'/>` +
+    rings +
+    `<text x='200' y='265' text-anchor='middle' font-family='Courier' font-size='28' font-weight='bold' fill='${palette[2]}'>${safeName}</text>` +
+    `</svg>`
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg)
+}
+
+export function getMockBlurPuzzle(date: string): BlurPuzzle {
+  const seed = hash(date + 'blur')
+  const game = pickGame(seed + 19)
+  const url = fakeKeyArt(seed, game.name)
+  return {
+    id: 'mock-' + seed,
+    puzzle_date: date,
+    game,
+    image_url: url,
+    cover_url: url,
   }
 }
 

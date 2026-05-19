@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { addDays, format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
-import { Camera, Trophy, Music, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
+import { Camera, Trophy, Music, Eye, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
 import { TagPill } from '../../components/ui/TagPill'
@@ -14,6 +14,7 @@ type DayStatus = {
   date: string
   screenshot: boolean
   trophy: boolean
+  blur: boolean
   soundtrack: boolean
 }
 
@@ -44,6 +45,7 @@ export function AdminDashboard() {
             date: format(d, 'yyyy-MM-dd'),
             screenshot: false,
             trophy: false,
+            blur: false,
             soundtrack: false,
           })),
         )
@@ -51,15 +53,17 @@ export function AdminDashboard() {
       }
       const from = format(monthStart, 'yyyy-MM-dd')
       const to = format(monthEnd, 'yyyy-MM-dd')
-      const [s, t, m] = await Promise.all([
+      const [s, t, b, m] = await Promise.all([
         sb.from('screenshot_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('trophy_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
+        sb.from('blur_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('soundtrack_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
       ])
       const setOf = (rows: { puzzle_date: string }[] | null) =>
         new Set((rows ?? []).map((r) => r.puzzle_date))
       const sSet = setOf(s.data)
       const tSet = setOf(t.data)
+      const bSet = setOf(b.data)
       const mSet = setOf(m.data)
       if (cancelled) return
       setStatuses(
@@ -69,6 +73,7 @@ export function AdminDashboard() {
             date: iso,
             screenshot: sSet.has(iso),
             trophy: tSet.has(iso),
+            blur: bSet.has(iso),
             soundtrack: mSet.has(iso),
           }
         }),
@@ -137,6 +142,7 @@ export function AdminDashboard() {
           <div className="flex items-center gap-4 text-[10px] uppercase tracking-wider font-display">
             <Legend tone="bg-coral" label="Screenshot" />
             <Legend tone="bg-blue" label="Trophy" />
+            <Legend tone="bg-lime" label="Blur" />
             <Legend tone="bg-mustard" label="Soundtrack" />
           </div>
         </div>
@@ -187,6 +193,7 @@ export function AdminDashboard() {
                     set={status?.screenshot}
                   />
                   <EditorLink iso={iso} type="trophy" set={status?.trophy} />
+                  <EditorLink iso={iso} type="blur" set={status?.blur} />
                   <EditorLink
                     iso={iso}
                     type="soundtrack"
@@ -208,6 +215,9 @@ export function AdminDashboard() {
             </NeoButton>
             <NeoButton tone="blue" size="sm" onClick={() => nav(`/admin/trophy/${today}`)}>
               <Trophy className="inline h-3 w-3 mr-1" /> Today's trophy
+            </NeoButton>
+            <NeoButton tone="lime" size="sm" onClick={() => nav(`/admin/blur/${today}`)}>
+              <Eye className="inline h-3 w-3 mr-1" /> Today's blur
             </NeoButton>
             <NeoButton tone="mustard" size="sm" onClick={() => nav(`/admin/soundtrack/${today}`)}>
               <Music className="inline h-3 w-3 mr-1" /> Today's soundtrack
@@ -234,16 +244,25 @@ function EditorLink({
   set,
 }: {
   iso: string
-  type: 'screenshot' | 'trophy' | 'soundtrack'
+  type: 'screenshot' | 'trophy' | 'blur' | 'soundtrack'
   set?: boolean
 }) {
-  const Icon = type === 'screenshot' ? Camera : type === 'trophy' ? Trophy : Music
+  const Icon =
+    type === 'screenshot'
+      ? Camera
+      : type === 'trophy'
+        ? Trophy
+        : type === 'blur'
+          ? Eye
+          : Music
   const tone =
     type === 'screenshot'
       ? 'bg-coral text-ink-static'
       : type === 'trophy'
         ? 'bg-blue text-paper-static'
-        : 'bg-mustard text-ink-static'
+        : type === 'blur'
+          ? 'bg-lime text-ink-static'
+          : 'bg-mustard text-ink-static'
   return (
     <Link
       to={`/admin/${type}/${iso}`}

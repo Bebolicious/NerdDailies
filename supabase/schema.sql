@@ -88,6 +88,19 @@ create table if not exists public.trophy_puzzles (
   updated_at timestamptz default now()
 );
 
+create table if not exists public.blur_puzzles (
+  id uuid primary key default gen_random_uuid(),
+  puzzle_date date not null unique,
+  game_id bigint not null,
+  game_name text not null,
+  game_year int,
+  game_genre text,
+  image_path text not null,               -- path in the 'blur_images' bucket
+  cover_path text,                        -- optional path in the 'covers' bucket
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create table if not exists public.soundtrack_puzzles (
   id uuid primary key default gen_random_uuid(),
   puzzle_date date not null unique,
@@ -110,6 +123,7 @@ alter table public.games               enable row level security;
 alter table public.screenshot_puzzles enable row level security;
 alter table public.trophy_puzzles      enable row level security;
 alter table public.soundtrack_puzzles  enable row level security;
+alter table public.blur_puzzles        enable row level security;
 
 drop policy if exists "public read games" on public.games;
 create policy "public read games" on public.games
@@ -147,6 +161,15 @@ create policy "admin write soundtrack" on public.soundtrack_puzzles
   for all using (auth.role() = 'authenticated')
          with check (auth.role() = 'authenticated');
 
+drop policy if exists "public read blur" on public.blur_puzzles;
+create policy "public read blur" on public.blur_puzzles
+  for select using (true);
+
+drop policy if exists "admin write blur" on public.blur_puzzles;
+create policy "admin write blur" on public.blur_puzzles
+  for all using (auth.role() = 'authenticated')
+         with check (auth.role() = 'authenticated');
+
 -- ── STORAGE BUCKETS ─────────────────────────────────────────────────────────
 -- Public read, authenticated write.
 
@@ -160,6 +183,10 @@ insert into storage.buckets (id, name, public)
 
 insert into storage.buckets (id, name, public)
   values ('covers', 'covers', true)
+  on conflict (id) do nothing;
+
+insert into storage.buckets (id, name, public)
+  values ('blur_images', 'blur_images', true)
   on conflict (id) do nothing;
 
 drop policy if exists "public read screenshots bucket" on storage.objects;
@@ -209,3 +236,19 @@ create policy "admin update covers bucket" on storage.objects
 drop policy if exists "admin delete covers bucket" on storage.objects;
 create policy "admin delete covers bucket" on storage.objects
   for delete using (bucket_id = 'covers' and auth.role() = 'authenticated');
+
+drop policy if exists "public read blur_images bucket" on storage.objects;
+create policy "public read blur_images bucket" on storage.objects
+  for select using (bucket_id = 'blur_images');
+
+drop policy if exists "admin write blur_images bucket" on storage.objects;
+create policy "admin write blur_images bucket" on storage.objects
+  for insert with check (bucket_id = 'blur_images' and auth.role() = 'authenticated');
+
+drop policy if exists "admin update blur_images bucket" on storage.objects;
+create policy "admin update blur_images bucket" on storage.objects
+  for update using (bucket_id = 'blur_images' and auth.role() = 'authenticated');
+
+drop policy if exists "admin delete blur_images bucket" on storage.objects;
+create policy "admin delete blur_images bucket" on storage.objects
+  for delete using (bucket_id = 'blur_images' and auth.role() = 'authenticated');

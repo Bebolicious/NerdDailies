@@ -3,6 +3,7 @@ import { ShellLayout } from './components/layout/ShellLayout'
 import { ScreenshotGame } from './pages/ScreenshotGame'
 import { TrophyGame } from './pages/TrophyGame'
 import { SoundtrackGame } from './pages/SoundtrackGame'
+import { BlurGame } from './pages/BlurGame'
 import { HowToPlay } from './pages/HowToPlay'
 import { Stats } from './pages/Stats'
 import { AdminLogin } from './pages/admin/AdminLogin'
@@ -10,6 +11,7 @@ import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { ScreenshotEditor } from './pages/admin/ScreenshotEditor'
 import { TrophyEditor } from './pages/admin/TrophyEditor'
 import { SoundtrackEditor } from './pages/admin/SoundtrackEditor'
+import { BlurEditor } from './pages/admin/BlurEditor'
 
 function App() {
   return (
@@ -20,6 +22,7 @@ function App() {
         <Route path="/admin/screenshot/:date" element={<ScreenshotEditor />} />
         <Route path="/admin/trophy/:date" element={<TrophyEditor />} />
         <Route path="/admin/soundtrack/:date" element={<SoundtrackEditor />} />
+        <Route path="/admin/blur/:date" element={<BlurEditor />} />
 
         <Route path="/" element={<Navigate to="/screenshot" replace />} />
         <Route
@@ -43,6 +46,14 @@ function App() {
           element={
             <ShellLayout>
               <SoundtrackGame />
+            </ShellLayout>
+          }
+        />
+        <Route
+          path="/blur"
+          element={
+            <ShellLayout>
+              <BlurGame />
             </ShellLayout>
           }
         />

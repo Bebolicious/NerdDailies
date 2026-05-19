@@ -27,6 +27,13 @@ export function HowToPlay() {
           </p>
         </NeoCard>
         <NeoCard tone="paper" shadow="md" className="p-5">
+          <TagPill tone="lime" className="mb-2">Blur Reveal</TagPill>
+          <p className="text-sm mt-2">
+            The game's key art starts almost completely blurred. Each wrong
+            guess sharpens it one notch — by guess 6 it's fully clear.
+          </p>
+        </NeoCard>
+        <NeoCard tone="paper" shadow="md" className="p-5">
           <TagPill tone="mustard" className="mb-2">Soundtrack</TagPill>
           <p className="text-sm mt-2">
             Tiny snippet at first — 2s. Each miss unlocks more: 4s, 8s, 15s,

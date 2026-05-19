@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Camera, Music, Trophy, X } from 'lucide-react'
+import { Camera, Eye, Music, Trophy, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { NeoCard } from '../ui/NeoCard'
 import { TagPill } from '../ui/TagPill'
@@ -14,11 +14,12 @@ const GAMES: Array<{
   title: string
   blurb: string
   path: string
-  tone: 'coral' | 'blue' | 'mustard'
+  tone: 'coral' | 'blue' | 'mustard' | 'lime'
   icon: typeof Camera
 }> = [
   { type: 'screenshot', title: 'Screenshot', blurb: 'Guess the game based on 6 screenshots.', path: '/screenshot', tone: 'coral', icon: Camera },
   { type: 'trophy', title: 'Trophy', blurb: 'Guess the game based on a trophy/achievement.', path: '/trophy', tone: 'blue', icon: Trophy },
+  { type: 'blur', title: 'Blur Reveal', blurb: 'Guess the game from blurred key art — each miss sharpens it.', path: '/blur', tone: 'lime', icon: Eye },
   { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name that theme.', path: '/soundtrack', tone: 'mustard', icon: Music },
 ]
 
@@ -138,7 +139,9 @@ function SidebarContent() {
                         ? 'bg-coral text-ink-static'
                         : g.tone === 'blue'
                           ? 'bg-blue text-paper-static'
-                          : 'bg-mustard text-ink-static',
+                          : g.tone === 'lime'
+                            ? 'bg-lime text-ink-static'
+                            : 'bg-mustard text-ink-static',
                   )}
                 >
                   <Icon className="h-5 w-5 stroke-[2.5]" />

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import {
+  fetchBlurPuzzle,
   fetchScreenshotPuzzle,
   fetchTrophyPuzzle,
   fetchSoundtrackPuzzle,
 } from '../lib/puzzleStore'
 import type {
+  BlurPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
   TrophyPuzzle,
@@ -27,6 +29,18 @@ export function useTrophyPuzzle(date: string) {
   useEffect(() => {
     let cancelled = false
     fetchTrophyPuzzle(date).then((p) => !cancelled && setPuzzle(p))
+    return () => {
+      cancelled = true
+    }
+  }, [date])
+  return puzzle
+}
+
+export function useBlurPuzzle(date: string) {
+  const [puzzle, setPuzzle] = useState<BlurPuzzle | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetchBlurPuzzle(date).then((p) => !cancelled && setPuzzle(p))
     return () => {
       cancelled = true
     }

@@ -1,0 +1,371 @@
+import { useEffect, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { Upload, X } from 'lucide-react'
+import { AdminLayout } from './AdminLayout'
+import { NeoCard } from '../../components/ui/NeoCard'
+import { NeoButton } from '../../components/ui/NeoButton'
+import { GamePicker } from '../../components/game/GamePicker'
+import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
+import type { IgdbGame } from '../../lib/types'
+import { BLUR_LEVELS_PX } from '../../lib/types'
+import { formatLong } from '../../lib/dates'
+
+export function BlurEditor() {
+  const { date } = useParams<{ date: string }>()
+  const [game, setGame] = useState<IgdbGame | null>(null)
+  const [imagePath, setImagePath] = useState<string | null>(null)
+  const [coverPath, setCoverPath] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [previewStep, setPreviewStep] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const sb = getSupabase()
+      if (!sb || !date) {
+        setLoading(false)
+        return
+      }
+      const { data } = await sb
+        .from('blur_puzzles')
+        .select('*')
+        .eq('puzzle_date', date)
+        .maybeSingle()
+      if (cancelled) return
+      if (data) {
+        setGame({
+          id: data.game_id,
+          name: data.game_name,
+          year: data.game_year ?? undefined,
+          genre: data.game_genre ?? undefined,
+        })
+        setImagePath(data.image_path ?? null)
+        setCoverPath((data.cover_path as string | null) ?? null)
+      }
+      setLoading(false)
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [date])
+
+  async function uploadImage(file: File) {
+    const sb = getSupabase()
+    if (!sb || !date) return
+    const ext = file.name.split('.').pop() ?? 'png'
+    const path = `${date}/${crypto.randomUUID()}.${ext}`
+    const { error } = await sb.storage
+      .from('blur_images')
+      .upload(path, file, { upsert: true })
+    if (error) {
+      setMsg(`Upload failed: ${error.message}`)
+      return
+    }
+    setImagePath(path)
+  }
+
+  async function uploadCover(file: File) {
+    const sb = getSupabase()
+    if (!sb || !date) return
+    const ext = file.name.split('.').pop() ?? 'png'
+    const path = `${date}/cover-${crypto.randomUUID()}.${ext}`
+    const { error } = await sb.storage
+      .from('covers')
+      .upload(path, file, { upsert: true })
+    if (error) {
+      setMsg(`Cover upload failed: ${error.message}`)
+      return
+    }
+    setCoverPath(path)
+  }
+
+  async function clearPuzzle() {
+    const sb = getSupabase()
+    if (!sb || !date) return
+    if (
+      !window.confirm(
+        `Delete the blur puzzle for ${date} and every uploaded image/cover for that date? This cannot be undone.`,
+      )
+    )
+      return
+    setClearing(true)
+    setMsg(null)
+
+    for (const bucket of ['blur_images', 'covers'] as const) {
+      const { data: files, error: listErr } = await sb.storage
+        .from(bucket)
+        .list(date, { limit: 1000 })
+      if (listErr) {
+        setMsg(`Could not list ${bucket}: ${listErr.message}`)
+        setClearing(false)
+        return
+      }
+      if (files && files.length > 0) {
+        const paths = files.map((f) => `${date}/${f.name}`)
+        const { error: rmErr } = await sb.storage.from(bucket).remove(paths)
+        if (rmErr) {
+          setMsg(`Could not delete ${bucket} files: ${rmErr.message}`)
+          setClearing(false)
+          return
+        }
+      }
+    }
+
+    const { error: rowErr } = await sb
+      .from('blur_puzzles')
+      .delete()
+      .eq('puzzle_date', date)
+    if (rowErr) {
+      setMsg(`Could not delete puzzle row: ${rowErr.message}`)
+      setClearing(false)
+      return
+    }
+
+    setGame(null)
+    setImagePath(null)
+    setCoverPath(null)
+    setMsg('Cleared.')
+    setClearing(false)
+  }
+
+  async function save() {
+    const sb = getSupabase()
+    if (!sb || !date) return
+    if (!game) return setMsg('Pick a game first.')
+    if (!imagePath) return setMsg('Upload a key-art image first.')
+    setSaving(true)
+    setMsg(null)
+    const { error } = await sb.from('blur_puzzles').upsert(
+      {
+        puzzle_date: date,
+        game_id: game.id,
+        game_name: game.name,
+        game_year: game.year,
+        game_genre: game.genre,
+        image_path: imagePath,
+        cover_path: coverPath,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'puzzle_date' },
+    )
+    setSaving(false)
+    setMsg(error ? `Save failed: ${error.message}` : 'Saved.')
+  }
+
+  const sb = getSupabase()
+  const imageUrl =
+    imagePath && sb
+      ? sb.storage.from('blur_images').getPublicUrl(imagePath).data.publicUrl
+      : null
+  const coverUrl =
+    coverPath && sb
+      ? sb.storage.from('covers').getPublicUrl(coverPath).data.publicUrl
+      : null
+  const blurPx = BLUR_LEVELS_PX[previewStep]
+
+  return (
+    <AdminLayout
+      title={`Blur Reveal · ${date}`}
+      subtitle={`Schedule for ${date && formatLong(date)}. One key-art image; client blurs/sharpens per wrong guess.`}
+    >
+      {!isSupabaseConfigured() && (
+        <NeoCard tone="coral" shadow="sm" className="p-3 mb-4 text-sm">
+          ⚠ Supabase not configured — uploads and saves will fail.
+        </NeoCard>
+      )}
+      {loading ? (
+        <div className="text-sm text-ink-soft">Loading…</div>
+      ) : (
+        <div className="flex flex-col gap-5">
+          <NeoCard tone="paper" shadow="md" className="p-5">
+            <GamePicker value={game} onChange={setGame} />
+          </NeoCard>
+
+          <NeoCard tone="paper" shadow="md" className="p-5">
+            <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-3">
+              Key art (blurs in 6 steps)
+            </div>
+            <div className="w-full max-w-md">
+              <ImageSlot
+                url={imageUrl}
+                onUpload={uploadImage}
+                onClear={() => setImagePath(null)}
+              />
+            </div>
+            {imageUrl && (
+              <div className="mt-4">
+                <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-2">
+                  Preview · step {previewStep + 1} of {BLUR_LEVELS_PX.length}
+                  {' '}(blur {blurPx}px)
+                </div>
+                <div className="border-neo bg-cream-soft overflow-hidden w-full max-w-md aspect-[16/10] relative">
+                  <img
+                    src={imageUrl}
+                    alt="preview"
+                    className="absolute inset-0 w-full h-full object-cover transition-[filter] duration-300 ease-out"
+                    style={{
+                      filter: `blur(${blurPx}px)`,
+                      transform: blurPx > 0 ? 'scale(1.08)' : 'scale(1)',
+                    }}
+                  />
+                </div>
+                <div className="flex gap-1.5 mt-3 flex-wrap">
+                  {BLUR_LEVELS_PX.map((px, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setPreviewStep(i)}
+                      className={
+                        'border-neo-2 px-2 py-1 font-display text-[10px] uppercase tracking-wider font-bold ' +
+                        (i === previewStep
+                          ? 'bg-lime text-ink-static'
+                          : 'bg-paper hover:bg-cream-soft')
+                      }
+                    >
+                      #{i + 1} · {px}px
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </NeoCard>
+
+          <NeoCard tone="paper" shadow="md" className="p-5">
+            <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-3">
+              Game cover (shown on the result card — optional)
+            </div>
+            <div className="w-40">
+              <CoverSlot
+                url={coverUrl}
+                onUpload={uploadCover}
+                onClear={() => setCoverPath(null)}
+              />
+            </div>
+          </NeoCard>
+
+          {msg && (
+            <NeoCard tone="mustard" shadow="sm" className="p-3 text-sm">
+              {msg}
+            </NeoCard>
+          )}
+
+          <div className="flex gap-3 justify-end flex-wrap">
+            <NeoButton
+              tone="coral"
+              onClick={clearPuzzle}
+              disabled={saving || clearing}
+            >
+              {clearing ? 'Clearing…' : 'Clear puzzle'}
+            </NeoButton>
+            <NeoButton
+              tone="lime"
+              onClick={save}
+              disabled={saving || clearing}
+            >
+              {saving ? 'Saving…' : 'Save puzzle'}
+            </NeoButton>
+          </div>
+        </div>
+      )}
+    </AdminLayout>
+  )
+}
+
+function ImageSlot({
+  url,
+  onUpload,
+  onClear,
+}: {
+  url: string | null
+  onUpload: (f: File) => void
+  onClear: () => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  return (
+    <div className="border-neo bg-cream-soft aspect-[16/10] relative flex items-center justify-center overflow-hidden">
+      {url ? (
+        <>
+          <img src={url} alt="key art" className="w-full h-full object-cover" />
+          <button
+            onClick={onClear}
+            className="absolute top-1 right-1 border-neo-2 bg-paper p-1"
+          >
+            <X className="h-3 w-3 stroke-[3]" />
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={() => ref.current?.click()}
+          className="flex flex-col items-center gap-1 text-ink-soft"
+        >
+          <Upload className="h-5 w-5 stroke-[2.5]" />
+          <span className="font-display text-[10px] uppercase tracking-wider font-bold">
+            Upload key art
+          </span>
+        </button>
+      )}
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) onUpload(f)
+          e.target.value = ''
+        }}
+      />
+    </div>
+  )
+}
+
+function CoverSlot({
+  url,
+  onUpload,
+  onClear,
+}: {
+  url: string | null
+  onUpload: (f: File) => void
+  onClear: () => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  return (
+    <div className="border-neo bg-cream-soft aspect-[3/4] relative flex items-center justify-center overflow-hidden">
+      {url ? (
+        <>
+          <img src={url} alt="cover" className="w-full h-full object-cover" />
+          <button
+            onClick={onClear}
+            className="absolute top-1 right-1 border-neo-2 bg-paper p-1"
+          >
+            <X className="h-3 w-3 stroke-[3]" />
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={() => ref.current?.click()}
+          className="flex flex-col items-center gap-1 text-ink-soft px-2 text-center"
+        >
+          <Upload className="h-5 w-5 stroke-[2.5]" />
+          <span className="font-display text-[10px] uppercase tracking-wider font-bold">
+            Cover
+          </span>
+        </button>
+      )}
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) onUpload(f)
+          e.target.value = ''
+        }}
+      />
+    </div>
+  )
+}

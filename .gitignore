@@ -15,6 +15,9 @@ dist-ssr
 .env.*
 !.env.example
 
+# Internal notes (not for git)
+ARCHITECTURE.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

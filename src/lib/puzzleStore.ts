@@ -1,10 +1,12 @@
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import {
+  getMockBlurPuzzle,
   getMockScreenshotPuzzle,
   getMockSoundtrackPuzzle,
   getMockTrophyPuzzle,
 } from '../data/mockPuzzles'
 import type {
+  BlurPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
   TrophyPuzzle,
@@ -87,6 +89,29 @@ export async function fetchSoundtrackPuzzle(
     audio_url: toPublicUrl('soundtracks')(data.audio_path),
     track_title: data.track_title ?? undefined,
     reveal_start_seconds: data.reveal_start_seconds ?? 0,
+  }
+}
+
+export async function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
+  const sb = getSupabase()
+  if (!sb) return getMockBlurPuzzle(date)
+  const { data, error } = await sb
+    .from('blur_puzzles')
+    .select('*')
+    .eq('puzzle_date', date)
+    .maybeSingle()
+  if (error || !data) return getMockBlurPuzzle(date)
+  return {
+    id: data.id,
+    puzzle_date: data.puzzle_date,
+    game: {
+      id: data.game_id,
+      name: data.game_name,
+      year: data.game_year ?? undefined,
+      genre: data.game_genre ?? undefined,
+    },
+    image_url: toPublicUrl('blur_images')(data.image_path),
+    cover_url: data.cover_path ? toPublicUrl('covers')(data.cover_path) : undefined,
   }
 }
 

@@ -1,4 +1,4 @@
-export type GameType = 'screenshot' | 'trophy' | 'soundtrack'
+export type GameType = 'screenshot' | 'trophy' | 'soundtrack' | 'blur'
 
 export type IgdbGame = {
   id: number
@@ -28,6 +28,18 @@ export type TrophyPuzzle = {
   platform?: string
   gamerscore?: number
 }
+
+export type BlurPuzzle = {
+  id: string
+  puzzle_date: string
+  game: IgdbGame
+  image_url: string // single key-art / cover image
+  cover_url?: string // optional separate cover for the result card
+}
+
+// How blurred the image is per wrong-guess step. Index 0 = before any wrong
+// guess, last = after the final wrong guess (image fully clear). 6 steps.
+export const BLUR_LEVELS_PX: number[] = [40, 28, 18, 10, 4, 0]
 
 export type SoundtrackPuzzle = {
   id: string
