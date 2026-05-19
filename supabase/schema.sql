@@ -95,11 +95,16 @@ create table if not exists public.blur_puzzles (
   game_name text not null,
   game_year int,
   game_genre text,
-  image_path text not null,               -- path in the 'blur_images' bucket
-  cover_path text,                        -- optional path in the 'covers' bucket
+  cover_path text not null,               -- path in the 'covers' bucket; the
+                                          -- client blurs/sharpens the official
+                                          -- game cover per wrong guess
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+-- Drop the old 'image_path' column (we now blur the official cover in-place
+-- from the 'covers' bucket, so the separate blur_images path is redundant).
+alter table public.blur_puzzles drop column if exists image_path;
 
 create table if not exists public.soundtrack_puzzles (
   id uuid primary key default gen_random_uuid(),
@@ -185,9 +190,6 @@ insert into storage.buckets (id, name, public)
   values ('covers', 'covers', true)
   on conflict (id) do nothing;
 
-insert into storage.buckets (id, name, public)
-  values ('blur_images', 'blur_images', true)
-  on conflict (id) do nothing;
 
 drop policy if exists "public read screenshots bucket" on storage.objects;
 create policy "public read screenshots bucket" on storage.objects
@@ -237,18 +239,9 @@ drop policy if exists "admin delete covers bucket" on storage.objects;
 create policy "admin delete covers bucket" on storage.objects
   for delete using (bucket_id = 'covers' and auth.role() = 'authenticated');
 
+-- The old 'blur_images' bucket is no longer used (the blur game now blurs the
+-- official cover from the 'covers' bucket). Drop its policies if they exist.
 drop policy if exists "public read blur_images bucket" on storage.objects;
-create policy "public read blur_images bucket" on storage.objects
-  for select using (bucket_id = 'blur_images');
-
 drop policy if exists "admin write blur_images bucket" on storage.objects;
-create policy "admin write blur_images bucket" on storage.objects
-  for insert with check (bucket_id = 'blur_images' and auth.role() = 'authenticated');
-
 drop policy if exists "admin update blur_images bucket" on storage.objects;
-create policy "admin update blur_images bucket" on storage.objects
-  for update using (bucket_id = 'blur_images' and auth.role() = 'authenticated');
-
 drop policy if exists "admin delete blur_images bucket" on storage.objects;
-create policy "admin delete blur_images bucket" on storage.objects
-  for delete using (bucket_id = 'blur_images' and auth.role() = 'authenticated');

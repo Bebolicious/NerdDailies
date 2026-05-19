@@ -33,8 +33,7 @@ export type BlurPuzzle = {
   id: string
   puzzle_date: string
   game: IgdbGame
-  image_url: string // single key-art / cover image
-  cover_url?: string // optional separate cover for the result card
+  cover_url: string // official game cover (portrait 3:4)
 }
 
 // How blurred the image is per wrong-guess step. Index 0 = before any wrong

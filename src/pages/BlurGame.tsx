@@ -48,35 +48,37 @@ function BlurInner({
   return (
     <div className="flex flex-col gap-4 md:flex-1 md:min-h-0">
       <div className="flex flex-col md:flex-row gap-4 md:flex-1 md:min-h-0">
-        <NeoCard
-          tone="ink"
-          shadow="md"
-          className="p-0 overflow-hidden relative md:flex-1 md:min-h-0 min-w-0 flex"
-        >
-          <div className="relative w-full h-full bg-cream min-h-[260px] overflow-hidden">
-            <img
-              src={puzzle.image_url}
-              alt="Mystery key art"
-              className="absolute inset-0 w-full h-full object-cover transition-[filter] duration-500 ease-out"
-              style={{
-                filter: `blur(${blurPx}px)`,
-                transform: blurPx > 0 ? 'scale(1.08)' : 'scale(1)',
-              }}
-            />
-            <InfoButton
-              className="absolute top-3 right-3 z-20"
-              title="Blur Reveal"
-              text="Guess today's game from its blurred key art. Each wrong guess sharpens the image — fewer guesses, fewer pixels of mercy."
-            />
-            <div className="absolute bottom-3 left-3 z-20">
-              <TagPill tone="paper">
-                {finished
-                  ? 'Fully revealed'
-                  : `Blur · ${blurPx}px`}
-              </TagPill>
+        <div className="md:flex-1 md:min-h-0 min-w-0 flex md:items-center md:justify-center md:py-2">
+          <NeoCard
+            tone="ink"
+            shadow="md"
+            className="p-0 overflow-hidden relative aspect-[3/4] w-full max-w-[360px] mx-auto md:h-full md:w-auto md:max-w-full md:max-h-full md:mx-0"
+          >
+            <div className="relative w-full h-full bg-cream overflow-hidden">
+              <img
+                src={puzzle.cover_url}
+                alt="Mystery game cover"
+                className="absolute inset-0 w-full h-full object-cover transition-[filter] duration-500 ease-out"
+                style={{
+                  filter: `blur(${blurPx}px)`,
+                  transform: blurPx > 0 ? 'scale(1.08)' : 'scale(1)',
+                }}
+              />
+              <InfoButton
+                className="absolute top-3 right-3 z-20"
+                title="Blur Reveal"
+                text="Guess today's game from its blurred cover. Each wrong guess sharpens the image — fewer guesses, fewer pixels of mercy."
+              />
+              <div className="absolute bottom-3 left-3 z-20">
+                <TagPill tone="paper">
+                  {finished
+                    ? 'Fully revealed'
+                    : `Blur · ${blurPx}px`}
+                </TagPill>
+              </div>
             </div>
-          </div>
-        </NeoCard>
+          </NeoCard>
+        </div>
 
         <div className="md:w-[300px] shrink-0 flex flex-col gap-2 md:min-h-0 md:overflow-y-auto pr-1">
           {finished && (
@@ -84,15 +86,6 @@ function BlurInner({
               <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
                 Today's game was
               </div>
-              {puzzle.cover_url && (
-                <div className="mt-2 mx-auto w-[170px] border-neo bg-cream-soft overflow-hidden">
-                  <img
-                    src={puzzle.cover_url}
-                    alt={`${puzzle.game.name} cover`}
-                    className="w-full aspect-[2/3] object-cover"
-                  />
-                </div>
-              )}
               <div className="font-display text-lg font-bold mt-2 leading-tight">
                 {puzzle.game.name}
               </div>

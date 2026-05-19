@@ -110,8 +110,7 @@ export async function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
       year: data.game_year ?? undefined,
       genre: data.game_genre ?? undefined,
     },
-    image_url: toPublicUrl('blur_images')(data.image_path),
-    cover_url: data.cover_path ? toPublicUrl('covers')(data.cover_path) : undefined,
+    cover_url: toPublicUrl('covers')(data.cover_path),
   }
 }
 

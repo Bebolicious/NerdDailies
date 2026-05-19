@@ -73,9 +73,10 @@ export function getMockTrophyPuzzle(date: string): TrophyPuzzle {
   }
 }
 
-// A vibrant SVG used as the mock blur game "key art" — a fake cover so the
-// blur/sharpen reveal has something readable to land on.
-function fakeKeyArt(seed: number, name: string): string {
+// A vibrant portrait SVG used as the mock blur game cover (3:4) — a stand-in
+// for the official game cover so the blur/sharpen reveal has something
+// readable to land on.
+function fakeCover(seed: number, name: string): string {
   const palettes = [
     ['#5167e8', '#aabaff', '#f5ebd6', '#ff5d5d'],
     ['#1b1b3a', '#b5e548', '#f5c6d2', '#f4b73e'],
@@ -85,16 +86,16 @@ function fakeKeyArt(seed: number, name: string): string {
   const ringCount = 7
   const rings = Array.from({ length: ringCount })
     .map((_, i) => {
-      const r = 60 + i * 40
+      const r = 50 + i * 38
       const c = palette[i % palette.length]
-      return `<circle cx='200' cy='150' r='${r}' fill='none' stroke='${c}' stroke-width='14'/>`
+      return `<circle cx='300' cy='320' r='${r}' fill='none' stroke='${c}' stroke-width='14'/>`
     })
     .join('')
   const safeName = (name || '?').replace(/&/g, '&amp;').replace(/</g, '&lt;')
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>` +
-    `<rect width='400' height='300' fill='${palette[0]}'/>` +
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 800'>` +
+    `<rect width='600' height='800' fill='${palette[0]}'/>` +
     rings +
-    `<text x='200' y='265' text-anchor='middle' font-family='Courier' font-size='28' font-weight='bold' fill='${palette[2]}'>${safeName}</text>` +
+    `<text x='300' y='740' text-anchor='middle' font-family='Courier' font-size='36' font-weight='bold' fill='${palette[2]}'>${safeName}</text>` +
     `</svg>`
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg)
 }
@@ -102,13 +103,11 @@ function fakeKeyArt(seed: number, name: string): string {
 export function getMockBlurPuzzle(date: string): BlurPuzzle {
   const seed = hash(date + 'blur')
   const game = pickGame(seed + 19)
-  const url = fakeKeyArt(seed, game.name)
   return {
     id: 'mock-' + seed,
     puzzle_date: date,
     game,
-    image_url: url,
-    cover_url: url,
+    cover_url: fakeCover(seed, game.name),
   }
 }
 
