@@ -20,7 +20,7 @@ const GAMES: Array<{
   { type: 'screenshot', title: 'Screenshot', blurb: 'Guess the game based on 6 screenshots.', path: '/screenshot', tone: 'coral', icon: Camera },
   { type: 'trophy', title: 'Trophy', blurb: 'Guess the game based on a trophy/achievement.', path: '/trophy', tone: 'blue', icon: Trophy },
   { type: 'blur', title: 'Blur Reveal', blurb: 'Guess the game from its blurred cover — each miss sharpens it.', path: '/blur', tone: 'lime', icon: Eye },
-  { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name that theme.', path: '/soundtrack', tone: 'mustard', icon: Music },
+  { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name the game by only listening.', path: '/soundtrack', tone: 'mustard', icon: Music },
 ]
 
 type Props = {

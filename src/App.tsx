@@ -1,79 +1,115 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ShellLayout } from './components/layout/ShellLayout'
-import { ScreenshotGame } from './pages/ScreenshotGame'
-import { TrophyGame } from './pages/TrophyGame'
-import { SoundtrackGame } from './pages/SoundtrackGame'
-import { BlurGame } from './pages/BlurGame'
-import { HowToPlay } from './pages/HowToPlay'
-import { Stats } from './pages/Stats'
-import { AdminLogin } from './pages/admin/AdminLogin'
-import { AdminDashboard } from './pages/admin/AdminDashboard'
-import { ScreenshotEditor } from './pages/admin/ScreenshotEditor'
-import { TrophyEditor } from './pages/admin/TrophyEditor'
-import { SoundtrackEditor } from './pages/admin/SoundtrackEditor'
-import { BlurEditor } from './pages/admin/BlurEditor'
+
+const ScreenshotGame = lazy(() =>
+  import('./pages/ScreenshotGame').then((m) => ({ default: m.ScreenshotGame })),
+)
+const TrophyGame = lazy(() =>
+  import('./pages/TrophyGame').then((m) => ({ default: m.TrophyGame })),
+)
+const SoundtrackGame = lazy(() =>
+  import('./pages/SoundtrackGame').then((m) => ({ default: m.SoundtrackGame })),
+)
+const BlurGame = lazy(() =>
+  import('./pages/BlurGame').then((m) => ({ default: m.BlurGame })),
+)
+const HowToPlay = lazy(() =>
+  import('./pages/HowToPlay').then((m) => ({ default: m.HowToPlay })),
+)
+const Stats = lazy(() =>
+  import('./pages/Stats').then((m) => ({ default: m.Stats })),
+)
+const AdminLogin = lazy(() =>
+  import('./pages/admin/AdminLogin').then((m) => ({ default: m.AdminLogin })),
+)
+const AdminDashboard = lazy(() =>
+  import('./pages/admin/AdminDashboard').then((m) => ({
+    default: m.AdminDashboard,
+  })),
+)
+const ScreenshotEditor = lazy(() =>
+  import('./pages/admin/ScreenshotEditor').then((m) => ({
+    default: m.ScreenshotEditor,
+  })),
+)
+const TrophyEditor = lazy(() =>
+  import('./pages/admin/TrophyEditor').then((m) => ({
+    default: m.TrophyEditor,
+  })),
+)
+const SoundtrackEditor = lazy(() =>
+  import('./pages/admin/SoundtrackEditor').then((m) => ({
+    default: m.SoundtrackEditor,
+  })),
+)
+const BlurEditor = lazy(() =>
+  import('./pages/admin/BlurEditor').then((m) => ({ default: m.BlurEditor })),
+)
 
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/screenshot/:date" element={<ScreenshotEditor />} />
-        <Route path="/admin/trophy/:date" element={<TrophyEditor />} />
-        <Route path="/admin/soundtrack/:date" element={<SoundtrackEditor />} />
-        <Route path="/admin/blur/:date" element={<BlurEditor />} />
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/screenshot/:date" element={<ScreenshotEditor />} />
+          <Route path="/admin/trophy/:date" element={<TrophyEditor />} />
+          <Route path="/admin/soundtrack/:date" element={<SoundtrackEditor />} />
+          <Route path="/admin/blur/:date" element={<BlurEditor />} />
 
-        <Route path="/" element={<Navigate to="/screenshot" replace />} />
-        <Route
-          path="/screenshot"
-          element={
-            <ShellLayout>
-              <ScreenshotGame />
-            </ShellLayout>
-          }
-        />
-        <Route
-          path="/trophy"
-          element={
-            <ShellLayout>
-              <TrophyGame />
-            </ShellLayout>
-          }
-        />
-        <Route
-          path="/soundtrack"
-          element={
-            <ShellLayout>
-              <SoundtrackGame />
-            </ShellLayout>
-          }
-        />
-        <Route
-          path="/blur"
-          element={
-            <ShellLayout>
-              <BlurGame />
-            </ShellLayout>
-          }
-        />
-        <Route
-          path="/how-to-play"
-          element={
-            <ShellLayout>
-              <HowToPlay />
-            </ShellLayout>
-          }
-        />
-        <Route
-          path="/stats"
-          element={
-            <ShellLayout>
-              <Stats />
-            </ShellLayout>
-          }
-        />
-      </Routes>
+          <Route path="/" element={<Navigate to="/screenshot" replace />} />
+          <Route
+            path="/screenshot"
+            element={
+              <ShellLayout>
+                <ScreenshotGame />
+              </ShellLayout>
+            }
+          />
+          <Route
+            path="/trophy"
+            element={
+              <ShellLayout>
+                <TrophyGame />
+              </ShellLayout>
+            }
+          />
+          <Route
+            path="/soundtrack"
+            element={
+              <ShellLayout>
+                <SoundtrackGame />
+              </ShellLayout>
+            }
+          />
+          <Route
+            path="/blur"
+            element={
+              <ShellLayout>
+                <BlurGame />
+              </ShellLayout>
+            }
+          />
+          <Route
+            path="/how-to-play"
+            element={
+              <ShellLayout>
+                <HowToPlay />
+              </ShellLayout>
+            }
+          />
+          <Route
+            path="/stats"
+            element={
+              <ShellLayout>
+                <Stats />
+              </ShellLayout>
+            }
+          />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }
