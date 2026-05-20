@@ -111,7 +111,7 @@ export function SoundtrackPlayer({
             Now playing · {positionLabel} / {playableLabel}
           </div>
           <div className="font-display text-xl font-bold leading-tight">
-            “{trackTitle}”
+            {finished ? `“${trackTitle}”` : '“???”'}
           </div>
         </div>
         <TagPill tone="mustard">
