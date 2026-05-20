@@ -93,7 +93,7 @@ export function SoundtrackPlayer({
             Now playing · {positionLabel} / {playableLabel}
           </div>
           <div className="font-display text-xl font-bold leading-tight">
-            Track 03 — “{trackTitle}”
+            “{trackTitle}”
           </div>
         </div>
         <TagPill tone="mustard">

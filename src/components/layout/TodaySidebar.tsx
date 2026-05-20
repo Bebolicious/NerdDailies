@@ -116,68 +116,45 @@ function SidebarContent() {
               ? 'in_progress'
               : 'play'
           const Icon = g.icon
-          const disabled = g.type === 'soundtrack'
-
-          const cardInner = (
-            <NeoCard
-              tone={active ? g.tone : 'paper'}
-              shadow="md"
-              className={cn(
-                'p-4 relative overflow-hidden',
-                disabled
-                  ? 'opacity-90'
-                  : 'transition-all group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 group-hover:shadow-neo-lg group-active:translate-x-[2px] group-active:translate-y-[2px] group-active:shadow-none',
-              )}
-            >
-              <div className={cn('flex items-start gap-3', disabled && 'opacity-50')}>
-                <div
-                  className={cn(
-                    'border-neo-2 p-2 shrink-0',
-                    active
-                      ? 'bg-paper text-ink'
-                      : g.tone === 'coral'
-                        ? 'bg-coral text-ink-static'
-                        : g.tone === 'blue'
-                          ? 'bg-blue text-paper-static'
-                          : g.tone === 'lime'
-                            ? 'bg-lime text-ink-static'
-                            : 'bg-mustard text-ink-static',
-                  )}
-                >
-                  <Icon className="h-5 w-5 stroke-[2.5]" />
-                </div>
-                <div className="flex-1">
-                  <div className="font-display text-sm uppercase tracking-wider font-bold leading-tight">
-                    {g.title}
-                  </div>
-                  <div className="text-xs mt-1 opacity-80">{g.blurb}</div>
-                </div>
-              </div>
-              <div className={cn('flex items-center justify-between mt-3', disabled && 'opacity-50')}>
-                <div className="font-display text-[10px] uppercase tracking-wider opacity-80">
-                  Day #{dayNumber(today)}
-                </div>
-                <StatusPill status={status} />
-              </div>
-              {disabled && <ComingSoonBanner />}
-            </NeoCard>
-          )
-
-          if (disabled) {
-            return (
-              <div
-                key={g.type}
-                aria-disabled="true"
-                className="block cursor-not-allowed select-none"
-              >
-                {cardInner}
-              </div>
-            )
-          }
 
           return (
             <Link key={g.type} to={g.path} className="block group">
-              {cardInner}
+              <NeoCard
+                tone={active ? g.tone : 'paper'}
+                shadow="md"
+                className="p-4 relative overflow-hidden transition-all group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 group-hover:shadow-neo-lg group-active:translate-x-[2px] group-active:translate-y-[2px] group-active:shadow-none"
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      'border-neo-2 p-2 shrink-0',
+                      active
+                        ? 'bg-paper text-ink'
+                        : g.tone === 'coral'
+                          ? 'bg-coral text-ink-static'
+                          : g.tone === 'blue'
+                            ? 'bg-blue text-paper-static'
+                            : g.tone === 'lime'
+                              ? 'bg-lime text-ink-static'
+                              : 'bg-mustard text-ink-static',
+                    )}
+                  >
+                    <Icon className="h-5 w-5 stroke-[2.5]" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-display text-sm uppercase tracking-wider font-bold leading-tight">
+                      {g.title}
+                    </div>
+                    <div className="text-xs mt-1 opacity-80">{g.blurb}</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-3">
+                  <div className="font-display text-[10px] uppercase tracking-wider opacity-80">
+                    Day #{dayNumber(today)}
+                  </div>
+                  <StatusPill status={status} />
+                </div>
+              </NeoCard>
             </Link>
           )
         })}
@@ -197,22 +174,6 @@ function SidebarContent() {
         </NeoCard>
       </div>
     </>
-  )
-}
-
-function ComingSoonBanner() {
-  return (
-    <div
-      className="pointer-events-none absolute inset-x-[-20%] top-1/2 -translate-y-1/2 -rotate-6 border-y-[3px] border-stroke py-1.5 text-center font-display text-sm uppercase tracking-[0.3em] font-bold text-ink-static shadow-neo-sm"
-      style={{
-        backgroundImage:
-          'repeating-linear-gradient(45deg, #f4b73e 0 12px, #1b1b3a 12px 22px)',
-      }}
-    >
-      <span className="inline-block bg-mustard px-3 py-0.5 border-neo-2">
-        Coming soon
-      </span>
-    </div>
   )
 }
 

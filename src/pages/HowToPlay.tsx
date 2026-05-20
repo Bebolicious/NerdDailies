@@ -8,7 +8,7 @@ export function HowToPlay() {
         How to play
       </h1>
       <p className="text-sm text-ink-soft mb-6">
-        Three small puzzles drop every day at local midnight. No sign-in — your
+        Four small puzzles drop every day at local midnight. No sign-in — your
         history lives on this device.
       </p>
       <div className="flex flex-col gap-4">
