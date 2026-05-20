@@ -36,7 +36,7 @@ export function HowToPlay() {
         <NeoCard tone="paper" shadow="md" className="p-5">
           <TagPill tone="mustard" className="mb-2">Soundtrack</TagPill>
           <p className="text-sm mt-2">
-            Tiny snippet at first — 2s. Each miss unlocks more: 4s, 8s, 15s,
+            Tiny snippet at first — 1s. Each miss unlocks more: 4s, 8s, 15s,
             30s, then the whole track.
           </p>
         </NeoCard>

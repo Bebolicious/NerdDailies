@@ -8,6 +8,9 @@ import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import type { IgdbGame } from '../../lib/types'
 import { formatLong } from '../../lib/dates'
+import { trimAndEncodeToMp3 } from '../../lib/audioTrim'
+
+const MAX_SECONDS = 60
 
 export function SoundtrackEditor() {
   const { date } = useParams<{ date: string }>()
@@ -22,6 +25,7 @@ export function SoundtrackEditor() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const [playing, setPlaying] = useState(false)
+  const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -59,16 +63,29 @@ export function SoundtrackEditor() {
   async function uploadAudio(file: File) {
     const sb = getSupabase()
     if (!sb || !date) return
-    const ext = file.name.split('.').pop() ?? 'mp3'
-    const path = `${date}/${crypto.randomUUID()}.${ext}`
+    setProcessing(true)
+    setMsg(null)
+    let toUpload: File
+    try {
+      toUpload = await trimAndEncodeToMp3(file, MAX_SECONDS)
+    } catch (e) {
+      setMsg(
+        `Could not process audio: ${e instanceof Error ? e.message : String(e)}`,
+      )
+      setProcessing(false)
+      return
+    }
+    const path = `${date}/${crypto.randomUUID()}.mp3`
     const { error } = await sb.storage
       .from('soundtracks')
-      .upload(path, file, { upsert: true })
+      .upload(path, toUpload, { upsert: true, contentType: 'audio/mpeg' })
+    setProcessing(false)
     if (error) {
       setMsg(`Upload failed: ${error.message}`)
       return
     }
     setAudioPath(path)
+    setMsg(`Trimmed to ${MAX_SECONDS}s and uploaded.`)
   }
 
   async function clearPuzzle() {
@@ -160,7 +177,7 @@ export function SoundtrackEditor() {
   return (
     <AdminLayout
       title={`Soundtrack · ${date}`}
-      subtitle={`Schedule for ${date && formatLong(date)}. Reveal-start sets where the 2s/4s/8s/15s/30s/ALL window begins.`}
+      subtitle={`Schedule for ${date && formatLong(date)}. Uploads are auto-trimmed to the first ${MAX_SECONDS}s and re-encoded as 128 kbps MP3. Reveal-start sets where the 1s/4s/8s/15s/30s/ALL window begins.`}
     >
       {!isSupabaseConfigured() && (
         <NeoCard tone="coral" shadow="sm" className="p-3 mb-4 text-sm">
@@ -199,7 +216,7 @@ export function SoundtrackEditor() {
                 className="border-neo bg-cream-soft px-3 py-2 text-sm font-bold w-32 outline-none focus:bg-paper"
               />
               <span className="text-[10px] text-ink-soft">
-                Each step plays {`{2, 4, 8, 15, 30, ALL}`} seconds starting from
+                Each step plays {`{1, 4, 8, 15, 30, ALL}`} seconds starting from
                 here.
               </span>
             </label>
@@ -253,11 +270,14 @@ export function SoundtrackEditor() {
             ) : (
               <button
                 onClick={() => fileRef.current?.click()}
-                className="border-neo bg-cream-soft w-full py-6 flex flex-col items-center justify-center gap-2 hover:bg-paper"
+                disabled={processing}
+                className="border-neo bg-cream-soft w-full py-6 flex flex-col items-center justify-center gap-2 hover:bg-paper disabled:opacity-60 disabled:cursor-wait"
               >
                 <Upload className="h-6 w-6 stroke-[2.5]" />
                 <span className="font-display text-xs uppercase tracking-wider font-bold">
-                  Upload MP3 / OGG / WAV
+                  {processing
+                    ? `Trimming to ${MAX_SECONDS}s & encoding…`
+                    : 'Upload audio (auto-trimmed to first ' + MAX_SECONDS + 's)'}
                 </span>
               </button>
             )}
@@ -284,14 +304,14 @@ export function SoundtrackEditor() {
             <NeoButton
               tone="coral"
               onClick={clearPuzzle}
-              disabled={saving || clearing}
+              disabled={saving || clearing || processing}
             >
               {clearing ? 'Clearing…' : 'Clear puzzle'}
             </NeoButton>
             <NeoButton
               tone="lime"
               onClick={save}
-              disabled={saving || clearing}
+              disabled={saving || clearing || processing}
             >
               {saving ? 'Saving…' : 'Save puzzle'}
             </NeoButton>

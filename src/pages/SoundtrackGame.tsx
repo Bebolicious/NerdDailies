@@ -53,7 +53,7 @@ function SoundtrackInner({
         </h1>
         <InfoButton
           title="Soundtrack"
-          text="A 2-second snippet plays first. Each wrong guess unlocks more: 4s, 8s, 15s, 30s, then the full track. Solve it as soon as you can hum along."
+          text="A 1-second snippet plays first. Each wrong guess unlocks more: 4s, 8s, 15s, 30s, then the full track. Solve it as soon as you can hum along."
         />
       </div>
       <SoundtrackPlayer

@@ -98,30 +98,41 @@ export function ScreenshotEditor() {
     if (!sb || !date) return
     if (
       !window.confirm(
-        `Delete the screenshot puzzle for ${date} and every uploaded image/cover for that date? This cannot be undone.`,
+        `Delete the screenshot puzzle for ${date}, every uploaded screenshot for that date, and this puzzle's cover? This cannot be undone.`,
       )
     )
       return
     setClearing(true)
     setMsg(null)
 
-    for (const bucket of ['screenshots', 'covers'] as const) {
-      const { data: files, error: listErr } = await sb.storage
-        .from(bucket)
-        .list(date, { limit: 1000 })
-      if (listErr) {
-        setMsg(`Could not list ${bucket}: ${listErr.message}`)
+    // screenshots/ is exclusive to this game — safe to wipe the whole date prefix.
+    const { data: files, error: listErr } = await sb.storage
+      .from('screenshots')
+      .list(date, { limit: 1000 })
+    if (listErr) {
+      setMsg(`Could not list screenshots: ${listErr.message}`)
+      setClearing(false)
+      return
+    }
+    if (files && files.length > 0) {
+      const paths = files.map((f) => `${date}/${f.name}`)
+      const { error: rmErr } = await sb.storage.from('screenshots').remove(paths)
+      if (rmErr) {
+        setMsg(`Could not delete screenshot files: ${rmErr.message}`)
         setClearing(false)
         return
       }
-      if (files && files.length > 0) {
-        const paths = files.map((f) => `${date}/${f.name}`)
-        const { error: rmErr } = await sb.storage.from(bucket).remove(paths)
-        if (rmErr) {
-          setMsg(`Could not delete ${bucket} files: ${rmErr.message}`)
-          setClearing(false)
-          return
-        }
+    }
+
+    // covers/ is shared with the Blur game — only delete this puzzle's cover.
+    if (coverPath) {
+      const { error: coverErr } = await sb.storage
+        .from('covers')
+        .remove([coverPath])
+      if (coverErr) {
+        setMsg(`Could not delete cover file: ${coverErr.message}`)
+        setClearing(false)
+        return
       }
     }
 

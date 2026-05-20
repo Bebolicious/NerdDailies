@@ -71,26 +71,20 @@ export function BlurEditor() {
     if (!sb || !date) return
     if (
       !window.confirm(
-        `Delete the blur puzzle for ${date} and every uploaded cover for that date? This cannot be undone.`,
+        `Delete the blur puzzle for ${date} and this puzzle's cover? This cannot be undone.`,
       )
     )
       return
     setClearing(true)
     setMsg(null)
 
-    const { data: files, error: listErr } = await sb.storage
-      .from('covers')
-      .list(date, { limit: 1000 })
-    if (listErr) {
-      setMsg(`Could not list covers: ${listErr.message}`)
-      setClearing(false)
-      return
-    }
-    if (files && files.length > 0) {
-      const paths = files.map((f) => `${date}/${f.name}`)
-      const { error: rmErr } = await sb.storage.from('covers').remove(paths)
-      if (rmErr) {
-        setMsg(`Could not delete cover files: ${rmErr.message}`)
+    // covers/ is shared with the Screenshot game — only delete this puzzle's cover.
+    if (coverPath) {
+      const { error: coverErr } = await sb.storage
+        .from('covers')
+        .remove([coverPath])
+      if (coverErr) {
+        setMsg(`Could not delete cover file: ${coverErr.message}`)
         setClearing(false)
         return
       }

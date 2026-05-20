@@ -52,7 +52,7 @@ export type SoundtrackPuzzle = {
 // Fixed schedule of how many seconds become playable per wrong-guess step.
 // index 0 = before any guess, index 5 = after 5 wrong guesses.
 export const SOUNDTRACK_UNLOCK_SECONDS: (number | 'ALL')[] = [
-  2,
+  1,
   4,
   8,
   15,
