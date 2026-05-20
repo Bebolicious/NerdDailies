@@ -9,6 +9,8 @@ import { GuessRow } from '../components/game/GuessRow'
 import { useGameState } from '../hooks/useGameState'
 import { useScreenshotPuzzle } from '../hooks/usePuzzle'
 import { todayISO } from '../lib/dates'
+import { sharesFranchise } from '../lib/franchise'
+import { cn } from '../lib/cn'
 
 const TOTAL_GUESSES = 6
 
@@ -34,19 +36,32 @@ function ScreenshotInner({
   })
 
   const visibleStep = Math.min(game.wrongCount, TOTAL_GUESSES - 1)
-  const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
   const finished = game.status !== 'playing'
-  const currentImage =
-    finished && galleryIndex !== null
-      ? puzzle.image_urls[galleryIndex]
-      : puzzle.image_urls[visibleStep]
+  const maxIndex = finished ? TOTAL_GUESSES - 1 : visibleStep
+
+  // Track which still the player is looking at. Defaults to the latest
+  // revealed image; auto-advances when a new wrong guess unlocks the next,
+  // but only if the player was already viewing the most recent image — so
+  // someone scrubbed back to an earlier still isn't yanked forward.
+  const [galleryIndex, setGalleryIndex] = useState<number>(visibleStep)
+  const [prevMaxIndex, setPrevMaxIndex] = useState<number>(maxIndex)
+  if (prevMaxIndex !== maxIndex) {
+    setPrevMaxIndex(maxIndex)
+    if (galleryIndex === prevMaxIndex) setGalleryIndex(maxIndex)
+  }
+
+  const clampedIndex = Math.min(galleryIndex, maxIndex)
+  const currentImage = puzzle.image_urls[clampedIndex]
+  const canPrev = clampedIndex > 0
+  const canNext = clampedIndex < maxIndex
 
   const slotStates = Array.from({ length: TOTAL_GUESSES }).map((_, i) => {
     const g = game.guesses[i]
     if (!g) return i === game.guesses.length ? 'active' : 'empty'
     if (g.kind === 'correct') return 'correct'
+    if (g.kind === 'wrong' && sharesFranchise(g.game, puzzle.game)) return 'close'
     return 'wrong'
-  }) as ('empty' | 'wrong' | 'correct' | 'active')[]
+  }) as ('empty' | 'wrong' | 'close' | 'correct' | 'active')[]
 
   const reversedGuesses = [...game.guesses].reverse()
 
@@ -61,7 +76,7 @@ function ScreenshotInner({
           <div className="relative w-full h-full bg-cream min-h-[260px]">
             <img
               src={currentImage}
-              alt={`Puzzle still ${visibleStep + 1}`}
+              alt={`Puzzle still ${clampedIndex + 1}`}
               className="absolute inset-0 w-full h-full object-cover [image-rendering:pixelated]"
             />
             <InfoButton
@@ -69,32 +84,32 @@ function ScreenshotInner({
               title="Screenshot game"
               text="Guess today's game from six screenshots. Each wrong guess reveals a clearer, easier-to-identify image — see how few hints you need."
             />
-            {finished && (
-              <>
-                <button
-                  onClick={() =>
-                    setGalleryIndex((i) =>
-                      Math.max(0, (i ?? visibleStep) - 1),
-                    )
-                  }
-                  className="absolute left-2 top-1/2 -translate-y-1/2 border-neo-2 bg-emphasis text-paper-static p-2 shadow-neo-sm hover:-translate-x-[2px] hover:-translate-y-[calc(50%+2px)] hover:shadow-neo transition-all"
-                  aria-label="Previous image"
-                >
-                  <ChevronLeft className="h-4 w-4 stroke-[3]" />
-                </button>
-                <button
-                  onClick={() =>
-                    setGalleryIndex((i) =>
-                      Math.min(5, (i ?? visibleStep) + 1),
-                    )
-                  }
-                  className="absolute right-2 top-1/2 -translate-y-1/2 border-neo-2 bg-emphasis text-paper-static p-2 shadow-neo-sm hover:-translate-x-[2px] hover:-translate-y-[calc(50%+2px)] hover:shadow-neo transition-all"
-                  aria-label="Next image"
-                >
-                  <ChevronRight className="h-4 w-4 stroke-[3]" />
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => setGalleryIndex((i) => Math.max(0, Math.min(i, maxIndex) - 1))}
+              disabled={!canPrev}
+              className={cn(
+                'absolute left-2 top-1/2 -translate-y-1/2 border-neo-2 bg-paper text-ink dark:bg-emphasis dark:text-paper-static p-2 shadow-neo-sm transition-all',
+                canPrev
+                  ? 'hover:-translate-x-[2px] hover:-translate-y-[calc(50%+2px)] hover:shadow-neo'
+                  : 'opacity-30 cursor-not-allowed',
+              )}
+              aria-label="Previous image"
+            >
+              <ChevronLeft className="h-4 w-4 stroke-[3]" />
+            </button>
+            <button
+              onClick={() => setGalleryIndex((i) => Math.min(maxIndex, Math.min(i, maxIndex) + 1))}
+              disabled={!canNext}
+              className={cn(
+                'absolute right-2 top-1/2 -translate-y-1/2 border-neo-2 bg-paper text-ink dark:bg-emphasis dark:text-paper-static p-2 shadow-neo-sm transition-all',
+                canNext
+                  ? 'hover:-translate-x-[2px] hover:-translate-y-[calc(50%+2px)] hover:shadow-neo'
+                  : 'opacity-30 cursor-not-allowed',
+              )}
+              aria-label="Next image"
+            >
+              <ChevronRight className="h-4 w-4 stroke-[3]" />
+            </button>
           </div>
         </NeoCard>
 
@@ -144,6 +159,7 @@ function ScreenshotInner({
                 key={game.guesses.length - 1 - i}
                 guess={g}
                 hintSameYear={puzzle.game.year}
+                hintAnswer={puzzle.game}
               />
             ))
           )}
@@ -163,13 +179,17 @@ function ScreenshotInner({
           <span className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
             Guesses
           </span>
-          <GuessSlots total={TOTAL_GUESSES} states={slotStates} />
+          <GuessSlots
+            total={TOTAL_GUESSES}
+            states={slotStates}
+            onSelect={(i) => setGalleryIndex(i)}
+            clickableThrough={maxIndex}
+            activeIndex={clampedIndex}
+          />
         </div>
-        {finished && (
-          <span className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
-            Click ← → on the image to see every still
-          </span>
-        )}
+        <span className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
+          Click guesses or use ← → to scrub stills
+        </span>
       </div>
     </div>
   )

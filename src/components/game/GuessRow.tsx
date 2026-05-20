@@ -1,13 +1,16 @@
 import { ArrowRight, X } from 'lucide-react'
-import type { Guess } from '../../lib/types'
+import type { Guess, IgdbGame } from '../../lib/types'
+import { sharesFranchise } from '../../lib/franchise'
 import { cn } from '../../lib/cn'
 
 export function GuessRow({
   guess,
   hintSameYear,
+  hintAnswer,
 }: {
   guess: Guess
   hintSameYear?: number
+  hintAnswer?: IgdbGame
 }) {
   if (guess.kind === 'skip') {
     return (
@@ -19,28 +22,41 @@ export function GuessRow({
     )
   }
   const isCorrect = guess.kind === 'correct'
+  const sameFranchise =
+    !isCorrect && hintAnswer !== undefined && sharesFranchise(guess.game, hintAnswer)
   const sameYear =
-    !isCorrect && hintSameYear !== undefined && guess.game.year === hintSameYear
+    !isCorrect &&
+    !sameFranchise &&
+    hintSameYear !== undefined &&
+    guess.game.year === hintSameYear
   return (
     <div
       className={cn(
         'border-neo-2 px-4 py-3 flex items-center gap-3',
         isCorrect
           ? 'bg-lime text-ink-static'
-          : sameYear
-            ? 'bg-mustard/40'
-            : 'bg-pink-soft',
+          : sameFranchise
+            ? 'bg-mustard text-ink-static'
+            : sameYear
+              ? 'bg-mustard/40'
+              : 'bg-pink-soft',
       )}
     >
       <div
         className={cn(
           'w-6 h-6 flex items-center justify-center shrink-0',
-          isCorrect ? 'text-lime-deep' : sameYear ? 'text-mustard-deep' : 'text-coral-deep',
+          isCorrect
+            ? 'text-lime-deep'
+            : sameFranchise
+              ? 'text-mustard-deep'
+              : sameYear
+                ? 'text-mustard-deep'
+                : 'text-coral-deep',
         )}
       >
         {isCorrect ? (
           <span className="font-display text-lg font-bold">★</span>
-        ) : sameYear ? (
+        ) : sameFranchise || sameYear ? (
           <ArrowRight className="h-5 w-5 stroke-[3]" />
         ) : (
           <X className="h-5 w-5 stroke-[3]" />
@@ -54,9 +70,9 @@ export function GuessRow({
           {guess.game.year ?? '—'} · {guess.game.genre ?? '—'}
         </div>
       </div>
-      {sameYear && (
+      {(sameFranchise || sameYear) && (
         <span className="font-display text-[10px] uppercase tracking-wider font-bold">
-          Same year
+          {sameFranchise ? 'Same franchise' : 'Same year'}
         </span>
       )}
     </div>

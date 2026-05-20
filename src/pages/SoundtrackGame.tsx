@@ -9,6 +9,7 @@ import { SoundtrackPlayer } from '../components/game/SoundtrackPlayer'
 import { useGameState } from '../hooks/useGameState'
 import { useSoundtrackPuzzle } from '../hooks/usePuzzle'
 import { todayISO } from '../lib/dates'
+import { sharesFranchise } from '../lib/franchise'
 
 const TOTAL_GUESSES = 6
 
@@ -39,8 +40,9 @@ function SoundtrackInner({
     const g = game.guesses[i]
     if (!g) return i === game.guesses.length ? 'active' : 'empty'
     if (g.kind === 'correct') return 'correct'
+    if (g.kind === 'wrong' && sharesFranchise(g.game, puzzle.game)) return 'close'
     return 'wrong'
-  }) as ('empty' | 'wrong' | 'correct' | 'active')[]
+  }) as ('empty' | 'wrong' | 'close' | 'correct' | 'active')[]
 
   return (
     <div className="max-w-3xl">
@@ -93,7 +95,12 @@ function SoundtrackInner({
       {game.guesses.length > 0 && (
         <div className="mt-5 flex flex-col gap-2">
           {game.guesses.map((g, i) => (
-            <GuessRow key={i} guess={g} hintSameYear={puzzle.game.year} />
+            <GuessRow
+              key={i}
+              guess={g}
+              hintSameYear={puzzle.game.year}
+              hintAnswer={puzzle.game}
+            />
           ))}
         </div>
       )}

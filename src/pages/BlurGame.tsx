@@ -10,6 +10,7 @@ import { useGameState } from '../hooks/useGameState'
 import { useBlurPuzzle } from '../hooks/usePuzzle'
 import { todayISO } from '../lib/dates'
 import { BLUR_LEVELS_PX } from '../lib/types'
+import { sharesFranchise } from '../lib/franchise'
 
 const TOTAL_GUESSES = 6
 
@@ -42,8 +43,9 @@ function BlurInner({
     const g = game.guesses[i]
     if (!g) return i === game.guesses.length ? 'active' : 'empty'
     if (g.kind === 'correct') return 'correct'
+    if (g.kind === 'wrong' && sharesFranchise(g.game, puzzle.game)) return 'close'
     return 'wrong'
-  }) as ('empty' | 'wrong' | 'correct' | 'active')[]
+  }) as ('empty' | 'wrong' | 'close' | 'correct' | 'active')[]
 
   return (
     <div className="flex flex-col gap-4 md:flex-1 md:min-h-0">
@@ -120,6 +122,7 @@ function BlurInner({
                 key={game.guesses.length - 1 - i}
                 guess={g}
                 hintSameYear={puzzle.game.year}
+                hintAnswer={puzzle.game}
               />
             ))
           )}

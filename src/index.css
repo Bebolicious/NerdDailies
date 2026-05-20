@@ -1,5 +1,10 @@
 @import 'tailwindcss';
 
+/* `dark:` targets the `[data-theme='dark']` attribute on <html> (the theme
+   toggle in useTheme.ts). Use sparingly — most components should rely on
+   themed tokens (bg-paper, text-ink, …) which already flip via CSS vars. */
+@custom-variant dark (&:where(html[data-theme='dark'] *));
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Color system
    ─────────────────────────────────────────────────────────────────────────────

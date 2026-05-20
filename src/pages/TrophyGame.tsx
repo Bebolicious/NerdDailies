@@ -9,6 +9,7 @@ import { GuessRow } from '../components/game/GuessRow'
 import { useGameState } from '../hooks/useGameState'
 import { useTrophyPuzzle } from '../hooks/usePuzzle'
 import { todayISO } from '../lib/dates'
+import { sharesFranchise } from '../lib/franchise'
 import { cn } from '../lib/cn'
 
 const TOTAL_GUESSES = 6
@@ -45,8 +46,9 @@ function TrophyInner({
     const g = game.guesses[i]
     if (!g) return i === game.guesses.length ? 'active' : 'empty'
     if (g.kind === 'correct') return 'correct'
+    if (g.kind === 'wrong' && sharesFranchise(g.game, puzzle.game)) return 'close'
     return 'wrong'
-  }) as ('empty' | 'wrong' | 'correct' | 'active')[]
+  }) as ('empty' | 'wrong' | 'close' | 'correct' | 'active')[]
 
   return (
     <div className="max-w-3xl">
@@ -163,7 +165,12 @@ function TrophyInner({
       {game.guesses.length > 0 && (
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
           {game.guesses.map((g, i) => (
-            <GuessRow key={i} guess={g} hintSameYear={puzzle.game.year} />
+            <GuessRow
+              key={i}
+              guess={g}
+              hintSameYear={puzzle.game.year}
+              hintAnswer={puzzle.game}
+            />
           ))}
         </div>
       )}
