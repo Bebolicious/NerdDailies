@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Play, Pause, Music } from 'lucide-react'
+import { Play, Pause, Music, Volume2, VolumeX } from 'lucide-react'
 import { NeoCard } from '../ui/NeoCard'
 import { NeoButton } from '../ui/NeoButton'
 import { TagPill } from '../ui/TagPill'
@@ -14,6 +14,15 @@ type Props = {
   finished: boolean
 }
 
+const VOLUME_KEY = 'dailies/soundtrack-volume/v1'
+
+function loadVolume(): number {
+  if (typeof window === 'undefined') return 0.7
+  const raw = window.localStorage.getItem(VOLUME_KEY)
+  const n = raw ? Number(raw) : NaN
+  return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 0.7
+}
+
 export function SoundtrackPlayer({
   audioUrl,
   revealStart,
@@ -25,6 +34,15 @@ export function SoundtrackPlayer({
   const [playing, setPlaying] = useState(false)
   const [position, setPosition] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [volume, setVolume] = useState<number>(loadVolume)
+  const [muted, setMuted] = useState(false)
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.volume = muted ? 0 : volume
+    window.localStorage.setItem(VOLUME_KEY, String(volume))
+  }, [volume, muted])
 
   // Determine playable window length. ALL on the final step (or when finished).
   const stepValue =
@@ -107,7 +125,7 @@ export function SoundtrackPlayer({
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
           <NeoButton
             tone="lime"
             size="md"
@@ -124,6 +142,34 @@ export function SoundtrackPlayer({
               </>
             )}
           </NeoButton>
+          <div className="flex items-center gap-2 border-neo-2 bg-ink-soft px-2 py-1.5">
+            <button
+              type="button"
+              onClick={() => setMuted((m) => !m)}
+              aria-label={muted ? 'Unmute' : 'Mute'}
+              className="text-paper hover:text-lime transition-colors"
+            >
+              {muted || volume === 0 ? (
+                <VolumeX className="h-4 w-4 stroke-[2.5]" />
+              ) : (
+                <Volume2 className="h-4 w-4 stroke-[2.5]" />
+              )}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={muted ? 0 : volume}
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                setVolume(v)
+                if (v > 0 && muted) setMuted(false)
+              }}
+              aria-label="Volume"
+              className="w-24 accent-lime cursor-pointer"
+            />
+          </div>
         </div>
         <div className="flex gap-1.5">
           {SOUNDTRACK_UNLOCK_SECONDS.map((v, i) => (
