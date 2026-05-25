@@ -120,6 +120,40 @@ create table if not exists public.soundtrack_puzzles (
   updated_at timestamptz default now()
 );
 
+-- The weekly Archive game. Keyed by puzzle_week (Monday of the ISO week).
+create table if not exists public.archive_puzzles (
+  id uuid primary key default gen_random_uuid(),
+  puzzle_week date not null unique,
+  game_id bigint not null,
+  game_name text not null,
+  game_year int,
+  game_genre text,
+
+  -- Standard text clues (shelf + filing cabinet)
+  clue_year text not null,
+  clue_genre text not null,
+  clue_platform text not null,
+  clue_pitch text not null,
+  clue_memo text not null,
+  clue_review text not null,
+
+  weekly_theme text,
+
+  -- Asset paths in the 'archive' bucket
+  audio_path text,                           -- optional radio clip
+  frame1_path text not null,                 -- gameplay screenshot
+  frame2_path text not null,                 -- key art
+  chest_logo_path text not null,             -- cropped partial logo
+
+  -- JSONB lets the editor swap shapes (jackpot/clue/redHerring/lore) freely
+  mystery_a jsonb not null,
+  mystery_b jsonb not null,
+  trash_crossed_out text not null,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- ── RLS ─────────────────────────────────────────────────────────────────────
 -- Anyone can READ puzzles for any date (so the public app can fetch them).
 -- Only authenticated users (you, after sign-in) can write.
@@ -129,6 +163,7 @@ alter table public.screenshot_puzzles enable row level security;
 alter table public.trophy_puzzles      enable row level security;
 alter table public.soundtrack_puzzles  enable row level security;
 alter table public.blur_puzzles        enable row level security;
+alter table public.archive_puzzles     enable row level security;
 
 drop policy if exists "public read games" on public.games;
 create policy "public read games" on public.games
@@ -175,6 +210,15 @@ create policy "admin write blur" on public.blur_puzzles
   for all using (auth.role() = 'authenticated')
          with check (auth.role() = 'authenticated');
 
+drop policy if exists "public read archive" on public.archive_puzzles;
+create policy "public read archive" on public.archive_puzzles
+  for select using (true);
+
+drop policy if exists "admin write archive" on public.archive_puzzles;
+create policy "admin write archive" on public.archive_puzzles
+  for all using (auth.role() = 'authenticated')
+         with check (auth.role() = 'authenticated');
+
 -- ── STORAGE BUCKETS ─────────────────────────────────────────────────────────
 -- Public read, authenticated write.
 
@@ -188,6 +232,10 @@ insert into storage.buckets (id, name, public)
 
 insert into storage.buckets (id, name, public)
   values ('covers', 'covers', true)
+  on conflict (id) do nothing;
+
+insert into storage.buckets (id, name, public)
+  values ('archive', 'archive', true)
   on conflict (id) do nothing;
 
 
@@ -238,6 +286,22 @@ create policy "admin update covers bucket" on storage.objects
 drop policy if exists "admin delete covers bucket" on storage.objects;
 create policy "admin delete covers bucket" on storage.objects
   for delete using (bucket_id = 'covers' and auth.role() = 'authenticated');
+
+drop policy if exists "public read archive bucket" on storage.objects;
+create policy "public read archive bucket" on storage.objects
+  for select using (bucket_id = 'archive');
+
+drop policy if exists "admin write archive bucket" on storage.objects;
+create policy "admin write archive bucket" on storage.objects
+  for insert with check (bucket_id = 'archive' and auth.role() = 'authenticated');
+
+drop policy if exists "admin update archive bucket" on storage.objects;
+create policy "admin update archive bucket" on storage.objects
+  for update using (bucket_id = 'archive' and auth.role() = 'authenticated');
+
+drop policy if exists "admin delete archive bucket" on storage.objects;
+create policy "admin delete archive bucket" on storage.objects
+  for delete using (bucket_id = 'archive' and auth.role() = 'authenticated');
 
 -- The old 'blur_images' bucket is no longer used (the blur game now blurs the
 -- official cover from the 'covers' bucket). Drop its policies if they exist.

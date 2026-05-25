@@ -3,7 +3,7 @@ import { cn } from '../../lib/cn'
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode
-  tone?: 'coral' | 'lime' | 'mustard' | 'blue' | 'ink' | 'paper'
+  tone?: 'coral' | 'lime' | 'mustard' | 'blue' | 'violet' | 'ink' | 'paper'
   size?: 'sm' | 'md' | 'lg'
 }
 
@@ -14,6 +14,7 @@ const toneClass: Record<NonNullable<Props['tone']>, string> = {
   lime: 'bg-lime text-ink-static hover:bg-lime-deep',
   mustard: 'bg-mustard text-ink-static hover:bg-mustard-deep',
   blue: 'bg-blue text-paper-static hover:bg-blue-deep',
+  violet: 'bg-violet text-paper-static hover:bg-violet-deep',
   ink: 'bg-emphasis text-paper-static hover:bg-emphasis-hover',
   paper: 'bg-paper text-ink hover:bg-cream-soft',
 }

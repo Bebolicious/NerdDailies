@@ -3,7 +3,7 @@ import { cn } from '../../lib/cn'
 
 type Props = {
   children: ReactNode
-  tone?: 'lime' | 'mustard' | 'coral' | 'blue' | 'ink' | 'paper'
+  tone?: 'lime' | 'mustard' | 'coral' | 'blue' | 'violet' | 'ink' | 'paper'
   className?: string
 }
 
@@ -12,6 +12,7 @@ const toneClass: Record<NonNullable<Props['tone']>, string> = {
   mustard: 'bg-mustard text-ink-static',
   coral: 'bg-coral text-ink-static',
   blue: 'bg-blue text-paper-static',
+  violet: 'bg-violet text-paper-static',
   ink: 'bg-emphasis text-paper-static',
   paper: 'bg-paper text-ink',
 }

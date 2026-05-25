@@ -1,4 +1,9 @@
-export type GameType = 'screenshot' | 'trophy' | 'soundtrack' | 'blur'
+export type GameType =
+  | 'screenshot'
+  | 'trophy'
+  | 'soundtrack'
+  | 'blur'
+  | 'archive'
 
 export type IgdbGame = {
   id: number
@@ -64,6 +69,71 @@ export type Guess =
   | { kind: 'skip'; at: number }
   | { kind: 'wrong'; game: IgdbGame; at: number }
   | { kind: 'correct'; game: IgdbGame; at: number }
+
+// ── ARCHIVE (weekly) ────────────────────────────────────────────────────────
+//
+// A larger, slower puzzle that drops once a week (Monday). Players have 5
+// candles and 3 wrong-guess attempts to ID a mystery game by spending candles
+// on clue objects in an atmospheric "archive room".
+
+export type ArchiveMysteryBoxOutcome = 'jackpot' | 'clue' | 'redHerring' | 'lore'
+
+export type ArchiveMysteryBox = {
+  type: ArchiveMysteryBoxOutcome
+  text: string
+  game?: string // for redHerring: name of the unrelated game (flavor)
+}
+
+export type ArchivePuzzle = {
+  id: string
+  puzzle_week: string // ISO date of the Monday this puzzle runs
+
+  game: IgdbGame
+  weekly_theme?: string
+
+  // Standard text clues (3 shelf boxes + 3 filing-cabinet drawers).
+  clue_year: string
+  clue_genre: string
+  clue_platform: string
+  clue_pitch: string
+  clue_memo: string
+  clue_review: string
+
+  // Audio (radio). Optional — silent if missing.
+  audio_url?: string
+
+  // Wall frames — gameplay + key art. Required so the sharpen mechanic has
+  // something to land on.
+  frame1_url: string
+  frame2_url: string
+
+  // Sealed chest — cropped partial of the official title logo.
+  chest_logo_url: string
+
+  // Mystery boxes + trash. Boxes are hidden until found; trash always visible.
+  mystery_a: ArchiveMysteryBox
+  mystery_b: ArchiveMysteryBox
+  trash_crossed_out: string // a plausible but wrong title
+}
+
+// Visual blur level for the two wall frames, indexed by how many wrong guesses
+// have happened (0..3). 5 conceptual blur levels collapse to 4 reveal steps
+// since the game ends on the 3rd wrong guess.
+export const ARCHIVE_FRAME_BLUR_PX: number[] = [40, 24, 12, 0]
+
+export const ARCHIVE_TOTAL_CANDLES = 5
+export const ARCHIVE_MAX_WRONG = 3
+
+// Cost in candles per object type.
+export const ARCHIVE_COSTS = {
+  shelfBox: 1,
+  cabinetDrawer: 1,
+  radio: 1,
+  frame: 1,
+  mysteryBox: 1,
+  chest: 2,
+  trash: 0,
+} as const
 
 export type PuzzleResult = {
   date: string

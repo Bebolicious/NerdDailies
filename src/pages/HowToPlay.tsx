@@ -40,6 +40,17 @@ export function HowToPlay() {
             30s, then the whole track.
           </p>
         </NeoCard>
+        <NeoCard tone="paper" shadow="md" className="p-5">
+          <TagPill tone="violet" className="mb-2">The Archive · weekly</TagPill>
+          <p className="text-sm mt-2">
+            Drops once a week, on Monday. You start with 5 candles (🕯️) and 3
+            wrong guesses. Spend candles to open shelves, drawers, the radio,
+            wall frames, mystery boxes, and a sealed chest — each yields a
+            different kind of clue. Rummaging the trash is free. Each wrong
+            guess locks a clue and sharpens the wall frames. Solve it with as
+            many candles unspent as possible to earn a higher rank.
+          </p>
+        </NeoCard>
       </div>
     </div>
   )

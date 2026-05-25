@@ -1,4 +1,5 @@
 import type {
+  ArchivePuzzle,
   BlurPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
@@ -108,6 +109,39 @@ export function getMockBlurPuzzle(date: string): BlurPuzzle {
     puzzle_date: date,
     game,
     cover_url: fakeCover(seed, game.name),
+  }
+}
+
+export function getMockArchivePuzzle(week: string): ArchivePuzzle {
+  const seed = hash(week + 'archive')
+  const game = pickGame(seed + 23)
+  const herring = pickGame(seed + 51)
+  const crossed = pickGame(seed + 77)
+  return {
+    id: 'mock-archive-' + seed,
+    puzzle_week: week,
+    game,
+    weekly_theme: 'Weekly theme: dusty mock puzzle',
+    clue_year: String(game.year ?? '????'),
+    clue_genre: game.genre ?? 'Mixed',
+    clue_platform: game.platforms?.[0] ?? 'PC',
+    clue_pitch: 'A landmark title — the kind that defined what came next.',
+    clue_memo: 'Internal note: keep the protagonist\'s coat physics on the cutting-room floor.',
+    clue_review: `9.${(seed % 5) + 2}/10 — "A landmark in player freedom." — Mock Gamer`,
+    audio_url: '',
+    frame1_url: fakeCover(seed + 2, 'GAMEPLAY'),
+    frame2_url: fakeCover(seed + 5, 'KEY ART'),
+    chest_logo_url: fakeCover(seed + 9, game.name.slice(0, 3) + '…'),
+    mystery_a: {
+      type: 'lore',
+      text: `The original design doc called this game "${game.name.split(' ').reverse().join(' ')}".`,
+    },
+    mystery_b: {
+      type: 'redHerring',
+      game: herring.name,
+      text: `Misfiled by Gerald again — this note is about ${herring.name}.`,
+    },
+    trash_crossed_out: crossed.name,
   }
 }
 

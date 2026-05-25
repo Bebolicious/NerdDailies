@@ -1,11 +1,14 @@
 import { getSupabase, isSupabaseConfigured } from './supabase'
 import {
+  getMockArchivePuzzle,
   getMockBlurPuzzle,
   getMockScreenshotPuzzle,
   getMockSoundtrackPuzzle,
   getMockTrophyPuzzle,
 } from '../data/mockPuzzles'
 import type {
+  ArchiveMysteryBox,
+  ArchivePuzzle,
   BlurPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
@@ -111,6 +114,42 @@ export async function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
       genre: data.game_genre ?? undefined,
     },
     cover_url: toPublicUrl('covers')(data.cover_path),
+  }
+}
+
+export async function fetchArchivePuzzle(week: string): Promise<ArchivePuzzle> {
+  const sb = getSupabase()
+  if (!sb) return getMockArchivePuzzle(week)
+  const { data, error } = await sb
+    .from('archive_puzzles')
+    .select('*')
+    .eq('puzzle_week', week)
+    .maybeSingle()
+  if (error || !data) return getMockArchivePuzzle(week)
+  const url = toPublicUrl('archive')
+  return {
+    id: data.id,
+    puzzle_week: data.puzzle_week,
+    game: {
+      id: data.game_id,
+      name: data.game_name,
+      year: data.game_year ?? undefined,
+      genre: data.game_genre ?? undefined,
+    },
+    weekly_theme: data.weekly_theme ?? undefined,
+    clue_year: data.clue_year,
+    clue_genre: data.clue_genre,
+    clue_platform: data.clue_platform,
+    clue_pitch: data.clue_pitch,
+    clue_memo: data.clue_memo,
+    clue_review: data.clue_review,
+    audio_url: data.audio_path ? url(data.audio_path) : undefined,
+    frame1_url: url(data.frame1_path),
+    frame2_url: url(data.frame2_path),
+    chest_logo_url: url(data.chest_logo_path),
+    mystery_a: data.mystery_a as ArchiveMysteryBox,
+    mystery_b: data.mystery_b as ArchiveMysteryBox,
+    trash_crossed_out: data.trash_crossed_out,
   }
 }
 

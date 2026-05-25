@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, format, parseISO, startOfDay } from 'date-fns'
+import { addDays, differenceInCalendarDays, format, parseISO, startOfDay } from 'date-fns'
 
 // The day the project conceptually launches. Day #1 = this date.
 // You can change this once and the day numbering stays consistent.
@@ -51,6 +51,32 @@ export function todayISO(): string {
 export function dayNumber(dateISO: string): number {
   const days = differenceInCalendarDays(parseISO(dateISO), parseISO(PROJECT_EPOCH))
   return Math.max(1, days + 1)
+}
+
+// The Monday of the week that contains `dateISO`. Used by the weekly Archive
+// game so any visit Mon–Sun resolves to the same puzzle.
+export function weekStartISO(dateISO: string): string {
+  const d = parseISO(dateISO)
+  const dow = d.getDay() // 0=Sun … 6=Sat
+  const offset = dow === 0 ? -6 : 1 - dow
+  return format(addDays(d, offset), 'yyyy-MM-dd')
+}
+
+// 1-indexed week number from PROJECT_EPOCH. Both inputs are snapped to their
+// week-start, so the same week always returns the same number.
+export function weekNumber(dateISO: string): number {
+  const startA = parseISO(weekStartISO(PROJECT_EPOCH))
+  const startB = parseISO(weekStartISO(dateISO))
+  const days = differenceInCalendarDays(startB, startA)
+  return Math.max(1, Math.floor(days / 7) + 1)
+}
+
+export function msUntilNextLocalMonday(): number {
+  const now = new Date()
+  const dow = now.getDay() // 0=Sun … 6=Sat
+  const daysUntilMon = dow === 1 ? 7 : (8 - dow) % 7 || 7
+  const next = startOfDay(addDays(now, daysUntilMon))
+  return next.getTime() - now.getTime()
 }
 
 export function formatLong(dateISO: string): string {

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { addDays, format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
-import { Camera, Trophy, Music, Eye, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
+import { Archive, Camera, Trophy, Music, Eye, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
 import { TagPill } from '../../components/ui/TagPill'
 import { useAdminSession } from '../../hooks/useAdminSession'
 import { getSupabase } from '../../lib/supabase'
 import { cn } from '../../lib/cn'
-import { todayISO } from '../../lib/dates'
+import { todayISO, weekStartISO } from '../../lib/dates'
 
 type DayStatus = {
   date: string
@@ -23,6 +23,7 @@ export function AdminDashboard() {
   const nav = useNavigate()
   const [cursor, setCursor] = useState(() => parseISO(todayISO()))
   const [statuses, setStatuses] = useState<DayStatus[]>([])
+  const [archiveWeeks, setArchiveWeeks] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!loading && !email) nav('/admin/login')
@@ -49,15 +50,17 @@ export function AdminDashboard() {
             soundtrack: false,
           })),
         )
+        setArchiveWeeks(new Set())
         return
       }
       const from = format(monthStart, 'yyyy-MM-dd')
       const to = format(monthEnd, 'yyyy-MM-dd')
-      const [s, t, b, m] = await Promise.all([
+      const [s, t, b, m, a] = await Promise.all([
         sb.from('screenshot_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('trophy_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('blur_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('soundtrack_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
+        sb.from('archive_puzzles').select('puzzle_week').gte('puzzle_week', from).lte('puzzle_week', to),
       ])
       const setOf = (rows: { puzzle_date: string }[] | null) =>
         new Set((rows ?? []).map((r) => r.puzzle_date))
@@ -65,7 +68,11 @@ export function AdminDashboard() {
       const tSet = setOf(t.data)
       const bSet = setOf(b.data)
       const mSet = setOf(m.data)
+      const aSet = new Set(
+        (a.data as { puzzle_week: string }[] | null)?.map((r) => r.puzzle_week) ?? [],
+      )
       if (cancelled) return
+      setArchiveWeeks(aSet)
       setStatuses(
         days.map((d) => {
           const iso = format(d, 'yyyy-MM-dd')
@@ -139,11 +146,12 @@ export function AdminDashboard() {
               <ChevronRight className="inline h-3 w-3" />
             </NeoButton>
           </div>
-          <div className="flex items-center gap-4 text-[10px] uppercase tracking-wider font-display">
+          <div className="flex items-center gap-4 text-[10px] uppercase tracking-wider font-display flex-wrap">
             <Legend tone="bg-coral" label="Screenshot" />
             <Legend tone="bg-blue" label="Trophy" />
             <Legend tone="bg-lime" label="Blur" />
             <Legend tone="bg-mustard" label="Soundtrack" />
+            <Legend tone="bg-violet" label="Archive (weekly · Mon)" />
           </div>
         </div>
 
@@ -199,6 +207,13 @@ export function AdminDashboard() {
                     type="soundtrack"
                     set={status?.soundtrack}
                   />
+                  {getDay(d) === 1 && (
+                    <EditorLink
+                      iso={iso}
+                      type="archive"
+                      set={archiveWeeks.has(weekStartISO(iso))}
+                    />
+                  )}
                 </div>
               </NeoCard>
             )
@@ -222,6 +237,13 @@ export function AdminDashboard() {
             <NeoButton tone="mustard" size="sm" onClick={() => nav(`/admin/soundtrack/${today}`)}>
               <Music className="inline h-3 w-3 mr-1" /> Today's soundtrack
             </NeoButton>
+            <NeoButton
+              tone="violet"
+              size="sm"
+              onClick={() => nav(`/admin/archive/${weekStartISO(today)}`)}
+            >
+              <Archive className="inline h-3 w-3 mr-1" /> This week's archive
+            </NeoButton>
           </div>
         </div>
       </main>
@@ -244,7 +266,7 @@ function EditorLink({
   set,
 }: {
   iso: string
-  type: 'screenshot' | 'trophy' | 'blur' | 'soundtrack'
+  type: 'screenshot' | 'trophy' | 'blur' | 'soundtrack' | 'archive'
   set?: boolean
 }) {
   const Icon =
@@ -254,7 +276,9 @@ function EditorLink({
         ? Trophy
         : type === 'blur'
           ? Eye
-          : Music
+          : type === 'soundtrack'
+            ? Music
+            : Archive
   const tone =
     type === 'screenshot'
       ? 'bg-coral text-ink-static'
@@ -262,7 +286,9 @@ function EditorLink({
         ? 'bg-blue text-paper-static'
         : type === 'blur'
           ? 'bg-lime text-ink-static'
-          : 'bg-mustard text-ink-static'
+          : type === 'soundtrack'
+            ? 'bg-mustard text-ink-static'
+            : 'bg-violet text-paper-static'
   return (
     <Link
       to={`/admin/${type}/${iso}`}
@@ -272,7 +298,7 @@ function EditorLink({
       )}
     >
       <Icon className="h-2.5 w-2.5 stroke-[3]" />
-      {set ? 'set' : '+ add'}
+      {set ? (type === 'archive' ? 'week set' : 'set') : type === 'archive' ? '+ week' : '+ add'}
     </Link>
   )
 }

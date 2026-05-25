@@ -17,6 +17,7 @@ dist-ssr
 
 # Internal notes (not for git)
 ARCHITECTURE.md
+docs/
 
 # Editor directories and files
 .vscode/*

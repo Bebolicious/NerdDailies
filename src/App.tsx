@@ -14,6 +14,9 @@ const SoundtrackGame = lazy(() =>
 const BlurGame = lazy(() =>
   import('./pages/BlurGame').then((m) => ({ default: m.BlurGame })),
 )
+const ArchiveGame = lazy(() =>
+  import('./pages/ArchiveGame').then((m) => ({ default: m.ArchiveGame })),
+)
 const HowToPlay = lazy(() =>
   import('./pages/HowToPlay').then((m) => ({ default: m.HowToPlay })),
 )
@@ -46,6 +49,11 @@ const SoundtrackEditor = lazy(() =>
 const BlurEditor = lazy(() =>
   import('./pages/admin/BlurEditor').then((m) => ({ default: m.BlurEditor })),
 )
+const ArchiveEditor = lazy(() =>
+  import('./pages/admin/ArchiveEditor').then((m) => ({
+    default: m.ArchiveEditor,
+  })),
+)
 
 function App() {
   return (
@@ -58,6 +66,7 @@ function App() {
           <Route path="/admin/trophy/:date" element={<TrophyEditor />} />
           <Route path="/admin/soundtrack/:date" element={<SoundtrackEditor />} />
           <Route path="/admin/blur/:date" element={<BlurEditor />} />
+          <Route path="/admin/archive/:date" element={<ArchiveEditor />} />
 
           <Route path="/" element={<Navigate to="/screenshot" replace />} />
           <Route
@@ -89,6 +98,14 @@ function App() {
             element={
               <ShellLayout>
                 <BlurGame />
+              </ShellLayout>
+            }
+          />
+          <Route
+            path="/archive"
+            element={
+              <ShellLayout>
+                <ArchiveGame />
               </ShellLayout>
             }
           />

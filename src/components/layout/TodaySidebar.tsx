@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
-import { Camera, Eye, Music, Trophy, X } from 'lucide-react'
+import { Archive, Camera, Eye, Music, Trophy, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { NeoCard } from '../ui/NeoCard'
 import { TagPill } from '../ui/TagPill'
 import { useCountdownToMidnight } from '../../hooks/useCountdown'
-import { dayNumber, formatLong, todayISO } from '../../lib/dates'
+import { dayNumber, formatLong, todayISO, weekNumber, weekStartISO } from '../../lib/dates'
 import { getResult } from '../../lib/scoreStore'
 import type { GameType } from '../../lib/types'
 import { cn } from '../../lib/cn'
@@ -14,13 +14,15 @@ const GAMES: Array<{
   title: string
   blurb: string
   path: string
-  tone: 'coral' | 'blue' | 'mustard' | 'lime'
+  tone: 'coral' | 'blue' | 'mustard' | 'lime' | 'violet'
   icon: typeof Camera
+  cadence: 'daily' | 'weekly'
 }> = [
-  { type: 'screenshot', title: 'Screenshot', blurb: 'Guess the game based on 6 screenshots.', path: '/screenshot', tone: 'coral', icon: Camera },
-  { type: 'trophy', title: 'Trophy', blurb: 'Guess the game based on a trophy/achievement.', path: '/trophy', tone: 'blue', icon: Trophy },
-  { type: 'blur', title: 'Blur Reveal', blurb: 'Guess the game from its blurred cover — each miss sharpens it.', path: '/blur', tone: 'lime', icon: Eye },
-  { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name the game by only listening.', path: '/soundtrack', tone: 'mustard', icon: Music },
+  { type: 'screenshot', title: 'Screenshot', blurb: 'Guess the game based on 6 screenshots.', path: '/screenshot', tone: 'coral', icon: Camera, cadence: 'daily' },
+  { type: 'trophy', title: 'Trophy', blurb: 'Guess the game based on a trophy/achievement.', path: '/trophy', tone: 'blue', icon: Trophy, cadence: 'daily' },
+  { type: 'blur', title: 'Blur Reveal', blurb: 'Guess the game from its blurred cover — each miss sharpens it.', path: '/blur', tone: 'lime', icon: Eye, cadence: 'daily' },
+  { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name the game by only listening.', path: '/soundtrack', tone: 'mustard', icon: Music, cadence: 'daily' },
+  { type: 'archive', title: 'The Archive', blurb: 'Weekly. Spend candles in a dark archive room to identify a mystery game.', path: '/archive', tone: 'violet', icon: Archive, cadence: 'weekly' },
 ]
 
 type Props = {
@@ -106,7 +108,8 @@ function SidebarContent() {
 
       <div className="px-6 flex flex-col gap-4">
         {GAMES.map((g) => {
-          const result = getResult(today, g.type)
+          const resultKey = g.cadence === 'weekly' ? weekStartISO(today) : today
+          const result = getResult(resultKey, g.type)
           const active = location.pathname.startsWith(g.path)
           const status: 'play' | 'in_progress' | 'solved' | 'lost' = result
             ? result.status === 'solved'
@@ -124,6 +127,14 @@ function SidebarContent() {
                 shadow="md"
                 className="p-4 relative overflow-hidden transition-all group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 group-hover:shadow-neo-lg group-active:translate-x-[2px] group-active:translate-y-[2px] group-active:shadow-none"
               >
+                {g.cadence === 'weekly' && (
+                  <div
+                    className="absolute top-3 -right-8 w-28 text-center rotate-45 bg-mustard text-ink-static border-y-2 border-stroke font-display text-[9px] uppercase tracking-[0.15em] font-bold py-0.5 shadow-neo-sm pointer-events-none"
+                    aria-hidden
+                  >
+                    Weekly!
+                  </div>
+                )}
                 <div className="flex items-start gap-3">
                   <div
                     className={cn(
@@ -136,7 +147,9 @@ function SidebarContent() {
                             ? 'bg-blue text-paper-static'
                             : g.tone === 'lime'
                               ? 'bg-lime text-ink-static'
-                              : 'bg-mustard text-ink-static',
+                              : g.tone === 'violet'
+                                ? 'bg-violet text-paper-static'
+                                : 'bg-mustard text-ink-static',
                     )}
                   >
                     <Icon className="h-5 w-5 stroke-[2.5]" />
@@ -150,9 +163,11 @@ function SidebarContent() {
                 </div>
                 <div className="flex items-center justify-between mt-3">
                   <div className="font-display text-[10px] uppercase tracking-wider opacity-80">
-                    Day #{dayNumber(today)}
+                    {g.cadence === 'weekly'
+                      ? `Week #${weekNumber(today)} · weekly`
+                      : `Day #${dayNumber(today)}`}
                   </div>
-                  <StatusPill status={status} />
+                  <StatusPill status={status} cadence={g.cadence} />
                 </div>
               </NeoCard>
             </Link>
@@ -179,8 +194,10 @@ function SidebarContent() {
 
 function StatusPill({
   status,
+  cadence,
 }: {
   status: 'play' | 'in_progress' | 'solved' | 'lost'
+  cadence: 'daily' | 'weekly'
 }) {
   switch (status) {
     case 'solved':
@@ -188,7 +205,11 @@ function StatusPill({
     case 'in_progress':
       return <TagPill tone="paper">In progress</TagPill>
     case 'lost':
-      return <TagPill tone="coral">Try tomorrow</TagPill>
+      return (
+        <TagPill tone="coral">
+          {cadence === 'weekly' ? 'Try next week' : 'Try tomorrow'}
+        </TagPill>
+      )
     default:
       return <TagPill tone="paper">Play →</TagPill>
   }

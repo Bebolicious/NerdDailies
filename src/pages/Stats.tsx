@@ -19,6 +19,7 @@ export function Stats() {
     trophy: [],
     blur: [],
     soundtrack: [],
+    archive: [],
   }
   results.forEach((r) => byType[r.gameType].push(r))
 
@@ -37,8 +38,8 @@ export function Stats() {
         <div className="font-display text-5xl font-bold mt-2">{streak}</div>
         <div className="text-xs mt-2">Days with at least one puzzle solved.</div>
       </NeoCard>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {(['screenshot', 'trophy', 'blur', 'soundtrack'] as GameType[]).map((t) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {(['screenshot', 'trophy', 'blur', 'soundtrack', 'archive'] as GameType[]).map((t) => {
           const rs = byType[t]
           const solved = rs.filter((r) => r.status === 'solved').length
           const avg =
@@ -56,7 +57,9 @@ export function Stats() {
                 ? 'blue'
                 : t === 'blur'
                   ? 'lime'
-                  : 'mustard'
+                  : t === 'soundtrack'
+                    ? 'mustard'
+                    : 'violet'
           return (
             <NeoCard key={t} tone="paper" shadow="md" className="p-4">
               <TagPill tone={tone}>{t}</TagPill>

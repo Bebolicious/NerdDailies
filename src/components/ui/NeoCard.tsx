@@ -3,7 +3,7 @@ import { cn } from '../../lib/cn'
 
 type Props = HTMLAttributes<HTMLDivElement> & {
   children: ReactNode
-  tone?: 'paper' | 'coral' | 'lime' | 'mustard' | 'blue' | 'pink' | 'ink'
+  tone?: 'paper' | 'coral' | 'lime' | 'mustard' | 'blue' | 'violet' | 'pink' | 'ink'
   shadow?: 'none' | 'sm' | 'md' | 'lg'
 }
 
@@ -13,6 +13,7 @@ const toneClass: Record<NonNullable<Props['tone']>, string> = {
   lime: 'bg-lime text-ink-static',
   mustard: 'bg-mustard text-ink-static',
   blue: 'bg-blue text-paper-static',
+  violet: 'bg-violet text-paper-static',
   pink: 'bg-pink',
   ink: 'bg-emphasis text-paper-static',
 }
