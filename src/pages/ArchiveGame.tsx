@@ -820,11 +820,6 @@ function RadioPanel({
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
-  useEffect(() => {
-    if (opened && audioRef.current && audioUrl) {
-      audioRef.current.play().then(() => setPlaying(true)).catch(() => {})
-    }
-  }, [opened, audioUrl])
   return (
     <div className="border-[3px] border-stroke bg-paper p-3">
       <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink-soft mb-3 flex items-center gap-2">
