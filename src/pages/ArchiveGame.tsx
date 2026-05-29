@@ -546,7 +546,13 @@ function ArchiveRoom({
         <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-2 flex items-center gap-2">
           <Search className="h-3 w-3 stroke-[3]" /> Desk · case file
         </div>
-        <LogoSilhouette name={puzzle.game.name} revealed={finished} />
+        {!finished && (
+          <CaseDossier
+            wrongs={state.wrongs}
+            maxWrong={ARCHIVE_MAX_WRONG}
+            weeklyTheme={puzzle.weekly_theme}
+          />
+        )}
         <div className="mt-3">
           {!finished ? (
             <GameSearch placeholder="Name the game…" onGuess={onGuess} />
@@ -820,6 +826,10 @@ function RadioPanel({
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
+  const [volume, setVolume] = useState(0.7)
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume
+  }, [volume])
   return (
     <div className="border-[3px] border-stroke bg-paper p-3">
       <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink-soft mb-3 flex items-center gap-2">
@@ -837,19 +847,32 @@ function RadioPanel({
                 onPlay={() => setPlaying(true)}
                 onPause={() => setPlaying(false)}
               />
-              <NeoButton
-                tone="mustard"
-                size="sm"
-                onClick={() => {
-                  const a = audioRef.current
-                  if (!a) return
-                  if (playing) a.pause()
-                  else a.play()
-                }}
-              >
-                <Music className="inline h-3 w-3 mr-1" />
-                {playing ? 'Pause' : 'Play'}
-              </NeoButton>
+              <div className="flex items-center gap-2">
+                <NeoButton
+                  tone="mustard"
+                  size="sm"
+                  onClick={() => {
+                    const a = audioRef.current
+                    if (!a) return
+                    if (playing) a.pause()
+                    else a.play()
+                  }}
+                >
+                  <Music className="inline h-3 w-3 mr-1" />
+                  {playing ? 'Pause' : 'Play'}
+                </NeoButton>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={volume}
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                  aria-label="Volume"
+                  title={`Volume · ${Math.round(volume * 100)}%`}
+                  className="archive-volume w-16 h-1 cursor-pointer"
+                />
+              </div>
             </>
           ) : (
             <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
@@ -1116,22 +1139,40 @@ function Waveform({ playing }: { playing: boolean }) {
   )
 }
 
-function LogoSilhouette({ name, revealed }: { name: string; revealed: boolean }) {
+function CaseDossier({
+  wrongs,
+  maxWrong,
+  weeklyTheme,
+}: {
+  wrongs: WrongStamp[]
+  maxWrong: number
+  weeklyTheme?: string
+}) {
   return (
-    <div className="border-neo-2 bg-cream-soft p-3 flex items-center justify-center min-h-[56px]">
-      <div
-        className={cn(
-          'font-display text-2xl font-bold tracking-wider uppercase select-none',
-          !revealed && 'text-ink-static bg-ink-static',
-        )}
-        style={
-          !revealed
-            ? { color: 'transparent', textShadow: '0 0 0 var(--color-emphasis)' }
-            : undefined
-        }
-      >
-        {revealed ? name : name.replace(/\S/g, '█')}
+    <div className="border-neo-2 bg-cream-soft p-3">
+      {weeklyTheme && (
+        <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink-soft mb-2">
+          ▸ Lead · {weeklyTheme}
+        </div>
+      )}
+      <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1 text-ink">
+        Dismissed suspects · {wrongs.length} / {maxWrong}
       </div>
+      {wrongs.length > 0 ? (
+        <ul className="space-y-0.5">
+          {wrongs.map((w, i) => (
+            <li key={i} className="text-sm font-serif italic text-ink">
+              <span className="text-coral font-bold mr-1">✗</span>
+              <span className="line-through opacity-80">{w.name}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="text-sm font-serif italic text-ink-soft">
+          No suspects ruled out yet. Open clues to gather evidence, then name the
+          game.
+        </div>
+      )}
     </div>
   )
 }
@@ -1468,6 +1509,30 @@ function ArchiveStyles() {
       }
       .archive-chest-open {
         box-shadow: 0 0 20px color-mix(in oklab, var(--color-mustard) 25%, transparent) inset;
+      }
+      .archive-volume {
+        -webkit-appearance: none;
+        appearance: none;
+        background: var(--color-stroke);
+        border-radius: 0;
+        outline: none;
+      }
+      .archive-volume::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 10px;
+        height: 14px;
+        background: var(--color-mustard);
+        border: 2px solid var(--color-stroke);
+        cursor: pointer;
+      }
+      .archive-volume::-moz-range-thumb {
+        width: 10px;
+        height: 14px;
+        background: var(--color-mustard);
+        border: 2px solid var(--color-stroke);
+        cursor: pointer;
+        border-radius: 0;
       }
     `}</style>
   )

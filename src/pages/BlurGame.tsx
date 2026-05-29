@@ -54,7 +54,7 @@ function BlurInner({
           <NeoCard
             tone="ink"
             shadow="md"
-            className="p-0 overflow-hidden relative aspect-[3/4] w-full max-w-[360px] mx-auto md:h-full md:w-auto md:max-w-full md:max-h-full md:mx-0"
+            className="p-0 overflow-hidden relative aspect-[3/4] w-full max-w-[360px] mx-auto md:h-full md:w-auto md:max-w-[450px] md:max-h-[600px] md:mx-0"
           >
             <div className="relative w-full h-full bg-cream overflow-hidden">
               <img

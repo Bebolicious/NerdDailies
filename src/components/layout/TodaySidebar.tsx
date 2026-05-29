@@ -3,7 +3,6 @@ import { Archive, Camera, Eye, Music, Trophy, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { NeoCard } from '../ui/NeoCard'
 import { TagPill } from '../ui/TagPill'
-import { useCountdownToMidnight } from '../../hooks/useCountdown'
 import { dayNumber, formatLong, todayISO, weekNumber, weekStartISO } from '../../lib/dates'
 import { getResult } from '../../lib/scoreStore'
 import type { GameType } from '../../lib/types'
@@ -92,7 +91,6 @@ export function TodaySidebar({ mobileOpen, onClose }: Props) {
 
 function SidebarContent() {
   const today = todayISO()
-  const countdown = useCountdownToMidnight()
   const location = useLocation()
 
   return (
@@ -175,19 +173,7 @@ function SidebarContent() {
         })}
       </div>
 
-      <div className="px-6 mt-6 pb-6">
-        <NeoCard tone="ink" shadow="md" className="p-4">
-          <div className="font-display text-[10px] uppercase tracking-[0.2em] opacity-70 mb-2">
-            Next drop in
-          </div>
-          <div className="font-display text-3xl font-bold tracking-wider text-lime">
-            {countdown}
-          </div>
-          <div className="font-display text-[10px] uppercase tracking-wider opacity-70 mt-2">
-            New puzzles @ 00:00 local
-          </div>
-        </NeoCard>
-      </div>
+      <div className="pb-6" />
     </>
   )
 }
