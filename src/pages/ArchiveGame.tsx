@@ -68,6 +68,7 @@ type ArchiveSession = {
   chestOpened: boolean
   trashRummaged: boolean
   trashOutcome: 'crossed' | 'mysteryB' | 'nothing' | null
+  spareCandleClaimed: boolean
   jackpotUntil: number | null
   startedAt: number
   finishedAt: number | null
@@ -106,6 +107,7 @@ function emptySession(now: number): ArchiveSession {
     chestOpened: false,
     trashRummaged: false,
     trashOutcome: null,
+    spareCandleClaimed: false,
     jackpotUntil: null,
     startedAt: now,
     finishedAt: null,
@@ -453,6 +455,22 @@ function ArchiveRoom({
               }))
             }
             cost={ARCHIVE_COSTS.cabinetDrawer}
+            spareCandleClaimed={state.spareCandleClaimed}
+            spareCandleDisabled={finished}
+            onClaimSpareCandle={() =>
+              setState((p) =>
+                p.status !== 'playing' || p.spareCandleClaimed
+                  ? p
+                  : {
+                      ...p,
+                      spareCandleClaimed: true,
+                      candles: Math.min(
+                        ARCHIVE_TOTAL_CANDLES,
+                        p.candles + 1,
+                      ),
+                    },
+              )
+            }
           />
           <RadioPanel
             opened={state.radio}
@@ -776,15 +794,21 @@ function FilingCabinet({
   disabled,
   onOpen,
   cost,
+  spareCandleClaimed,
+  spareCandleDisabled,
+  onClaimSpareCandle,
 }: {
   opened: boolean[]
   locked: boolean[]
   disabled?: boolean
   onOpen: (idx: number) => void
   cost: number
+  spareCandleClaimed: boolean
+  spareCandleDisabled?: boolean
+  onClaimSpareCandle: () => void
 }) {
   return (
-    <div className="border-[3px] border-stroke bg-paper p-3">
+    <div className="border-[3px] border-stroke bg-paper p-3 relative">
       <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink-soft mb-3 flex items-center gap-2">
         <Scroll className="h-3 w-3 stroke-[3]" /> Filing Cabinet
       </div>
@@ -807,6 +831,23 @@ function FilingCabinet({
           </ArchiveObject>
         ))}
       </div>
+      {/* Hidden spare candle: a faint flicker wedged behind the cabinet.
+          One-time pickup, +1 candle (capped at total). */}
+      {!spareCandleClaimed && (
+        <button
+          onClick={onClaimSpareCandle}
+          disabled={spareCandleDisabled}
+          className="archive-spare-glint absolute -bottom-2 -left-2 w-6 h-7 flex items-end justify-center disabled:!opacity-0"
+          aria-label="A candle stub flickers behind the cabinet"
+          title="A candle stub flickers behind the cabinet…"
+        >
+          <div className="w-3 h-5 bg-paper-static border-[2px] border-stroke" />
+          <div
+            className="archive-flame absolute -top-0.5 w-3 h-3"
+            style={{ animationDelay: '0.4s' }}
+          />
+        </button>
+      )}
     </div>
   )
 }
@@ -1509,6 +1550,13 @@ function ArchiveStyles() {
       }
       .archive-chest-open {
         box-shadow: 0 0 20px color-mix(in oklab, var(--color-mustard) 25%, transparent) inset;
+      }
+      @keyframes archive-spare-glint {
+        0%, 100% { opacity: 0; }
+        50% { opacity: 0.3; }
+      }
+      .archive-spare-glint {
+        animation: archive-spare-glint 5s ease-in-out infinite;
       }
       .archive-volume {
         -webkit-appearance: none;

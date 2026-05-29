@@ -96,7 +96,7 @@ function SidebarContent() {
 
   return (
     <>
-      <div className="px-6 pt-6 pb-4 flex items-center justify-between">
+      <div className="px-6 pt-5 pb-3 flex items-center justify-between">
         <div className="font-display text-xs uppercase tracking-[0.2em] font-bold">
           Today
         </div>
@@ -105,7 +105,7 @@ function SidebarContent() {
         </div>
       </div>
 
-      <div className="px-6 flex flex-col gap-4">
+      <div className="px-6 flex flex-col gap-3">
         {GAMES.map((g) => {
           const resultKey = g.cadence === 'weekly' ? weekStartISO(today) : today
           const result = getResult(resultKey, g.type)
@@ -124,7 +124,7 @@ function SidebarContent() {
               <NeoCard
                 tone={active ? g.tone : 'paper'}
                 shadow="md"
-                className="p-4 relative overflow-hidden transition-all group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 group-hover:shadow-neo-lg group-active:translate-x-[2px] group-active:translate-y-[2px] group-active:shadow-none"
+                className="p-3 relative overflow-hidden transition-all group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 group-hover:shadow-neo-lg group-active:translate-x-[2px] group-active:translate-y-[2px] group-active:shadow-none"
               >
                 {g.cadence === 'weekly' && (
                   <div
@@ -137,7 +137,7 @@ function SidebarContent() {
                 <div className="flex items-start gap-3">
                   <div
                     className={cn(
-                      'border-neo-2 p-2 shrink-0',
+                      'border-neo-2 p-1.5 shrink-0',
                       active
                         ? 'bg-paper text-ink'
                         : g.tone === 'coral'
@@ -162,7 +162,7 @@ function SidebarContent() {
                     <div className="text-xs mt-1 opacity-80">{g.blurb}</div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between mt-3">
+                <div className="flex items-center justify-between mt-2">
                   <div className="font-display text-[10px] uppercase tracking-wider opacity-80">
                     {g.cadence === 'weekly'
                       ? `Week #${weekNumber(today)} · weekly`
@@ -176,7 +176,7 @@ function SidebarContent() {
         })}
       </div>
 
-      <div className="pb-6" />
+      <div className="pb-4" />
     </>
   )
 }
