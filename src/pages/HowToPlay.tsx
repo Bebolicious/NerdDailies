@@ -41,6 +41,17 @@ export function HowToPlay() {
           </p>
         </NeoCard>
         <NeoCard tone="paper" shadow="md" className="p-5">
+          <TagPill tone="paper" className="mb-2">Mini Crossword</TagPill>
+          <p className="text-sm mt-2">
+            Fill every white square. Click a clue (right) or any cell to start;
+            clicking a selected cell swaps between across and down. Tab or
+            Enter jumps to the next clue. There's no timer — instead, you have{' '}
+            <strong>Check</strong> and <strong>Reveal</strong>, each with three
+            scopes (square, word, puzzle). Reveal a whole word and that answer
+            locks in.
+          </p>
+        </NeoCard>
+        <NeoCard tone="paper" shadow="md" className="p-5">
           <TagPill tone="violet" className="mb-2">The Archive · weekly</TagPill>
           <p className="text-sm mt-2">
             Drops once a week, on Monday. You start with 5 candles (🕯️) and 3

@@ -17,6 +17,9 @@ const BlurGame = lazy(() =>
 const ArchiveGame = lazy(() =>
   import('./pages/ArchiveGame').then((m) => ({ default: m.ArchiveGame })),
 )
+const CrosswordGame = lazy(() =>
+  import('./pages/CrosswordGame').then((m) => ({ default: m.CrosswordGame })),
+)
 const HowToPlay = lazy(() =>
   import('./pages/HowToPlay').then((m) => ({ default: m.HowToPlay })),
 )
@@ -54,6 +57,11 @@ const ArchiveEditor = lazy(() =>
     default: m.ArchiveEditor,
   })),
 )
+const CrosswordEditor = lazy(() =>
+  import('./pages/admin/CrosswordEditor').then((m) => ({
+    default: m.CrosswordEditor,
+  })),
+)
 
 function App() {
   return (
@@ -67,6 +75,7 @@ function App() {
           <Route path="/admin/soundtrack/:date" element={<SoundtrackEditor />} />
           <Route path="/admin/blur/:date" element={<BlurEditor />} />
           <Route path="/admin/archive/:date" element={<ArchiveEditor />} />
+          <Route path="/admin/crossword/:date" element={<CrosswordEditor />} />
 
           <Route path="/" element={<Navigate to="/screenshot" replace />} />
           <Route
@@ -106,6 +115,14 @@ function App() {
             element={
               <ShellLayout>
                 <ArchiveGame />
+              </ShellLayout>
+            }
+          />
+          <Route
+            path="/crossword"
+            element={
+              <ShellLayout>
+                <CrosswordGame />
               </ShellLayout>
             }
           />

@@ -4,6 +4,7 @@ export type GameType =
   | 'soundtrack'
   | 'blur'
   | 'archive'
+  | 'crossword'
 
 export type IgdbGame = {
   id: number
@@ -134,6 +135,32 @@ export const ARCHIVE_COSTS = {
   chest: 2,
   trash: 0,
 } as const
+
+// ── CROSSWORD (daily) ───────────────────────────────────────────────────────
+//
+// A mini crossword. The solution is a flat row-major array of length size*size;
+// each cell is either a single uppercase letter or `null` (a block / hidden
+// square). Numbering, word slots and across/down lookups are derived from the
+// solution at render time — `clues` only stores the visible text keyed by the
+// auto-assigned number.
+
+export const CROSSWORD_MIN_SIZE = 4
+export const CROSSWORD_MAX_SIZE = 8
+export const CROSSWORD_MIN_WORD_LENGTH = 3
+
+export type CrosswordClue = {
+  number: number
+  text: string
+}
+
+export type CrosswordPuzzle = {
+  id: string
+  puzzle_date: string
+  size: number
+  solution: (string | null)[] // length = size * size
+  clues_across: CrosswordClue[]
+  clues_down: CrosswordClue[]
+}
 
 export type PuzzleResult = {
   date: string

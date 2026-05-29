@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Archive, Camera, Eye, Music, Trophy, X } from 'lucide-react'
+import { Archive, Camera, Eye, Grid3x3, Music, Trophy, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { NeoCard } from '../ui/NeoCard'
 import { TagPill } from '../ui/TagPill'
@@ -13,7 +13,7 @@ const GAMES: Array<{
   title: string
   blurb: string
   path: string
-  tone: 'coral' | 'blue' | 'mustard' | 'lime' | 'violet'
+  tone: 'coral' | 'blue' | 'mustard' | 'lime' | 'violet' | 'pink'
   icon: typeof Camera
   cadence: 'daily' | 'weekly'
 }> = [
@@ -21,6 +21,7 @@ const GAMES: Array<{
   { type: 'trophy', title: 'Trophy', blurb: 'Guess the game based on a trophy/achievement.', path: '/trophy', tone: 'blue', icon: Trophy, cadence: 'daily' },
   { type: 'blur', title: 'Blur Reveal', blurb: 'Guess the game from its blurred cover — each miss sharpens it.', path: '/blur', tone: 'lime', icon: Eye, cadence: 'daily' },
   { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name the game by only listening.', path: '/soundtrack', tone: 'mustard', icon: Music, cadence: 'daily' },
+  { type: 'crossword', title: 'Mini Crossword', blurb: 'Fill the mini. Across and Down clues — no timer.', path: '/crossword', tone: 'pink', icon: Grid3x3, cadence: 'daily' },
   { type: 'archive', title: 'The Archive', blurb: 'Weekly. Spend candles in a dark archive room to identify a mystery game.', path: '/archive', tone: 'violet', icon: Archive, cadence: 'weekly' },
 ]
 
@@ -147,7 +148,9 @@ function SidebarContent() {
                               ? 'bg-lime text-ink-static'
                               : g.tone === 'violet'
                                 ? 'bg-violet text-paper-static'
-                                : 'bg-mustard text-ink-static',
+                                : g.tone === 'pink'
+                                  ? 'bg-pink text-ink-static'
+                                  : 'bg-mustard text-ink-static',
                     )}
                   >
                     <Icon className="h-5 w-5 stroke-[2.5]" />

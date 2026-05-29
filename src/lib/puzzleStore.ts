@@ -2,6 +2,7 @@ import { getSupabase, isSupabaseConfigured } from './supabase'
 import {
   getMockArchivePuzzle,
   getMockBlurPuzzle,
+  getMockCrosswordPuzzle,
   getMockScreenshotPuzzle,
   getMockSoundtrackPuzzle,
   getMockTrophyPuzzle,
@@ -10,6 +11,8 @@ import type {
   ArchiveMysteryBox,
   ArchivePuzzle,
   BlurPuzzle,
+  CrosswordClue,
+  CrosswordPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
   TrophyPuzzle,
@@ -150,6 +153,30 @@ export async function fetchArchivePuzzle(week: string): Promise<ArchivePuzzle> {
     mystery_a: data.mystery_a as ArchiveMysteryBox,
     mystery_b: data.mystery_b as ArchiveMysteryBox,
     trash_crossed_out: data.trash_crossed_out,
+  }
+}
+
+export async function fetchCrosswordPuzzle(
+  date: string,
+): Promise<CrosswordPuzzle> {
+  const sb = getSupabase()
+  if (!sb) return getMockCrosswordPuzzle(date)
+  const { data, error } = await sb
+    .from('crossword_puzzles')
+    .select('*')
+    .eq('puzzle_date', date)
+    .maybeSingle()
+  if (error || !data) return getMockCrosswordPuzzle(date)
+  // Postgres text[] returns the JS string "NULL" or actually preserves nulls?
+  // Supabase's PostgREST returns SQL NULL as JS null inside the array, so the
+  // shape lines up with CrosswordPuzzle.solution directly.
+  return {
+    id: data.id,
+    puzzle_date: data.puzzle_date,
+    size: data.size,
+    solution: data.solution as (string | null)[],
+    clues_across: (data.clues_across as CrosswordClue[]) ?? [],
+    clues_down: (data.clues_down as CrosswordClue[]) ?? [],
   }
 }
 

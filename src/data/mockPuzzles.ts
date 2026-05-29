@@ -1,6 +1,7 @@
 import type {
   ArchivePuzzle,
   BlurPuzzle,
+  CrosswordPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
   TrophyPuzzle,
@@ -142,6 +143,46 @@ export function getMockArchivePuzzle(week: string): ArchivePuzzle {
       text: `Misfiled by Gerald again — this note is about ${herring.name}.`,
     },
     trash_crossed_out: crossed.name,
+  }
+}
+
+// A canned mini-crossword used when Supabase isn't configured. The 4x4 is a
+// symmetric "double crossword" — every row word matches the column at the
+// same index, so all eight slots are real words: SPAR, PACE, ACES, REST.
+//
+//     0  1  2  3
+//  0  S  P  A  R
+//  1  P  A  C  E
+//  2  A  C  E  S
+//  3  R  E  S  T
+//
+// Date-independent because hand-crafting a valid interlocking puzzle per date
+// is out of scope for a placeholder — the admin editor will produce the real
+// daily puzzles.
+export function getMockCrosswordPuzzle(date: string): CrosswordPuzzle {
+  const solution: (string | null)[] = [
+    'S', 'P', 'A', 'R',
+    'P', 'A', 'C', 'E',
+    'A', 'C', 'E', 'S',
+    'R', 'E', 'S', 'T',
+  ]
+  return {
+    id: 'mock-crossword-' + date,
+    puzzle_date: date,
+    size: 4,
+    solution,
+    clues_across: [
+      { number: 1, text: 'Bit of dialogue or a boxing exchange.' },
+      { number: 5, text: 'Walking speed; rate of movement.' },
+      { number: 6, text: 'Tops in a deck of cards.' },
+      { number: 7, text: 'Take a break.' },
+    ],
+    clues_down: [
+      { number: 1, text: 'Bit of dialogue or a boxing exchange.' },
+      { number: 2, text: 'Walking speed; rate of movement.' },
+      { number: 3, text: 'Tops in a deck of cards.' },
+      { number: 4, text: 'Take a break.' },
+    ],
   }
 }
 

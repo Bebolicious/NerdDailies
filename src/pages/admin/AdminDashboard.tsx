@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { addDays, format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
-import { Archive, Camera, Trophy, Music, Eye, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
+import { Archive, Camera, Grid3x3, Trophy, Music, Eye, ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
 import { TagPill } from '../../components/ui/TagPill'
@@ -16,6 +16,7 @@ type DayStatus = {
   trophy: boolean
   blur: boolean
   soundtrack: boolean
+  crossword: boolean
 }
 
 export function AdminDashboard() {
@@ -48,6 +49,7 @@ export function AdminDashboard() {
             trophy: false,
             blur: false,
             soundtrack: false,
+            crossword: false,
           })),
         )
         setArchiveWeeks(new Set())
@@ -55,12 +57,13 @@ export function AdminDashboard() {
       }
       const from = format(monthStart, 'yyyy-MM-dd')
       const to = format(monthEnd, 'yyyy-MM-dd')
-      const [s, t, b, m, a] = await Promise.all([
+      const [s, t, b, m, a, x] = await Promise.all([
         sb.from('screenshot_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('trophy_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('blur_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('soundtrack_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('archive_puzzles').select('puzzle_week').gte('puzzle_week', from).lte('puzzle_week', to),
+        sb.from('crossword_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
       ])
       const setOf = (rows: { puzzle_date: string }[] | null) =>
         new Set((rows ?? []).map((r) => r.puzzle_date))
@@ -68,6 +71,7 @@ export function AdminDashboard() {
       const tSet = setOf(t.data)
       const bSet = setOf(b.data)
       const mSet = setOf(m.data)
+      const xSet = setOf(x.data)
       const aSet = new Set(
         (a.data as { puzzle_week: string }[] | null)?.map((r) => r.puzzle_week) ?? [],
       )
@@ -82,6 +86,7 @@ export function AdminDashboard() {
             trophy: tSet.has(iso),
             blur: bSet.has(iso),
             soundtrack: mSet.has(iso),
+            crossword: xSet.has(iso),
           }
         }),
       )
@@ -151,6 +156,7 @@ export function AdminDashboard() {
             <Legend tone="bg-blue" label="Trophy" />
             <Legend tone="bg-lime" label="Blur" />
             <Legend tone="bg-mustard" label="Soundtrack" />
+            <Legend tone="bg-pink" label="Crossword" />
             <Legend tone="bg-violet" label="Archive (weekly · Mon)" />
           </div>
         </div>
@@ -207,6 +213,11 @@ export function AdminDashboard() {
                     type="soundtrack"
                     set={status?.soundtrack}
                   />
+                  <EditorLink
+                    iso={iso}
+                    type="crossword"
+                    set={status?.crossword}
+                  />
                   {getDay(d) === 1 && (
                     <EditorLink
                       iso={iso}
@@ -237,6 +248,9 @@ export function AdminDashboard() {
             <NeoButton tone="mustard" size="sm" onClick={() => nav(`/admin/soundtrack/${today}`)}>
               <Music className="inline h-3 w-3 mr-1" /> Today's soundtrack
             </NeoButton>
+            <NeoButton tone="paper" size="sm" onClick={() => nav(`/admin/crossword/${today}`)}>
+              <Grid3x3 className="inline h-3 w-3 mr-1" /> Today's crossword
+            </NeoButton>
             <NeoButton
               tone="violet"
               size="sm"
@@ -266,7 +280,7 @@ function EditorLink({
   set,
 }: {
   iso: string
-  type: 'screenshot' | 'trophy' | 'blur' | 'soundtrack' | 'archive'
+  type: 'screenshot' | 'trophy' | 'blur' | 'soundtrack' | 'archive' | 'crossword'
   set?: boolean
 }) {
   const Icon =
@@ -278,7 +292,9 @@ function EditorLink({
           ? Eye
           : type === 'soundtrack'
             ? Music
-            : Archive
+            : type === 'crossword'
+              ? Grid3x3
+              : Archive
   const tone =
     type === 'screenshot'
       ? 'bg-coral text-ink-static'
@@ -288,7 +304,9 @@ function EditorLink({
           ? 'bg-lime text-ink-static'
           : type === 'soundtrack'
             ? 'bg-mustard text-ink-static'
-            : 'bg-violet text-paper-static'
+            : type === 'crossword'
+              ? 'bg-pink text-ink-static'
+              : 'bg-violet text-paper-static'
   return (
     <Link
       to={`/admin/${type}/${iso}`}

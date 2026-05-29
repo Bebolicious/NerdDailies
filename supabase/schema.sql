@@ -154,6 +154,21 @@ create table if not exists public.archive_puzzles (
   updated_at timestamptz default now()
 );
 
+-- The daily mini-crossword. No IGDB game reference — the puzzle is the answer.
+-- `solution` is a flat row-major array; null entries are blocks. Clues are
+-- stored as JSON arrays of {number, text}; numbering is derived client-side
+-- from the solution so the DB stays small.
+create table if not exists public.crossword_puzzles (
+  id uuid primary key default gen_random_uuid(),
+  puzzle_date date not null unique,
+  size int not null check (size between 4 and 8),
+  solution text[] not null,                  -- length = size*size; null = block
+  clues_across jsonb not null default '[]'::jsonb,
+  clues_down jsonb not null default '[]'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- ── RLS ─────────────────────────────────────────────────────────────────────
 -- Anyone can READ puzzles for any date (so the public app can fetch them).
 -- Only authenticated users (you, after sign-in) can write.
@@ -164,6 +179,7 @@ alter table public.trophy_puzzles      enable row level security;
 alter table public.soundtrack_puzzles  enable row level security;
 alter table public.blur_puzzles        enable row level security;
 alter table public.archive_puzzles     enable row level security;
+alter table public.crossword_puzzles   enable row level security;
 
 drop policy if exists "public read games" on public.games;
 create policy "public read games" on public.games
@@ -216,6 +232,15 @@ create policy "public read archive" on public.archive_puzzles
 
 drop policy if exists "admin write archive" on public.archive_puzzles;
 create policy "admin write archive" on public.archive_puzzles
+  for all using (auth.role() = 'authenticated')
+         with check (auth.role() = 'authenticated');
+
+drop policy if exists "public read crossword" on public.crossword_puzzles;
+create policy "public read crossword" on public.crossword_puzzles
+  for select using (true);
+
+drop policy if exists "admin write crossword" on public.crossword_puzzles;
+create policy "admin write crossword" on public.crossword_puzzles
   for all using (auth.role() = 'authenticated')
          with check (auth.role() = 'authenticated');
 
