@@ -1,23 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { clearDateOverride, getDateOverride } from '../../lib/dates'
 
 export function DevDateBanner() {
-  const [override, setOverride] = useState<string | null>(null)
+  // Recompute on every navigation so the banner disappears immediately when
+  // the override is cleared (e.g. clicking the Dailies logo).
+  useLocation()
+  const override = getDateOverride()
 
-  useEffect(() => {
-    if (!import.meta.env.DEV) return
-    setOverride(getDateOverride())
-    const refresh = () => setOverride(getDateOverride())
-    window.addEventListener('popstate', refresh)
-    return () => window.removeEventListener('popstate', refresh)
-  }, [])
+  if (!override) return null
 
-  if (!import.meta.env.DEV || !override) return null
+  const label = import.meta.env.DEV ? 'Dev date override' : 'Replay'
 
   return (
     <div className="fixed bottom-4 left-4 z-50 border-neo bg-mustard text-ink-static shadow-neo px-3 py-2 flex items-center gap-3">
       <span className="font-display text-[10px] uppercase tracking-wider font-bold">
-        Dev date override
+        {label}
       </span>
       <span className="font-display text-sm font-bold">{override}</span>
       <button
@@ -27,7 +24,7 @@ export function DevDateBanner() {
         }}
         className="border-neo-2 bg-paper text-ink px-2 py-1 font-display text-[10px] uppercase tracking-wider font-bold hover:bg-coral hover:text-ink-static"
       >
-        Clear
+        Back to today
       </button>
     </div>
   )

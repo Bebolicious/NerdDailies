@@ -456,6 +456,7 @@ function ArchiveRoom({
             }
             cost={ARCHIVE_COSTS.cabinetDrawer}
             spareCandleClaimed={state.spareCandleClaimed}
+            spareCandleVisible={state.candles < 4}
             spareCandleDisabled={finished}
             onClaimSpareCandle={() =>
               setState((p) =>
@@ -795,6 +796,7 @@ function FilingCabinet({
   onOpen,
   cost,
   spareCandleClaimed,
+  spareCandleVisible,
   spareCandleDisabled,
   onClaimSpareCandle,
 }: {
@@ -804,6 +806,7 @@ function FilingCabinet({
   onOpen: (idx: number) => void
   cost: number
   spareCandleClaimed: boolean
+  spareCandleVisible: boolean
   spareCandleDisabled?: boolean
   onClaimSpareCandle: () => void
 }) {
@@ -832,8 +835,10 @@ function FilingCabinet({
         ))}
       </div>
       {/* Hidden spare candle: a faint flicker wedged behind the cabinet.
-          One-time pickup, +1 candle (capped at total). */}
-      {!spareCandleClaimed && (
+          One-time pickup, +1 candle (capped at total). Only surfaces when
+          the player is genuinely low (< 4 candles) so it stays a rescue,
+          not a flat freebie. */}
+      {!spareCandleClaimed && spareCandleVisible && (
         <button
           onClick={onClaimSpareCandle}
           disabled={spareCandleDisabled}

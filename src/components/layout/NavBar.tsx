@@ -1,10 +1,17 @@
 import { useState } from 'react'
-import { Clock, Flame, Menu, Settings } from 'lucide-react'
+import { CalendarDays, Clock, Flame, Menu, Settings } from 'lucide-react'
 import { Link, NavLink } from 'react-router-dom'
 import { SettingsModal } from '../ui/SettingsModal'
 import { useCountdownToMidnight } from '../../hooks/useCountdown'
 import { useStreak } from '../../hooks/useStreak'
+import { clearDateOverride } from '../../lib/dates'
 import { cn } from '../../lib/cn'
+
+// Compact square icon button — matches the sidebar card "raise on hover,
+// press into the socket on click" motion. Pair with `shadow-neo` so there's
+// something to lose on press.
+const ICON_BTN =
+  'border-neo-2 p-2 font-display text-xs uppercase tracking-wider font-bold shadow-neo transition-all hover:-translate-y-0.5 hover:-translate-x-0.5 hover:shadow-neo-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none'
 
 export function NavBar({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
   const streak = useStreak()
@@ -13,7 +20,11 @@ export function NavBar({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
   return (
     <header className="border-b-[3px] border-stroke bg-cream">
       <div className="flex items-center justify-between px-6 py-4">
-        <Link to="/" className="flex items-center gap-3 group">
+        <Link
+          to="/"
+          onClick={() => clearDateOverride()}
+          className="flex items-center gap-3 group"
+        >
           <img
             src="/logo.png"
             alt="Dailies logo"
@@ -46,10 +57,22 @@ export function NavBar({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
           </div>
           <span className="text-ink-soft">|</span>
           <NavBarLink to="/how-to-play">How to play</NavBarLink>
+          <NavLink
+            to="/replay"
+            aria-label="Replay previous days"
+            className={({ isActive }) =>
+              cn(
+                ICON_BTN,
+                isActive ? 'bg-coral text-ink-static' : 'bg-paper text-ink',
+              )
+            }
+          >
+            <CalendarDays className="h-3.5 w-3.5 stroke-[3]" />
+          </NavLink>
           <button
             onClick={() => setSettingsOpen(true)}
             aria-label="Open settings"
-            className="border-neo-2 p-2 font-display text-xs uppercase tracking-wider font-bold hover:bg-emphasis hover:text-paper-static transition-colors"
+            className={cn(ICON_BTN, 'bg-paper text-ink')}
           >
             <Settings className="h-3.5 w-3.5 stroke-[3]" />
           </button>
@@ -57,7 +80,7 @@ export function NavBar({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
             <button
               onClick={onOpenSidebar}
               aria-label="Open games menu"
-              className="lg:hidden border-neo-2 p-2 font-display text-xs uppercase tracking-wider font-bold hover:bg-emphasis hover:text-paper-static transition-colors"
+              className={cn(ICON_BTN, 'lg:hidden bg-paper text-ink')}
             >
               <Menu className="h-3.5 w-3.5 stroke-[3]" />
             </button>

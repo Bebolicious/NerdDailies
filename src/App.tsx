@@ -26,6 +26,9 @@ const HowToPlay = lazy(() =>
 const Stats = lazy(() =>
   import('./pages/Stats').then((m) => ({ default: m.Stats })),
 )
+const Replay = lazy(() =>
+  import('./pages/Replay').then((m) => ({ default: m.Replay })),
+)
 const AdminLogin = lazy(() =>
   import('./pages/admin/AdminLogin').then((m) => ({ default: m.AdminLogin })),
 )
@@ -139,6 +142,14 @@ function App() {
             element={
               <ShellLayout>
                 <Stats />
+              </ShellLayout>
+            }
+          />
+          <Route
+            path="/replay"
+            element={
+              <ShellLayout>
+                <Replay />
               </ShellLayout>
             }
           />
