@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { Trophy as TrophyIcon, Share2 } from 'lucide-react'
 import { NeoCard } from '../components/ui/NeoCard'
 import { NeoButton } from '../components/ui/NeoButton'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
 import { InfoButton } from '../components/ui/InfoButton'
+import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
 import { GuessRow } from '../components/game/GuessRow'
 import { useGameState } from '../hooks/useGameState'
@@ -17,7 +19,7 @@ const TOTAL_GUESSES = 6
 export function TrophyGame() {
   const date = todayISO()
   const puzzle = useTrophyPuzzle(date)
-  if (!puzzle) return <div className="text-sm text-ink-soft">Loading puzzle…</div>
+  if (!puzzle) return <PuzzleSkeleton variant="trophy" />
   return <TrophyInner key={puzzle.id} puzzle={puzzle} date={date} />
 }
 
@@ -34,6 +36,10 @@ function TrophyInner({
     totalGuesses: TOTAL_GUESSES,
     answerGameId: puzzle.game.id,
   })
+
+  // Pop the achievement card in only on the first visit of an unfinished
+  // puzzle. Captured at mount so re-renders mid-game don't replay it.
+  const [animateOnMount] = useState(() => game.status === 'playing')
 
   // Reveal cadence:
   //  wrongCount 0 -> name only
@@ -52,7 +58,14 @@ function TrophyInner({
 
   return (
     <div className="max-w-3xl">
-      <NeoCard tone="ink" shadow="md" className="p-6 relative">
+      <NeoCard
+        tone="ink"
+        shadow="md"
+        className={cn(
+          'p-6 relative',
+          animateOnMount && 'animate-achievement-pop',
+        )}
+      >
         <InfoButton
           className="absolute top-3 right-3 z-20"
           title="Trophy game"

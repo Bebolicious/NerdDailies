@@ -4,6 +4,7 @@ import { NeoButton } from '../components/ui/NeoButton'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
 import { InfoButton } from '../components/ui/InfoButton'
+import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
 import { GuessRow } from '../components/game/GuessRow'
 import { SoundtrackPlayer } from '../components/game/SoundtrackPlayer'
@@ -17,7 +18,7 @@ const TOTAL_GUESSES = 6
 export function SoundtrackGame() {
   const date = todayISO()
   const puzzle = useSoundtrackPuzzle(date)
-  if (!puzzle) return <div className="text-sm text-ink-soft">Loading puzzle…</div>
+  if (!puzzle) return <PuzzleSkeleton variant="soundtrack" />
   return <SoundtrackInner key={puzzle.id} puzzle={puzzle} date={date} />
 }
 

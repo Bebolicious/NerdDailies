@@ -4,6 +4,7 @@ import { NeoButton } from '../components/ui/NeoButton'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
 import { InfoButton } from '../components/ui/InfoButton'
+import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
 import { GuessRow } from '../components/game/GuessRow'
 import { useGameState } from '../hooks/useGameState'
@@ -17,7 +18,7 @@ const TOTAL_GUESSES = 6
 export function BlurGame() {
   const date = todayISO()
   const puzzle = useBlurPuzzle(date)
-  if (!puzzle) return <div className="text-sm text-ink-soft">Loading puzzle…</div>
+  if (!puzzle) return <PuzzleSkeleton variant="blur" />
   return <BlurInner key={puzzle.id} puzzle={puzzle} date={date} />
 }
 
