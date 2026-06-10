@@ -18,6 +18,12 @@ dist-ssr
 # Internal notes (not for git)
 ARCHITECTURE.md
 docs/
+monetization/
+
+# Local-only scripts and data
+supabase/seed-games.sql
+scripts/
+.claude/
 
 # Editor directories and files
 .vscode/*
