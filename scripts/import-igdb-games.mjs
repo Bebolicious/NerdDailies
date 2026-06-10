@@ -13,7 +13,7 @@
 //   IGDB_CLIENT_SECRET   (preferred — script exchanges for a fresh token every run)
 //   IGDB_ACCESS_TOKEN    (fallback if secret isn't set — must be a current token)
 
-import { writeFile, mkdir } from 'node:fs/promises'
+import { writeFile, readFile, mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -52,41 +52,52 @@ async function getAccessToken() {
 let ACCESS_TOKEN
 
 // Curated list. IGDB platform IDs are stable (these match values returned
-// from /v4/platforms). Order here is just for log readability.
+// from /v4/platforms). `newer` = released after SNES (1990) — used by
+// --extend mode to skip retro platforms when pulling deeper ranks.
 const PLATFORMS = [
-  { id: 6,   label: 'PC' },
-  { id: 7,   label: 'PS1' },
-  { id: 8,   label: 'PS2' },
-  { id: 9,   label: 'PS3' },
-  { id: 48,  label: 'PS4' },
-  { id: 167, label: 'PS5' },
-  { id: 11,  label: 'Xbox' },
-  { id: 12,  label: 'Xbox 360' },
-  { id: 49,  label: 'Xbox One' },
-  { id: 169, label: 'Xbox Series' },
-  { id: 130, label: 'Switch' },
-  { id: 41,  label: 'Wii U' },
-  { id: 5,   label: 'Wii' },
-  { id: 21,  label: 'GameCube' },
-  { id: 4,   label: 'N64' },
-  { id: 19,  label: 'SNES' },
-  { id: 18,  label: 'NES' },
-  { id: 33,  label: 'Game Boy' },
-  { id: 24,  label: 'GBA' },
-  { id: 20,  label: 'DS' },
-  { id: 37,  label: '3DS' },
-  { id: 29,  label: 'Genesis' },
-  { id: 23,  label: 'Dreamcast' },
-  { id: 52,  label: 'Arcade' },
-  { id: 39,  label: 'iOS' },
+  { id: 6,   label: 'PC',          newer: true  },
+  { id: 7,   label: 'PS1',         newer: true  },
+  { id: 8,   label: 'PS2',         newer: true  },
+  { id: 9,   label: 'PS3',         newer: true  },
+  { id: 48,  label: 'PS4',         newer: true  },
+  { id: 167, label: 'PS5',         newer: true  },
+  { id: 11,  label: 'Xbox',        newer: true  },
+  { id: 12,  label: 'Xbox 360',    newer: true  },
+  { id: 49,  label: 'Xbox One',    newer: true  },
+  { id: 169, label: 'Xbox Series', newer: true  },
+  { id: 130, label: 'Switch',      newer: true  },
+  { id: 41,  label: 'Wii U',       newer: true  },
+  { id: 5,   label: 'Wii',         newer: true  },
+  { id: 21,  label: 'GameCube',    newer: true  },
+  { id: 4,   label: 'N64',         newer: true  },
+  { id: 19,  label: 'SNES',        newer: false },
+  { id: 18,  label: 'NES',         newer: false },
+  { id: 33,  label: 'Game Boy',    newer: false },
+  { id: 24,  label: 'GBA',         newer: true  },
+  { id: 20,  label: 'DS',          newer: true  },
+  { id: 37,  label: '3DS',         newer: true  },
+  { id: 29,  label: 'Genesis',     newer: false },
+  { id: 23,  label: 'Dreamcast',   newer: true  },
+  { id: 52,  label: 'Arcade',      newer: false },
+  { id: 39,  label: 'iOS',         newer: true  },
 ]
 
 const IGDB_URL = 'https://api.igdb.com/v4/games'
 
-// Pages of 100 to pull per platform. 2 = top 200, 3 = top 300, etc.
-// Each platform incurs PAGES extra API calls (sequential, well under the
-// 4 req/sec rate limit).
-const PAGES = 2
+// Default mode: fetch pages 0-1 (top 200) for every platform, overwrite seed.
+// --extend mode: fetch a range of pages for `newer` platforms only and append
+// a new INSERT block to the existing seed file. Used to deepen the catalog
+// without re-pulling retro consoles. Defaults to pages 2-4 (ranks 200-499);
+// override with `--start=N` / `--count=N` to pull a different range (e.g.
+// `--extend --start=5 --count=2` pulls ranks 500-699). Existing IDs in the
+// seed file are skipped so each row appears only once.
+const EXTEND = process.argv.includes('--extend')
+function cliInt(flag, fallback) {
+  const arg = process.argv.find((a) => a.startsWith(`${flag}=`))
+  return arg ? Number(arg.slice(flag.length + 1)) : fallback
+}
+const PAGE_START = EXTEND ? cliInt('--start', 2) : 0
+const PAGE_COUNT = EXTEND ? cliInt('--count', 3) : 2
 
 async function fetchTopGamesForPlatform(platformId, page) {
   // APICalypse query:
@@ -167,17 +178,45 @@ function gameToValues(g) {
 async function main() {
   ACCESS_TOKEN = await getAccessToken()
 
+  const platforms = EXTEND ? PLATFORMS.filter((p) => p.newer) : PLATFORMS
+  if (EXTEND) {
+    console.log(
+      `--extend: pulling pages ${PAGE_START}-${PAGE_START + PAGE_COUNT - 1} for ${platforms.length} newer platforms\n`,
+    )
+  }
+
+  // In --extend, skip game IDs already in the seed file so the new block can
+  // be appended without producing duplicate rows. Without this, IGDB rank
+  // drift between runs (a game at rank 499 last month could be at 502 today)
+  // would re-emit the same id in two blocks.
+  const here = dirname(fileURLToPath(import.meta.url))
+  const outPath = resolve(here, '..', 'supabase', 'seed-games.sql')
+  const existingIds = new Set()
+  if (EXTEND) {
+    const existing = await readFile(outPath, 'utf8').catch(() => '')
+    for (const m of existing.matchAll(/^\s*\((\d+),/gm)) {
+      existingIds.add(Number(m[1]))
+    }
+    console.log(`Seed already has ${existingIds.size} rows — those ids will be skipped\n`)
+  }
+
   const byId = new Map()
   let totalFetched = 0
+  let skippedExisting = 0
 
-  for (const { id, label } of PLATFORMS) {
-    for (let page = 0; page < PAGES; page++) {
+  for (const { id, label } of platforms) {
+    for (let i = 0; i < PAGE_COUNT; i++) {
+      const page = PAGE_START + i
       process.stdout.write(`  ${label.padEnd(14)} p${page} → `)
       const raw = await fetchTopGamesForPlatform(id, page)
       totalFetched += raw.length
       let added = 0
       for (const r of raw) {
         const shaped = shapeGame(r)
+        if (existingIds.has(shaped.id)) {
+          skippedExisting++
+          continue
+        }
         if (!byId.has(shaped.id)) {
           byId.set(shaped.id, shaped)
           added++
@@ -188,17 +227,25 @@ async function main() {
   }
 
   const games = [...byId.values()].sort((a, b) => a.id - b.id)
+  const dedupRun = totalFetched - games.length - skippedExisting
   console.log(
-    `\n${games.length} unique games (${totalFetched} fetched, ${totalFetched - games.length} dedup'd)`,
+    `\n${games.length} new games (${totalFetched} fetched, ${dedupRun} within-run dups, ${skippedExisting} already in seed)`,
   )
 
-  const header = [
-    '-- Generated by scripts/import-igdb-games.mjs',
-    '-- Top 100 games per curated platform, sorted by IGDB total_rating_count.',
-    "-- Paste into the Supabase SQL editor after running schema.sql.",
-    '',
-    'insert into public.games (id, name, year, genre, platforms) values',
-  ].join('\n')
+  const header = EXTEND
+    ? [
+        '',
+        `-- Extend: pages ${PAGE_START}-${PAGE_START + PAGE_COUNT - 1} (ranks ${PAGE_START * 100}-${(PAGE_START + PAGE_COUNT) * 100 - 1}) for platforms newer than SNES.`,
+        `-- Appended ${new Date().toISOString().slice(0, 10)} by scripts/import-igdb-games.mjs --extend`,
+        'insert into public.games (id, name, year, genre, platforms) values',
+      ].join('\n')
+    : [
+        '-- Generated by scripts/import-igdb-games.mjs',
+        '-- Top 100 games per curated platform, sorted by IGDB total_rating_count.',
+        '-- Paste into the Supabase SQL editor after running schema.sql.',
+        '',
+        'insert into public.games (id, name, year, genre, platforms) values',
+      ].join('\n')
 
   const body = games.map(gameToValues).join(',\n  ')
 
@@ -212,11 +259,20 @@ on conflict (id) do update set
 
   const sql = `${header}\n  ${body}\n${tail}`
 
-  const here = dirname(fileURLToPath(import.meta.url))
-  const outPath = resolve(here, '..', 'supabase', 'seed-games.sql')
   await mkdir(dirname(outPath), { recursive: true })
-  await writeFile(outPath, sql, 'utf8')
-  console.log(`\nWrote ${outPath}`)
+
+  if (EXTEND) {
+    if (games.length === 0) {
+      console.log('\nNo new games to append — seed file unchanged.')
+    } else {
+      const existing = await readFile(outPath, 'utf8')
+      await writeFile(outPath, existing.trimEnd() + '\n' + sql, 'utf8')
+      console.log(`\nAppended ${games.length} rows to ${outPath}`)
+    }
+  } else {
+    await writeFile(outPath, sql, 'utf8')
+    console.log(`\nWrote ${outPath}`)
+  }
   console.log('Next: open the Supabase SQL editor and paste this file.')
 }
 
