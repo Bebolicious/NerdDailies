@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { NeoCard } from '../components/ui/NeoCard'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
+import { GuestBanner } from '../components/ui/GuestBanner'
 import { InfoButton } from '../components/ui/InfoButton'
 import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
@@ -85,6 +86,9 @@ function ScreenshotInner({
               title="Screenshot game"
               text="Guess today's game from six screenshots. Each wrong guess reveals a clearer, easier-to-identify image — see how few hints you need."
             />
+            {puzzle.submitter && finished && (
+              <GuestBanner name={puzzle.submitter} gameType="screenshot" />
+            )}
             <button
               onClick={() => setGalleryIndex((i) => Math.max(0, Math.min(i, maxIndex) - 1))}
               disabled={!canPrev}

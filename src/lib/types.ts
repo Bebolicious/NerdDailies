@@ -21,6 +21,7 @@ export type ScreenshotPuzzle = {
   game: IgdbGame
   image_urls: string[] // ordered, easiest last
   cover_url?: string
+  submitter?: string // community contributor — surfaces a GUEST banner
 }
 
 export type TrophyPuzzle = {
@@ -33,6 +34,7 @@ export type TrophyPuzzle = {
   rarity_pct?: number
   platform?: string
   gamerscore?: number
+  submitter?: string
 }
 
 export type BlurPuzzle = {
@@ -40,6 +42,7 @@ export type BlurPuzzle = {
   puzzle_date: string
   game: IgdbGame
   cover_url: string // official game cover (portrait 3:4)
+  submitter?: string
 }
 
 // How blurred the image is per wrong-guess step. Index 0 = before any wrong
@@ -53,6 +56,7 @@ export type SoundtrackPuzzle = {
   audio_url: string
   track_title?: string
   reveal_start_seconds: number // start of the unlock window
+  submitter?: string
 }
 
 // Fixed schedule of how many seconds become playable per wrong-guess step.
@@ -115,6 +119,8 @@ export type ArchivePuzzle = {
   mystery_a: ArchiveMysteryBox
   mystery_b: ArchiveMysteryBox
   trash_crossed_out: string // a plausible but wrong title
+
+  submitter?: string
 }
 
 // Visual blur level for the two wall frames, indexed by how many wrong guesses
@@ -160,6 +166,7 @@ export type CrosswordPuzzle = {
   solution: (string | null)[] // length = size * size
   clues_across: CrosswordClue[]
   clues_down: CrosswordClue[]
+  submitter?: string
 }
 
 export type PuzzleResult = {

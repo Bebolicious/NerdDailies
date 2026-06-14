@@ -4,6 +4,7 @@ import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
 import { TagPill } from '../../components/ui/TagPill'
+import { SubmitterField } from '../../components/ui/SubmitterField'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import { formatLong } from '../../lib/dates'
 import { computeLayout } from '../../lib/crossword'
@@ -27,6 +28,7 @@ export function CrosswordEditor() {
   // Stash keyed by direction-number so re-shuffling the grid doesn't lose the
   // text the admin already typed. Stash persists across size changes too.
   const [clueStash, setClueStash] = useState<Record<string, string>>({})
+  const [submitter, setSubmitter] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -61,6 +63,7 @@ export function CrosswordEditor() {
           stash[CLUE_KEY('down', c.number)] = c.text
         }
         setClueStash(stash)
+        setSubmitter((data.submitter as string | null) ?? '')
       }
       setLoading(false)
     }
@@ -161,6 +164,7 @@ export function CrosswordEditor() {
     setSize(5)
     setLetters(new Array(25).fill(''))
     setClueStash({})
+    setSubmitter('')
     setMsg('Cleared.')
     setClearing(false)
   }
@@ -189,6 +193,7 @@ export function CrosswordEditor() {
         solution,
         clues_across: cluesAcross,
         clues_down: cluesDown,
+        submitter: submitter.trim() || null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'puzzle_date' },
@@ -268,6 +273,14 @@ export function CrosswordEditor() {
         <div className="text-sm text-ink-soft">Loading…</div>
       ) : (
         <div className="flex flex-col gap-5">
+          <NeoCard tone="paper" shadow="md" className="p-5">
+            <SubmitterField
+              value={submitter}
+              onChange={setSubmitter}
+              gameType="crossword"
+            />
+          </NeoCard>
+
           {/* Size picker */}
           <NeoCard tone="paper" shadow="md" className="p-5">
             <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-2">

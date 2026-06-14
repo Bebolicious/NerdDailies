@@ -4,6 +4,7 @@ import { Upload, X } from 'lucide-react'
 import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
+import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import type { IgdbGame } from '../../lib/types'
@@ -14,6 +15,7 @@ export function BlurEditor() {
   const { date } = useParams<{ date: string }>()
   const [game, setGame] = useState<IgdbGame | null>(null)
   const [coverPath, setCoverPath] = useState<string | null>(null)
+  const [submitter, setSubmitter] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -42,6 +44,7 @@ export function BlurEditor() {
           genre: data.game_genre ?? undefined,
         })
         setCoverPath((data.cover_path as string | null) ?? null)
+        setSubmitter((data.submitter as string | null) ?? '')
       }
       setLoading(false)
     }
@@ -102,6 +105,7 @@ export function BlurEditor() {
 
     setGame(null)
     setCoverPath(null)
+    setSubmitter('')
     setMsg('Cleared.')
     setClearing(false)
   }
@@ -121,6 +125,7 @@ export function BlurEditor() {
         game_year: game.year,
         game_genre: game.genre,
         cover_path: coverPath,
+        submitter: submitter.trim() || null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'puzzle_date' },
@@ -150,8 +155,13 @@ export function BlurEditor() {
         <div className="text-sm text-ink-soft">Loading…</div>
       ) : (
         <div className="flex flex-col gap-5">
-          <NeoCard tone="paper" shadow="md" className="p-5">
+          <NeoCard tone="paper" shadow="md" className="p-5 flex flex-col gap-4">
             <GamePicker value={game} onChange={setGame} />
+            <SubmitterField
+              value={submitter}
+              onChange={setSubmitter}
+              gameType="blur"
+            />
           </NeoCard>
 
           <NeoCard tone="paper" shadow="md" className="p-5">

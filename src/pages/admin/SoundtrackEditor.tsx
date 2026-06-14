@@ -4,6 +4,7 @@ import { Upload, X, Play, Pause } from 'lucide-react'
 import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
+import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import type { IgdbGame } from '../../lib/types'
@@ -18,6 +19,7 @@ export function SoundtrackEditor() {
   const [audioPath, setAudioPath] = useState<string | null>(null)
   const [trackTitle, setTrackTitle] = useState('')
   const [revealStart, setRevealStart] = useState('0')
+  const [submitter, setSubmitter] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -51,6 +53,7 @@ export function SoundtrackEditor() {
         setAudioPath(data.audio_path)
         setTrackTitle(data.track_title ?? '')
         setRevealStart(String(data.reveal_start_seconds ?? 0))
+        setSubmitter((data.submitter as string | null) ?? '')
       }
       setLoading(false)
     }
@@ -139,6 +142,7 @@ export function SoundtrackEditor() {
     setAudioPath(null)
     setTrackTitle('')
     setRevealStart('0')
+    setSubmitter('')
     setMsg('Cleared.')
     setClearing(false)
   }
@@ -160,6 +164,7 @@ export function SoundtrackEditor() {
         audio_path: audioPath,
         track_title: trackTitle || null,
         reveal_start_seconds: Number(revealStart) || 0,
+        submitter: submitter.trim() || null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'puzzle_date' },
@@ -188,8 +193,13 @@ export function SoundtrackEditor() {
         <div className="text-sm text-ink-soft">Loading…</div>
       ) : (
         <div className="flex flex-col gap-5">
-          <NeoCard tone="paper" shadow="md" className="p-5">
+          <NeoCard tone="paper" shadow="md" className="p-5 flex flex-col gap-4">
             <GamePicker value={game} onChange={setGame} />
+            <SubmitterField
+              value={submitter}
+              onChange={setSubmitter}
+              gameType="soundtrack"
+            />
           </NeoCard>
 
           <NeoCard tone="paper" shadow="md" className="p-5 flex flex-col gap-3">

@@ -1,16 +1,29 @@
+import Fuse from 'fuse.js'
 import { getSupabase } from './supabase'
 import { MOCK_CATALOG } from '../data/mockCatalog'
 import type { IgdbGame } from './types'
 
-// Queries the `public.games` table in Supabase (populated by
-// scripts/import-igdb-games.mjs from IGDB). Falls back to the 60-game mock
-// catalog when Supabase isn't configured, so the UI stays playable out of
-// the box without an .env.
+// Catalog search for the player guess input and admin GamePicker. Two-stage
+// design:
 //
-// Search uses ILIKE '%q%' which stays fast thanks to the pg_trgm GIN index
-// on games.name (see supabase/schema.sql).
+//   1. Candidate fetch — Postgres ILIKE on `public.games` using each token of
+//      the query (e.g. "resident evil" → tokens ["resident", "evil"]). Tokens
+//      are OR'd together via PostgREST `.or()`, so we get a wide candidate set
+//      that covers names which contain *any* of the tokens. Limit is generous
+//      (~60) so subtitles like "Resident Evil: Revelations" survive past the
+//      alphabetical cutoff that a strict `%resident evil%` substring + name
+//      sort would lose.
+//   2. Client-side re-rank — Fuse.js scores each candidate against the raw
+//      query with token-aware fuzzy matching, ignoring punctuation. The
+//      top-ranked results are what the UI shows. This is what makes
+//      "resident evil" surface Revelations *and* numbered entries together,
+//      and survives the user adding or omitting a colon.
+//
+// Mock catalog (no `.env`) goes through the same Fuse step so behavior matches
+// the cloud path.
 
-const SEARCH_LIMIT = 12
+const DISPLAY_LIMIT = 12
+const CANDIDATE_LIMIT = 60
 
 type GameRow = {
   id: number
@@ -30,38 +43,69 @@ function rowToGame(row: GameRow): IgdbGame {
   }
 }
 
-function searchMock(q: string): IgdbGame[] {
-  return MOCK_CATALOG.filter((g) => g.name.toLowerCase().includes(q)).slice(
-    0,
-    SEARCH_LIMIT,
-  )
+const FUSE_OPTIONS = {
+  keys: ['name'],
+  threshold: 0.4,
+  ignoreLocation: true,
+  includeScore: false,
+  minMatchCharLength: 2,
+  useExtendedSearch: false,
+}
+
+function rerank(candidates: IgdbGame[], query: string): IgdbGame[] {
+  if (candidates.length === 0) return []
+  const fuse = new Fuse(candidates, FUSE_OPTIONS)
+  const hits = fuse.search(query, { limit: DISPLAY_LIMIT })
+  return hits.map((h) => h.item)
+}
+
+// Split the raw query into search tokens. Lowercased, punctuation stripped,
+// tokens under 2 chars dropped (they'd match too much). Empty input → [].
+function tokenize(query: string): string[] {
+  return query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .filter((t) => t.length >= 2)
+}
+
+function escapeIlike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
+}
+
+function searchMock(rawQuery: string): IgdbGame[] {
+  return rerank([...MOCK_CATALOG], rawQuery)
 }
 
 export async function searchGames(query: string): Promise<IgdbGame[]> {
-  const q = query.trim().toLowerCase()
-  if (!q) return []
+  const raw = query.trim()
+  if (!raw) return []
 
   const sb = getSupabase()
   if (!sb) {
     await new Promise((r) => setTimeout(r, 80))
-    return searchMock(q)
+    return searchMock(raw)
   }
 
-  // Escape ILIKE wildcards in user input so a search for "100%" doesn't blow up.
-  const escaped = q.replace(/[\\%_]/g, (m) => `\\${m}`)
+  const tokens = tokenize(raw)
+  // If the input is all noise (e.g. just punctuation), fall back to a single
+  // substring match on the trimmed input so the user gets *something*.
+  const orFilter =
+    tokens.length > 0
+      ? tokens.map((t) => `name.ilike.%${escapeIlike(t)}%`).join(',')
+      : `name.ilike.%${escapeIlike(raw.toLowerCase())}%`
+
   const { data, error } = await sb
     .from('games')
     .select('id,name,year,genre,platforms')
-    .ilike('name', `%${escaped}%`)
-    .order('name')
-    .limit(SEARCH_LIMIT)
+    .or(orFilter)
+    .limit(CANDIDATE_LIMIT)
 
   if (error) {
     console.warn('[igdb] Supabase search failed, falling back to mock:', error)
-    return searchMock(q)
+    return searchMock(raw)
   }
   if (!data) return []
-  return (data as GameRow[]).map(rowToGame)
+  return rerank((data as GameRow[]).map(rowToGame), raw)
 }
 
 export async function getGameById(id: number): Promise<IgdbGame | null> {

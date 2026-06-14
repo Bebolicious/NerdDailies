@@ -3,6 +3,7 @@ import { Check, Eye, Grid3x3 } from 'lucide-react'
 import { NeoCard } from '../components/ui/NeoCard'
 import { NeoButton } from '../components/ui/NeoButton'
 import { InfoButton } from '../components/ui/InfoButton'
+import { GuestBanner } from '../components/ui/GuestBanner'
 import { useCrosswordPuzzle } from '../hooks/usePuzzle'
 import { useCrosswordState } from '../hooks/useCrosswordState'
 import type { CheckScope } from '../hooks/useCrosswordState'
@@ -69,13 +70,22 @@ function CrosswordInner({
   return (
     <div className="max-w-5xl">
       <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
-        <div>
-          <h1 className="font-display text-3xl font-bold uppercase tracking-wider leading-none">
-            Mini Crossword
-          </h1>
-          <div className="text-xs text-ink-soft mt-1">
-            Fill the grid. Use the sidebar to switch clues.
+        <div className="flex items-center gap-4 flex-wrap">
+          <div>
+            <h1 className="font-display text-3xl font-bold uppercase tracking-wider leading-none">
+              Mini Crossword
+            </h1>
+            <div className="text-xs text-ink-soft mt-1">
+              Fill the grid. Use the sidebar to switch clues.
+            </div>
           </div>
+          {puzzle.submitter && status !== 'playing' && (
+            <GuestBanner
+              name={puzzle.submitter}
+              gameType="crossword"
+              variant="inline"
+            />
+          )}
         </div>
         <div className="flex items-center gap-2">
           <CheckRevealMenu

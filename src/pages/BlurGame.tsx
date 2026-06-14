@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react'
 import { Share2 } from 'lucide-react'
 import { NeoCard } from '../components/ui/NeoCard'
 import { NeoButton } from '../components/ui/NeoButton'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
+import { GuestBanner } from '../components/ui/GuestBanner'
 import { InfoButton } from '../components/ui/InfoButton'
 import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
@@ -14,6 +16,32 @@ import { BLUR_LEVELS_PX } from '../lib/types'
 import { sharesFranchise } from '../lib/franchise'
 
 const TOTAL_GUESSES = 6
+const BASE_COVER_WIDTH_PX = 420
+
+// Browser zoom shrinks every CSS pixel uniformly, so a fixed `w-[420px]`
+// cover still looks smaller at 90% zoom than at 100%. We compensate by
+// reading the zoom level (outerWidth / innerWidth — unaffected by Windows
+// display scaling, only by browser zoom) and multiplying the cover width by
+// its inverse. Result: at any zoom level the cover renders at roughly the
+// same physical size on a given monitor. Clamped so extreme zoom-out doesn't
+// blow the layout out of the right column.
+function useBrowserZoomCompensation(): number {
+  const [comp, setComp] = useState(1)
+  useEffect(() => {
+    function update() {
+      const ratio = window.outerWidth / window.innerWidth
+      // ratio < 1 means the user has zoomed OUT (innerWidth grew). We want
+      // a bigger cover then, so divide. Clamp into [0.7, 1.6] to keep the
+      // layout sane at extreme zoom levels.
+      const raw = ratio > 0 ? 1 / ratio : 1
+      setComp(Math.max(0.7, Math.min(1.6, raw)))
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  return comp
+}
 
 export function BlurGame() {
   const date = todayISO()
@@ -40,6 +68,9 @@ function BlurInner({
   const stepIndex = Math.min(game.wrongCount, BLUR_LEVELS_PX.length - 1)
   const blurPx = finished ? 0 : BLUR_LEVELS_PX[stepIndex]
 
+  const zoomComp = useBrowserZoomCompensation()
+  const coverWidthPx = Math.round(BASE_COVER_WIDTH_PX * zoomComp)
+
   const slotStates = Array.from({ length: TOTAL_GUESSES }).map((_, i) => {
     const g = game.guesses[i]
     if (!g) return i === game.guesses.length ? 'active' : 'empty'
@@ -55,7 +86,8 @@ function BlurInner({
           <NeoCard
             tone="ink"
             shadow="md"
-            className="p-0 overflow-hidden relative aspect-[3/4] w-full max-w-[360px] mx-auto md:h-full md:w-auto md:max-w-[450px] md:max-h-[600px] md:mx-0"
+            style={{ '--blur-cover-w': `${coverWidthPx}px` } as React.CSSProperties}
+            className="p-0 overflow-hidden relative aspect-[3/4] w-full max-w-[360px] mx-auto md:w-[var(--blur-cover-w)] md:max-w-[var(--blur-cover-w)] md:mx-0 md:shrink-0"
           >
             <div className="relative w-full h-full bg-cream overflow-hidden">
               <img
@@ -72,6 +104,9 @@ function BlurInner({
                 title="Blur Reveal"
                 text="Guess today's game from its blurred cover. Each wrong guess sharpens the image — fewer guesses, fewer pixels of mercy."
               />
+              {puzzle.submitter && finished && (
+                <GuestBanner name={puzzle.submitter} gameType="blur" />
+              )}
               <div className="absolute bottom-3 left-3 z-20">
                 <TagPill tone="paper">
                   {finished

@@ -4,6 +4,7 @@ import { NeoCard } from '../components/ui/NeoCard'
 import { NeoButton } from '../components/ui/NeoButton'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
+import { GuestBanner } from '../components/ui/GuestBanner'
 import { InfoButton } from '../components/ui/InfoButton'
 import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
@@ -62,12 +63,18 @@ function TrophyInner({
         tone="ink"
         shadow="md"
         className={cn(
-          'p-6 relative',
+          'p-6 relative overflow-hidden',
           animateOnMount && 'animate-achievement-pop',
         )}
       >
+        {puzzle.submitter && game.status !== 'playing' && (
+          <GuestBanner name={puzzle.submitter} gameType="trophy" />
+        )}
         <InfoButton
-          className="absolute top-3 right-3 z-20"
+          className={cn(
+            'absolute right-3 z-20',
+            puzzle.submitter && game.status !== 'playing' ? 'top-20' : 'top-3',
+          )}
           title="Trophy game"
           text="Guess today's game from one of its trophies. Your first wrong guess reveals the trophy's description; each guess after that unlocks an extra clue."
         />
@@ -111,6 +118,7 @@ function TrophyInner({
             placeholder="What's the game?"
             onGuess={game.submitGuess}
             onSkip={game.submitSkip}
+            direction="down"
           />
         </div>
       )}

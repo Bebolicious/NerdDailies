@@ -42,6 +42,7 @@ export async function fetchScreenshotPuzzle(
     },
     image_urls: (data.image_paths as string[]).map(toPublicUrl('screenshots')),
     cover_url: data.cover_path ? toPublicUrl('covers')(data.cover_path) : undefined,
+    submitter: data.submitter ?? undefined,
   }
 }
 
@@ -69,6 +70,7 @@ export async function fetchTrophyPuzzle(date: string): Promise<TrophyPuzzle> {
     rarity_pct: data.rarity_pct ?? undefined,
     platform: data.platform ?? undefined,
     gamerscore: data.gamerscore ?? undefined,
+    submitter: data.submitter ?? undefined,
   }
 }
 
@@ -95,6 +97,7 @@ export async function fetchSoundtrackPuzzle(
     audio_url: toPublicUrl('soundtracks')(data.audio_path),
     track_title: data.track_title ?? undefined,
     reveal_start_seconds: data.reveal_start_seconds ?? 0,
+    submitter: data.submitter ?? undefined,
   }
 }
 
@@ -117,6 +120,7 @@ export async function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
       genre: data.game_genre ?? undefined,
     },
     cover_url: toPublicUrl('covers')(data.cover_path),
+    submitter: data.submitter ?? undefined,
   }
 }
 
@@ -153,6 +157,7 @@ export async function fetchArchivePuzzle(week: string): Promise<ArchivePuzzle> {
     mystery_a: data.mystery_a as ArchiveMysteryBox,
     mystery_b: data.mystery_b as ArchiveMysteryBox,
     trash_crossed_out: data.trash_crossed_out,
+    submitter: data.submitter ?? undefined,
   }
 }
 
@@ -177,6 +182,7 @@ export async function fetchCrosswordPuzzle(
     solution: data.solution as (string | null)[],
     clues_across: (data.clues_across as CrosswordClue[]) ?? [],
     clues_down: (data.clues_down as CrosswordClue[]) ?? [],
+    submitter: data.submitter ?? undefined,
   }
 }
 

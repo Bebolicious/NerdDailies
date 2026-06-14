@@ -16,6 +16,7 @@ import { GameSearch } from '../components/game/GameSearch'
 import { NeoCard } from '../components/ui/NeoCard'
 import { NeoButton } from '../components/ui/NeoButton'
 import { InfoButton } from '../components/ui/InfoButton'
+import { GuestBanner } from '../components/ui/GuestBanner'
 import { useArchivePuzzle } from '../hooks/usePuzzle'
 import { todayISO, weekNumber, weekStartISO } from '../lib/dates'
 import { cn } from '../lib/cn'
@@ -354,6 +355,9 @@ function ArchiveRoom({
 
       {/* Room — dark noir surface */}
       <div className="archive-room border-neo shadow-neo-lg relative overflow-hidden">
+        {puzzle.submitter && finished && (
+          <GuestBanner name={puzzle.submitter} gameType="archive" />
+        )}
         <DustLayer />
 
         {/* Header band — candles, stamps */}

@@ -169,6 +169,15 @@ create table if not exists public.crossword_puzzles (
   updated_at timestamptz default now()
 );
 
+-- Community submitter credit. When set, the player UI renders a "GUEST · NAME"
+-- corner banner on the puzzle. Optional on every game.
+alter table public.screenshot_puzzles add column if not exists submitter text;
+alter table public.trophy_puzzles     add column if not exists submitter text;
+alter table public.blur_puzzles       add column if not exists submitter text;
+alter table public.soundtrack_puzzles add column if not exists submitter text;
+alter table public.archive_puzzles    add column if not exists submitter text;
+alter table public.crossword_puzzles  add column if not exists submitter text;
+
 -- ── RLS ─────────────────────────────────────────────────────────────────────
 -- Anyone can READ puzzles for any date (so the public app can fetch them).
 -- Only authenticated users (you, after sign-in) can write.

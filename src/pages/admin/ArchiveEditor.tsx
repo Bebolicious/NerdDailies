@@ -4,6 +4,7 @@ import { Upload, X } from 'lucide-react'
 import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
+import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import type {
@@ -52,6 +53,7 @@ export function ArchiveEditor() {
     game: '',
   })
   const [trashCrossed, setTrashCrossed] = useState('')
+  const [submitter, setSubmitter] = useState('')
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -94,6 +96,7 @@ export function ArchiveEditor() {
         setMysteryA(data.mystery_a as ArchiveMysteryBox)
         setMysteryB(data.mystery_b as ArchiveMysteryBox)
         setTrashCrossed(data.trash_crossed_out ?? '')
+        setSubmitter((data.submitter as string | null) ?? '')
       }
       setLoading(false)
     }
@@ -179,6 +182,7 @@ export function ArchiveEditor() {
         mystery_a: mysteryA,
         mystery_b: mysteryB,
         trash_crossed_out: trashCrossed,
+        submitter: submitter.trim() || null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'puzzle_week' },
@@ -233,6 +237,7 @@ export function ArchiveEditor() {
     setMysteryA({ type: 'lore', text: '' })
     setMysteryB({ type: 'redHerring', text: '', game: '' })
     setTrashCrossed('')
+    setSubmitter('')
     setMsg('Cleared.')
     setClearing(false)
   }
@@ -261,6 +266,13 @@ export function ArchiveEditor() {
         <div className="flex flex-col gap-5">
           <NeoCard tone="paper" shadow="md" className="p-5">
             <GamePicker value={game} onChange={setGame} />
+            <div className="mt-4">
+              <SubmitterField
+                value={submitter}
+                onChange={setSubmitter}
+                gameType="archive"
+              />
+            </div>
             <label className="mt-4 flex flex-col gap-1">
               <span className="font-display text-[10px] uppercase tracking-wider font-bold">
                 Weekly theme (optional)

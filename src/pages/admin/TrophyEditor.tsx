@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
+import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import type { IgdbGame } from '../../lib/types'
@@ -17,6 +18,7 @@ export function TrophyEditor() {
   const [rarity, setRarity] = useState('')
   const [platform, setPlatform] = useState('')
   const [gamerscore, setGamerscore] = useState('')
+  const [submitter, setSubmitter] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -50,6 +52,7 @@ export function TrophyEditor() {
         setRarity(data.rarity_pct?.toString() ?? '')
         setPlatform(data.platform ?? '')
         setGamerscore(data.gamerscore?.toString() ?? '')
+        setSubmitter((data.submitter as string | null) ?? '')
       }
       setLoading(false)
     }
@@ -86,6 +89,7 @@ export function TrophyEditor() {
     setRarity('')
     setPlatform('')
     setGamerscore('')
+    setSubmitter('')
     setMsg('Cleared.')
     setClearing(false)
   }
@@ -111,6 +115,7 @@ export function TrophyEditor() {
         rarity_pct: rarity ? Number(rarity) : null,
         platform: platform || null,
         gamerscore: gamerscore ? Number(gamerscore) : null,
+        submitter: submitter.trim() || null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'puzzle_date' },
@@ -133,8 +138,13 @@ export function TrophyEditor() {
         <div className="text-sm text-ink-soft">Loading…</div>
       ) : (
         <div className="flex flex-col gap-5">
-          <NeoCard tone="paper" shadow="md" className="p-5">
+          <NeoCard tone="paper" shadow="md" className="p-5 flex flex-col gap-4">
             <GamePicker value={game} onChange={setGame} />
+            <SubmitterField
+              value={submitter}
+              onChange={setSubmitter}
+              gameType="trophy"
+            />
           </NeoCard>
 
           <NeoCard tone="paper" shadow="md" className="p-5 flex flex-col gap-3">

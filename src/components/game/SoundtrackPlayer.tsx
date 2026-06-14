@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Play, Pause, Music, Volume2, VolumeX } from 'lucide-react'
 import { NeoCard } from '../ui/NeoCard'
 import { NeoButton } from '../ui/NeoButton'
-import { TagPill } from '../ui/TagPill'
 import { SOUNDTRACK_UNLOCK_SECONDS } from '../../lib/types'
 import { cn } from '../../lib/cn'
 
@@ -114,9 +113,11 @@ export function SoundtrackPlayer({
             {finished ? `“${trackTitle}”` : '“???”'}
           </div>
         </div>
+        {/* Unlock badge removed — banner area moved to top-right for guest credit.
         <TagPill tone="mustard">
           {finished ? 'Full track' : `${unlockStep + 1} of 6 unlocked`}
         </TagPill>
+        */}
       </div>
 
       <Waveform

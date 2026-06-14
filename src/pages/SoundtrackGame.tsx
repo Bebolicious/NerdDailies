@@ -3,6 +3,7 @@ import { NeoCard } from '../components/ui/NeoCard'
 import { NeoButton } from '../components/ui/NeoButton'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
+import { GuestBanner } from '../components/ui/GuestBanner'
 import { InfoButton } from '../components/ui/InfoButton'
 import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
@@ -57,13 +58,18 @@ function SoundtrackInner({
           text="A 1-second snippet plays first. Each wrong guess unlocks more: 4s, 8s, 15s, 30s, then the full track. Solve it as soon as you can hum along."
         />
       </div>
-      <SoundtrackPlayer
-        audioUrl={puzzle.audio_url}
-        revealStart={puzzle.reveal_start_seconds}
-        unlockStep={Math.min(game.wrongCount, TOTAL_GUESSES - 1)}
-        trackTitle={puzzle.track_title}
-        finished={finished}
-      />
+      <div className="relative overflow-hidden">
+        {puzzle.submitter && finished && (
+          <GuestBanner name={puzzle.submitter} gameType="soundtrack" />
+        )}
+        <SoundtrackPlayer
+          audioUrl={puzzle.audio_url}
+          revealStart={puzzle.reveal_start_seconds}
+          unlockStep={Math.min(game.wrongCount, TOTAL_GUESSES - 1)}
+          trackTitle={puzzle.track_title}
+          finished={finished}
+        />
+      </div>
 
       {!finished && (
         <div className="mt-5">
@@ -71,6 +77,7 @@ function SoundtrackInner({
             placeholder="Name the game…"
             onGuess={game.submitGuess}
             onSkip={game.submitSkip}
+            direction="down"
           />
         </div>
       )}

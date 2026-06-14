@@ -10,6 +10,13 @@ type Props = {
   disabled?: boolean
   onGuess: (game: IgdbGame) => void
   onSkip?: () => void
+  /**
+   * Which way the autocomplete dropdown opens. Defaults to "up" because the
+   * search input is usually anchored to the bottom of the game card. Games
+   * that render the search higher up (Trophy, Soundtrack) pass "down" so the
+   * dropdown doesn't get clipped against the viewport top.
+   */
+  direction?: 'up' | 'down'
 }
 
 export function GameSearch({
@@ -17,6 +24,7 @@ export function GameSearch({
   disabled,
   onGuess,
   onSkip,
+  direction = 'up',
 }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<IgdbGame[]>([])
@@ -116,7 +124,12 @@ export function GameSearch({
         </div>
 
         {open && results.length > 0 && (
-          <div className="absolute left-0 right-0 bottom-full mb-2 z-30 border-neo bg-paper shadow-neo max-h-80 overflow-y-auto">
+          <div
+            className={cn(
+              'absolute left-0 right-0 z-30 border-neo bg-paper shadow-neo max-h-80 overflow-y-auto',
+              direction === 'down' ? 'top-full mt-2' : 'bottom-full mb-2',
+            )}
+          >
             {results.map((g, i) => (
               <button
                 key={g.id}
@@ -136,7 +149,7 @@ export function GameSearch({
                     i === activeIndex ? 'opacity-70' : 'text-ink-soft',
                   )}
                 >
-                  {g.year ?? '—'} · {g.genre ?? '—'}
+                  {g.genre ?? '—'}
                 </span>
               </button>
             ))}
