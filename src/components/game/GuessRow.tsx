@@ -1,5 +1,5 @@
 import { ArrowRight, X } from 'lucide-react'
-import type { Guess, IgdbGame } from '../../lib/types'
+import type { Game, Guess } from '../../lib/types'
 import { sharesFranchise } from '../../lib/franchise'
 import { cn } from '../../lib/cn'
 
@@ -10,7 +10,7 @@ export function GuessRow({
 }: {
   guess: Guess
   hintSameYear?: number
-  hintAnswer?: IgdbGame
+  hintAnswer?: Game
 }) {
   if (guess.kind === 'skip') {
     return (

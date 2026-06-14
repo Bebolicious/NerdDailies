@@ -28,7 +28,7 @@ import {
   ARCHIVE_TOTAL_CANDLES,
   type ArchiveMysteryBox,
   type ArchivePuzzle,
-  type IgdbGame,
+  type Game,
 } from '../lib/types'
 
 // ─── persisted in-progress state ────────────────────────────────────────────
@@ -212,7 +212,7 @@ function ArchiveRoom({
   )
 
   const onGuess = useCallback(
-    (g: IgdbGame) => {
+    (g: Game) => {
       setState((prev) => {
         if (prev.status !== 'playing') return prev
         if (g.id === puzzle.game.id) {
@@ -1322,7 +1322,7 @@ function FinaleCard({
   clues,
 }: {
   status: 'solved' | 'lost' | 'playing'
-  answer: IgdbGame
+  answer: Game
   rank: { title: string; blurb: string } | null
   shareString: string | null
   wrongCount: number

@@ -6,7 +6,7 @@ export type GameType =
   | 'archive'
   | 'crossword'
 
-export type IgdbGame = {
+export type Game = {
   id: number
   name: string
   year?: number
@@ -18,7 +18,7 @@ export type IgdbGame = {
 export type ScreenshotPuzzle = {
   id: string
   puzzle_date: string
-  game: IgdbGame
+  game: Game
   image_urls: string[] // ordered, easiest last
   cover_url?: string
   submitter?: string // community contributor — surfaces a GUEST banner
@@ -27,7 +27,7 @@ export type ScreenshotPuzzle = {
 export type TrophyPuzzle = {
   id: string
   puzzle_date: string
-  game: IgdbGame
+  game: Game
   trophy_name: string
   trophy_description: string
   clues: string[] // up to 4
@@ -40,7 +40,7 @@ export type TrophyPuzzle = {
 export type BlurPuzzle = {
   id: string
   puzzle_date: string
-  game: IgdbGame
+  game: Game
   cover_url: string // official game cover (portrait 3:4)
   submitter?: string
 }
@@ -52,7 +52,7 @@ export const BLUR_LEVELS_PX: number[] = [40, 28, 18, 10, 4, 0]
 export type SoundtrackPuzzle = {
   id: string
   puzzle_date: string
-  game: IgdbGame
+  game: Game
   audio_url: string
   track_title?: string
   reveal_start_seconds: number // start of the unlock window
@@ -72,8 +72,8 @@ export const SOUNDTRACK_UNLOCK_SECONDS: (number | 'ALL')[] = [
 
 export type Guess =
   | { kind: 'skip'; at: number }
-  | { kind: 'wrong'; game: IgdbGame; at: number }
-  | { kind: 'correct'; game: IgdbGame; at: number }
+  | { kind: 'wrong'; game: Game; at: number }
+  | { kind: 'correct'; game: Game; at: number }
 
 // ── ARCHIVE (weekly) ────────────────────────────────────────────────────────
 //
@@ -93,7 +93,7 @@ export type ArchivePuzzle = {
   id: string
   puzzle_week: string // ISO date of the Monday this puzzle runs
 
-  game: IgdbGame
+  game: Game
   weekly_theme?: string
 
   // Standard text clues (3 shelf boxes + 3 filing-cabinet drawers).

@@ -7,13 +7,13 @@ import { NeoButton } from '../../components/ui/NeoButton'
 import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
-import type { IgdbGame } from '../../lib/types'
+import type { Game } from '../../lib/types'
 import { BLUR_LEVELS_PX } from '../../lib/types'
 import { formatLong } from '../../lib/dates'
 
 export function BlurEditor() {
   const { date } = useParams<{ date: string }>()
-  const [game, setGame] = useState<IgdbGame | null>(null)
+  const [game, setGame] = useState<Game | null>(null)
   const [coverPath, setCoverPath] = useState<string | null>(null)
   const [submitter, setSubmitter] = useState('')
   const [loading, setLoading] = useState(true)

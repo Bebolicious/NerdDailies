@@ -10,7 +10,7 @@ import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import type {
   ArchiveMysteryBox,
   ArchiveMysteryBoxOutcome,
-  IgdbGame,
+  Game,
 } from '../../lib/types'
 import { weekStartISO } from '../../lib/dates'
 import { trimAndEncodeToMp3 } from '../../lib/audioTrim'
@@ -29,7 +29,7 @@ export function ArchiveEditor() {
   // the Monday of that week so this editor is idempotent within a week.
   const week = date ? weekStartISO(date) : null
 
-  const [game, setGame] = useState<IgdbGame | null>(null)
+  const [game, setGame] = useState<Game | null>(null)
   const [weeklyTheme, setWeeklyTheme] = useState('')
   const [clueYear, setClueYear] = useState('')
   const [clueGenre, setClueGenre] = useState('')

@@ -1,9 +1,9 @@
-import type { IgdbGame } from '../lib/types'
+import type { Game } from '../lib/types'
 
-// Offline fallback catalog used by src/lib/igdb.ts when Supabase isn't
+// Offline fallback catalog used by src/lib/gamedb.ts when Supabase isn't
 // configured (no .env). The real catalog lives in the public.games table,
 // populated by scripts/import-igdb-games.mjs.
-export const MOCK_CATALOG: IgdbGame[] = [
+export const MOCK_CATALOG: Game[] = [
   { id: 1, name: 'A Short Hike', year: 2019, genre: 'Adventure', platforms: ['PC', 'Switch'] },
   { id: 2, name: 'Hollow Knight', year: 2017, genre: 'Metroidvania', platforms: ['PC', 'Switch'] },
   { id: 3, name: 'Cuphead', year: 2017, genre: 'Run-and-gun', platforms: ['PC', 'Xbox'] },

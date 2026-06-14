@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { getResult, saveResult } from '../lib/scoreStore'
-import type { GameType, Guess, IgdbGame, PuzzleResult } from '../lib/types'
+import type { Game, GameType, Guess, PuzzleResult } from '../lib/types'
 
 type Args = {
   date: string
@@ -47,7 +47,7 @@ export function useGameState({
   )
 
   const submitGuess = useCallback(
-    (game: IgdbGame) => {
+    (game: Game) => {
       if (status !== 'playing') return
       const correct = game.id === answerGameId
       const guess: Guess = correct

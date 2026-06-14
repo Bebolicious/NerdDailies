@@ -6,12 +6,12 @@ import { NeoButton } from '../../components/ui/NeoButton'
 import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
-import type { IgdbGame } from '../../lib/types'
+import type { Game } from '../../lib/types'
 import { formatLong } from '../../lib/dates'
 
 export function TrophyEditor() {
   const { date } = useParams<{ date: string }>()
-  const [game, setGame] = useState<IgdbGame | null>(null)
+  const [game, setGame] = useState<Game | null>(null)
   const [trophyName, setTrophyName] = useState('')
   const [trophyDesc, setTrophyDesc] = useState('')
   const [clues, setClues] = useState<string[]>(['', '', '', ''])

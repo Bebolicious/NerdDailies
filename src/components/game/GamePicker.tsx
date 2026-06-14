@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Search, X } from 'lucide-react'
-import { searchGames } from '../../lib/igdb'
-import type { IgdbGame } from '../../lib/types'
+import { searchGames } from '../../lib/gamedb'
+import type { Game } from '../../lib/types'
 import { cn } from '../../lib/cn'
 
 // Single-select game picker for admin editors. Distinct from the player-facing
@@ -11,12 +11,12 @@ export function GamePicker({
   onChange,
   label = 'Answer game',
 }: {
-  value: IgdbGame | null
-  onChange: (g: IgdbGame | null) => void
+  value: Game | null
+  onChange: (g: Game | null) => void
   label?: string
 }) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<IgdbGame[]>([])
+  const [results, setResults] = useState<Game[]>([])
   const [open, setOpen] = useState(false)
 
   useEffect(() => {

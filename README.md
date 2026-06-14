@@ -91,7 +91,7 @@ src/
   hooks/
     useGameState, useCountdown, useStreak, useAdminSession, usePuzzle
   lib/
-    cn, dates, types, supabase, puzzleStore, igdb, scoreStore
+    cn, dates, types, supabase, puzzleStore, gamedb, scoreStore
   data/
     mockCatalog, mockPuzzles
 supabase/

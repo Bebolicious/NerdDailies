@@ -7,7 +7,7 @@ import { NeoButton } from '../../components/ui/NeoButton'
 import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
-import type { IgdbGame } from '../../lib/types'
+import type { Game } from '../../lib/types'
 import { formatLong } from '../../lib/dates'
 import { trimAndEncodeToMp3 } from '../../lib/audioTrim'
 
@@ -15,7 +15,7 @@ const MAX_SECONDS = 60
 
 export function SoundtrackEditor() {
   const { date } = useParams<{ date: string }>()
-  const [game, setGame] = useState<IgdbGame | null>(null)
+  const [game, setGame] = useState<Game | null>(null)
   const [audioPath, setAudioPath] = useState<string | null>(null)
   const [trackTitle, setTrackTitle] = useState('')
   const [revealStart, setRevealStart] = useState('0')

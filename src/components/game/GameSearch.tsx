@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
-import { searchGames } from '../../lib/igdb'
-import type { IgdbGame } from '../../lib/types'
+import { searchGames } from '../../lib/gamedb'
+import type { Game } from '../../lib/types'
 import { NeoButton } from '../ui/NeoButton'
 import { cn } from '../../lib/cn'
 
 type Props = {
   placeholder?: string
   disabled?: boolean
-  onGuess: (game: IgdbGame) => void
+  onGuess: (game: Game) => void
   onSkip?: () => void
   /**
    * Which way the autocomplete dropdown opens. Defaults to "up" because the
@@ -27,8 +27,8 @@ export function GameSearch({
   direction = 'up',
 }: Props) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<IgdbGame[]>([])
-  const [selected, setSelected] = useState<IgdbGame | null>(null)
+  const [results, setResults] = useState<Game[]>([])
+  const [selected, setSelected] = useState<Game | null>(null)
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -63,7 +63,7 @@ export function GameSearch({
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
 
-  function commit(g: IgdbGame) {
+  function commit(g: Game) {
     setSelected(g)
     setQuery(g.name)
     setOpen(false)

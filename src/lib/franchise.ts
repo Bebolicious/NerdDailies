@@ -1,4 +1,4 @@
-import type { IgdbGame } from './types'
+import type { Game } from './types'
 
 // Detects when two games belong to the same franchise so the UI can mark
 // "close" guesses (e.g. picking "Wolfenstein: The New Order" when the answer
@@ -37,7 +37,7 @@ function stem(name: string): string[] {
   return tokens
 }
 
-export function sharesFranchise(a: IgdbGame, b: IgdbGame): boolean {
+export function sharesFranchise(a: Game, b: Game): boolean {
   if (a.id === b.id) return true
   const A = stem(a.name)
   const B = stem(b.name)
