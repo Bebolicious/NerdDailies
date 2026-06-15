@@ -20,6 +20,11 @@ const ArchiveGame = lazy(() =>
 const CrosswordGame = lazy(() =>
   import('./pages/CrosswordGame').then((m) => ({ default: m.CrosswordGame })),
 )
+const HigherLowerGame = lazy(() =>
+  import('./pages/HigherLowerGame').then((m) => ({
+    default: m.HigherLowerGame,
+  })),
+)
 const HowToPlay = lazy(() =>
   import('./pages/HowToPlay').then((m) => ({ default: m.HowToPlay })),
 )
@@ -65,6 +70,11 @@ const CrosswordEditor = lazy(() =>
     default: m.CrosswordEditor,
   })),
 )
+const HigherLowerEditor = lazy(() =>
+  import('./pages/admin/HigherLowerEditor').then((m) => ({
+    default: m.HigherLowerEditor,
+  })),
+)
 
 function App() {
   return (
@@ -79,6 +89,10 @@ function App() {
           <Route path="/admin/blur/:date" element={<BlurEditor />} />
           <Route path="/admin/archive/:date" element={<ArchiveEditor />} />
           <Route path="/admin/crossword/:date" element={<CrosswordEditor />} />
+          <Route
+            path="/admin/higherlower/:date"
+            element={<HigherLowerEditor />}
+          />
 
           <Route path="/" element={<Navigate to="/screenshot" replace />} />
           <Route
@@ -126,6 +140,14 @@ function App() {
             element={
               <ShellLayout>
                 <CrosswordGame />
+              </ShellLayout>
+            }
+          />
+          <Route
+            path="/higherlower"
+            element={
+              <ShellLayout>
+                <HigherLowerGame />
               </ShellLayout>
             }
           />

@@ -154,6 +154,46 @@ create table if not exists public.archive_puzzles (
   updated_at timestamptz default now()
 );
 
+-- The weekly Higher/Lower gauntlet. One row per week (Monday) holds the
+-- puzzle metadata; the 15 pairs live in higherlower_pairs.
+create table if not exists public.higherlower_puzzles (
+  id uuid primary key default gen_random_uuid(),
+  puzzle_week date not null unique,
+  theme text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.higherlower_pairs (
+  id uuid primary key default gen_random_uuid(),
+  puzzle_id uuid not null references public.higherlower_puzzles(id) on delete cascade,
+  position int not null check (position between 0 and 99),
+
+  -- Stat the player is comparing. Free text so new categories can be added
+  -- in the app without a migration; the player UI falls back gracefully.
+  category text not null,
+
+  game_a_id bigint not null,
+  game_a_name text not null,
+  game_a_year int,
+  game_a_value numeric not null,
+  game_a_display text,
+  game_a_cover_path text,
+
+  game_b_id bigint not null,
+  game_b_name text not null,
+  game_b_year int,
+  game_b_value numeric not null,
+  game_b_display text,
+  game_b_cover_path text,
+
+  created_at timestamptz default now(),
+  unique (puzzle_id, position)
+);
+
+create index if not exists higherlower_pairs_puzzle_idx
+  on public.higherlower_pairs (puzzle_id, position);
+
 -- The daily mini-crossword. No IGDB game reference — the puzzle is the answer.
 -- `solution` is a flat row-major array; null entries are blocks. Clues are
 -- stored as JSON arrays of {number, text}; numbering is derived client-side
@@ -177,6 +217,7 @@ alter table public.blur_puzzles       add column if not exists submitter text;
 alter table public.soundtrack_puzzles add column if not exists submitter text;
 alter table public.archive_puzzles    add column if not exists submitter text;
 alter table public.crossword_puzzles  add column if not exists submitter text;
+alter table public.higherlower_puzzles add column if not exists submitter text;
 
 -- ── RLS ─────────────────────────────────────────────────────────────────────
 -- Anyone can READ puzzles for any date (so the public app can fetch them).
@@ -189,6 +230,8 @@ alter table public.soundtrack_puzzles  enable row level security;
 alter table public.blur_puzzles        enable row level security;
 alter table public.archive_puzzles     enable row level security;
 alter table public.crossword_puzzles   enable row level security;
+alter table public.higherlower_puzzles enable row level security;
+alter table public.higherlower_pairs   enable row level security;
 
 drop policy if exists "public read games" on public.games;
 create policy "public read games" on public.games
@@ -253,6 +296,24 @@ create policy "admin write crossword" on public.crossword_puzzles
   for all using (auth.role() = 'authenticated')
          with check (auth.role() = 'authenticated');
 
+drop policy if exists "public read higherlower puzzles" on public.higherlower_puzzles;
+create policy "public read higherlower puzzles" on public.higherlower_puzzles
+  for select using (true);
+
+drop policy if exists "admin write higherlower puzzles" on public.higherlower_puzzles;
+create policy "admin write higherlower puzzles" on public.higherlower_puzzles
+  for all using (auth.role() = 'authenticated')
+         with check (auth.role() = 'authenticated');
+
+drop policy if exists "public read higherlower pairs" on public.higherlower_pairs;
+create policy "public read higherlower pairs" on public.higherlower_pairs
+  for select using (true);
+
+drop policy if exists "admin write higherlower pairs" on public.higherlower_pairs;
+create policy "admin write higherlower pairs" on public.higherlower_pairs
+  for all using (auth.role() = 'authenticated')
+         with check (auth.role() = 'authenticated');
+
 -- ── STORAGE BUCKETS ─────────────────────────────────────────────────────────
 -- Public read, authenticated write.
 
@@ -270,6 +331,10 @@ insert into storage.buckets (id, name, public)
 
 insert into storage.buckets (id, name, public)
   values ('archive', 'archive', true)
+  on conflict (id) do nothing;
+
+insert into storage.buckets (id, name, public)
+  values ('higherlower', 'higherlower', true)
   on conflict (id) do nothing;
 
 
@@ -336,6 +401,22 @@ create policy "admin update archive bucket" on storage.objects
 drop policy if exists "admin delete archive bucket" on storage.objects;
 create policy "admin delete archive bucket" on storage.objects
   for delete using (bucket_id = 'archive' and auth.role() = 'authenticated');
+
+drop policy if exists "public read higherlower bucket" on storage.objects;
+create policy "public read higherlower bucket" on storage.objects
+  for select using (bucket_id = 'higherlower');
+
+drop policy if exists "admin write higherlower bucket" on storage.objects;
+create policy "admin write higherlower bucket" on storage.objects
+  for insert with check (bucket_id = 'higherlower' and auth.role() = 'authenticated');
+
+drop policy if exists "admin update higherlower bucket" on storage.objects;
+create policy "admin update higherlower bucket" on storage.objects
+  for update using (bucket_id = 'higherlower' and auth.role() = 'authenticated');
+
+drop policy if exists "admin delete higherlower bucket" on storage.objects;
+create policy "admin delete higherlower bucket" on storage.objects
+  for delete using (bucket_id = 'higherlower' and auth.role() = 'authenticated');
 
 -- The old 'blur_images' bucket is no longer used (the blur game now blurs the
 -- official cover from the 'covers' bucket). Drop its policies if they exist.

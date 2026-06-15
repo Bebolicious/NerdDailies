@@ -3,6 +3,7 @@ import {
   getMockArchivePuzzle,
   getMockBlurPuzzle,
   getMockCrosswordPuzzle,
+  getMockHigherLowerPuzzle,
   getMockScreenshotPuzzle,
   getMockSoundtrackPuzzle,
   getMockTrophyPuzzle,
@@ -13,6 +14,9 @@ import type {
   BlurPuzzle,
   CrosswordClue,
   CrosswordPuzzle,
+  HigherLowerCategory,
+  HigherLowerPair,
+  HigherLowerPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
   TrophyPuzzle,
@@ -183,6 +187,53 @@ export async function fetchCrosswordPuzzle(
     clues_across: (data.clues_across as CrosswordClue[]) ?? [],
     clues_down: (data.clues_down as CrosswordClue[]) ?? [],
     submitter: data.submitter ?? undefined,
+  }
+}
+
+export async function fetchHigherLowerPuzzle(
+  week: string,
+): Promise<HigherLowerPuzzle> {
+  const sb = getSupabase()
+  if (!sb) return getMockHigherLowerPuzzle(week)
+  const { data, error } = await sb
+    .from('higherlower_puzzles')
+    .select('*')
+    .eq('puzzle_week', week)
+    .maybeSingle()
+  if (error || !data) return getMockHigherLowerPuzzle(week)
+  const { data: pairRows } = await sb
+    .from('higherlower_pairs')
+    .select('*')
+    .eq('puzzle_id', data.id)
+    .order('position', { ascending: true })
+  const url = toPublicUrl('higherlower')
+  const pairs: HigherLowerPair[] = (pairRows ?? []).map((r) => ({
+    id: r.id,
+    position: r.position,
+    category: r.category as HigherLowerCategory,
+    a: {
+      game_id: r.game_a_id,
+      game_name: r.game_a_name,
+      game_year: r.game_a_year ?? undefined,
+      cover_url: r.game_a_cover_path ? url(r.game_a_cover_path) : undefined,
+      value: Number(r.game_a_value),
+      display: r.game_a_display ?? undefined,
+    },
+    b: {
+      game_id: r.game_b_id,
+      game_name: r.game_b_name,
+      game_year: r.game_b_year ?? undefined,
+      cover_url: r.game_b_cover_path ? url(r.game_b_cover_path) : undefined,
+      value: Number(r.game_b_value),
+      display: r.game_b_display ?? undefined,
+    },
+  }))
+  return {
+    id: data.id,
+    puzzle_week: data.puzzle_week,
+    theme: data.theme ?? undefined,
+    submitter: data.submitter ?? undefined,
+    pairs,
   }
 }
 

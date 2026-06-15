@@ -3,6 +3,7 @@ import {
   fetchArchivePuzzle,
   fetchBlurPuzzle,
   fetchCrosswordPuzzle,
+  fetchHigherLowerPuzzle,
   fetchScreenshotPuzzle,
   fetchTrophyPuzzle,
   fetchSoundtrackPuzzle,
@@ -11,6 +12,7 @@ import type {
   ArchivePuzzle,
   BlurPuzzle,
   CrosswordPuzzle,
+  HigherLowerPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
   TrophyPuzzle,
@@ -73,6 +75,18 @@ export function useCrosswordPuzzle(date: string) {
       cancelled = true
     }
   }, [date])
+  return puzzle
+}
+
+export function useHigherLowerPuzzle(week: string) {
+  const [puzzle, setPuzzle] = useState<HigherLowerPuzzle | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetchHigherLowerPuzzle(week).then((p) => !cancelled && setPuzzle(p))
+    return () => {
+      cancelled = true
+    }
+  }, [week])
   return puzzle
 }
 

@@ -15,7 +15,7 @@ import type { GameType } from '../../lib/types'
 // The background color is tied to the game's sidebar tone so each game has a
 // distinct, consistent "credit color".
 
-type Tone = 'coral' | 'blue' | 'lime' | 'mustard' | 'pink' | 'violet'
+type Tone = 'coral' | 'blue' | 'lime' | 'mustard' | 'pink' | 'violet' | 'teal'
 
 const TONE_BG: Record<Tone, string> = {
   coral: 'bg-coral text-ink-static',
@@ -24,6 +24,7 @@ const TONE_BG: Record<Tone, string> = {
   mustard: 'bg-mustard text-ink-static',
   pink: 'bg-pink text-ink-static',
   violet: 'bg-violet text-paper-static',
+  teal: 'bg-teal text-ink-static',
 }
 
 const GAME_TONE: Record<GameType, Tone> = {
@@ -33,6 +34,7 @@ const GAME_TONE: Record<GameType, Tone> = {
   soundtrack: 'mustard',
   crossword: 'pink',
   archive: 'violet',
+  higherlower: 'teal',
 }
 
 type Props = {

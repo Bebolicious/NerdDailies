@@ -8,8 +8,9 @@ export function HowToPlay() {
         How to play
       </h1>
       <p className="text-sm text-ink-soft mb-6">
-        Four small puzzles drop every day at local midnight. No sign-in — your
-        history lives on this device.
+        Five small puzzles drop every day at local midnight, plus two larger
+        weekly games that fresh up on Monday. No sign-in — your history lives
+        on this device.
       </p>
       <div className="flex flex-col gap-4">
         <NeoCard tone="paper" shadow="md" className="p-5">
@@ -60,6 +61,21 @@ export function HowToPlay() {
             different kind of clue. Rummaging the trash is free. Each wrong
             guess locks a clue and sharpens the wall frames. Solve it with as
             many candles unspent as possible to earn a higher rank.
+          </p>
+        </NeoCard>
+        <NeoCard tone="paper" shadow="md" className="p-5">
+          <TagPill tone="teal" className="mb-2">
+            Higher / Lower · weekly
+          </TagPill>
+          <p className="text-sm mt-2">
+            A weekly 15-pair gauntlet. For each pair, two games are shown with
+            their values hidden — pick the side you think has the higher value
+            for the listed stat (Metacritic, Steam rating, copies sold, release
+            year, speedrun WR length, dev budget, HowLongToBeat hours, and so
+            on). Wrong picks are recorded but don't end the run — you always
+            play all 15. Your score is your correct count, plus a rank from
+            Coin&nbsp;flipper to Analyst. Use the Replay button on the end
+            screen to retry the week as many times as you like.
           </p>
         </NeoCard>
       </div>

@@ -2,10 +2,13 @@ import type {
   ArchivePuzzle,
   BlurPuzzle,
   CrosswordPuzzle,
+  HigherLowerCategory,
+  HigherLowerPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
   TrophyPuzzle,
 } from '../lib/types'
+import { HIGHERLOWER_PAIR_COUNT } from '../lib/types'
 import { MOCK_CATALOG } from './mockCatalog'
 
 // SVG-based placeholder "screenshots" so the UI is playable without uploads.
@@ -184,6 +187,128 @@ export function getMockCrosswordPuzzle(date: string): CrosswordPuzzle {
       { number: 4, text: 'Take a break.' },
     ],
   }
+}
+
+// Deterministic mock for the weekly Higher/Lower gauntlet. Cycles through the
+// catalogue, picks a category per pair, and synthesises plausible numeric
+// values so the UI is fully playable with no Supabase configured.
+export function getMockHigherLowerPuzzle(week: string): HigherLowerPuzzle {
+  const seed = hash(week + 'higherlower')
+  const categories: HigherLowerCategory[] = [
+    'metacritic',
+    'steam_rating',
+    'copies_sold',
+    'release_year',
+    'speedrun_wr',
+    'budget',
+    'hltb_main',
+    'hltb_completionist',
+  ]
+  const pairs = Array.from({ length: HIGHERLOWER_PAIR_COUNT }, (_, i) => {
+    const a = pickGame(seed + i * 5)
+    let b = pickGame(seed + i * 5 + 1)
+    if (b.id === a.id) b = pickGame(seed + i * 5 + 2)
+    const category = categories[(seed + i) % categories.length]
+    const [va, vb] = mockValues(category, seed + i)
+    return {
+      id: `mock-pair-${seed}-${i}`,
+      position: i,
+      category,
+      a: {
+        game_id: a.id,
+        game_name: a.name,
+        game_year: a.year,
+        value: va.value,
+        display: va.display,
+      },
+      b: {
+        game_id: b.id,
+        game_name: b.name,
+        game_year: b.year,
+        value: vb.value,
+        display: vb.display,
+      },
+    }
+  })
+  return {
+    id: 'mock-higherlower-' + seed,
+    puzzle_week: week,
+    theme: 'Mock weekly gauntlet · seeded values',
+    pairs,
+  }
+}
+
+function mockValues(
+  category: HigherLowerCategory,
+  seed: number,
+): [{ value: number; display?: string }, { value: number; display?: string }] {
+  const r = (n: number) => Math.abs(((seed + n) * 9301 + 49297) % 233280) / 233280
+  switch (category) {
+    case 'metacritic':
+      return [
+        { value: 70 + Math.round(r(1) * 28) },
+        { value: 70 + Math.round(r(2) * 28) },
+      ]
+    case 'steam_rating':
+      return [
+        { value: 75 + Math.round(r(1) * 24), display: `${75 + Math.round(r(1) * 24)}%` },
+        { value: 75 + Math.round(r(2) * 24), display: `${75 + Math.round(r(2) * 24)}%` },
+      ]
+    case 'copies_sold': {
+      const a = +(1 + r(1) * 40).toFixed(1)
+      const b = +(1 + r(2) * 40).toFixed(1)
+      return [
+        { value: a, display: `${a}M` },
+        { value: b, display: `${b}M` },
+      ]
+    }
+    case 'release_year':
+      return [
+        { value: 1995 + Math.round(r(1) * 29) },
+        { value: 1995 + Math.round(r(2) * 29) },
+      ]
+    case 'speedrun_wr': {
+      const a = Math.round(r(1) * 7200) + 60
+      const b = Math.round(r(2) * 7200) + 60
+      return [
+        { value: a, display: formatSeconds(a) },
+        { value: b, display: formatSeconds(b) },
+      ]
+    }
+    case 'budget': {
+      const a = Math.round(r(1) * 380) + 5
+      const b = Math.round(r(2) * 380) + 5
+      return [
+        { value: a, display: `$${a}M` },
+        { value: b, display: `$${b}M` },
+      ]
+    }
+    case 'hltb_main': {
+      const a = +(2 + r(1) * 60).toFixed(1)
+      const b = +(2 + r(2) * 60).toFixed(1)
+      return [
+        { value: a, display: `${a}h` },
+        { value: b, display: `${b}h` },
+      ]
+    }
+    case 'hltb_completionist': {
+      const a = +(5 + r(1) * 120).toFixed(1)
+      const b = +(5 + r(2) * 120).toFixed(1)
+      return [
+        { value: a, display: `${a}h` },
+        { value: b, display: `${b}h` },
+      ]
+    }
+  }
+}
+
+function formatSeconds(total: number): string {
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`
 }
 
 export function getMockSoundtrackPuzzle(date: string): SoundtrackPuzzle {

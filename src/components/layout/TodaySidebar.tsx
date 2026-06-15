@@ -1,29 +1,57 @@
 import { useEffect } from 'react'
-import { Archive, Camera, Eye, Grid3x3, Music, Trophy, X } from 'lucide-react'
+import { Archive, Camera, Eye, Grid3x3, Music, Scale, Trophy, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { NeoCard } from '../ui/NeoCard'
 import { TagPill } from '../ui/TagPill'
-import { dayNumber, formatLong, todayISO, weekNumber, weekStartISO } from '../../lib/dates'
+import { dayNumber, todayISO, weekNumber, weekStartISO } from '../../lib/dates'
 import { getResult } from '../../lib/scoreStore'
 import type { GameType } from '../../lib/types'
 import { cn } from '../../lib/cn'
 
-const GAMES: Array<{
+type GameTone = 'coral' | 'blue' | 'mustard' | 'lime' | 'violet' | 'pink' | 'teal'
+
+type GameEntry = {
   type: GameType
   title: string
   blurb: string
   path: string
-  tone: 'coral' | 'blue' | 'mustard' | 'lime' | 'violet' | 'pink'
+  tone: GameTone
   icon: typeof Camera
   cadence: 'daily' | 'weekly'
-}> = [
+}
+
+const GAMES: GameEntry[] = [
   { type: 'screenshot', title: 'Screenshot', blurb: 'Guess the game based on 6 screenshots.', path: '/screenshot', tone: 'coral', icon: Camera, cadence: 'daily' },
   { type: 'trophy', title: 'Trophy', blurb: 'Guess the game based on a trophy/achievement.', path: '/trophy', tone: 'blue', icon: Trophy, cadence: 'daily' },
-  { type: 'blur', title: 'Blur Reveal', blurb: 'Guess the game from its blurred cover — each miss sharpens it.', path: '/blur', tone: 'lime', icon: Eye, cadence: 'daily' },
+  { type: 'blur', title: 'Blur Reveal', blurb: 'Guess the game from its blurred cover.', path: '/blur', tone: 'lime', icon: Eye, cadence: 'daily' },
   { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name the game by only listening.', path: '/soundtrack', tone: 'mustard', icon: Music, cadence: 'daily' },
   { type: 'crossword', title: 'Mini Crossword', blurb: 'Fill the mini. Across and Down clues — no timer.', path: '/crossword', tone: 'pink', icon: Grid3x3, cadence: 'daily' },
   { type: 'archive', title: 'The Archive', blurb: 'Weekly. Spend candles in a dark archive room to identify a mystery game.', path: '/archive', tone: 'violet', icon: Archive, cadence: 'weekly' },
+  { type: 'higherlower', title: 'Higher / Lower', blurb: 'Weekly gauntlet — pick which game is higher across 15 stat showdowns.', path: '/higherlower', tone: 'teal', icon: Scale, cadence: 'weekly' },
 ]
+
+const DAILY_GAMES = GAMES.filter((g) => g.cadence === 'daily')
+const WEEKLY_GAMES = GAMES.filter((g) => g.cadence === 'weekly')
+
+const ACTIVE_TILE_BG: Record<GameTone, string> = {
+  coral: 'bg-coral text-ink-static',
+  blue: 'bg-blue text-paper-static',
+  mustard: 'bg-mustard text-ink-static',
+  lime: 'bg-lime text-ink-static',
+  violet: 'bg-violet text-paper-static',
+  pink: 'bg-pink text-ink-static',
+  teal: 'bg-teal text-ink-static',
+}
+
+const CARD_ICON_BG: Record<GameTone, string> = {
+  coral: 'bg-coral text-ink-static',
+  blue: 'bg-blue text-paper-static',
+  lime: 'bg-lime text-ink-static',
+  mustard: 'bg-mustard text-ink-static',
+  violet: 'bg-violet text-paper-static',
+  pink: 'bg-pink text-ink-static',
+  teal: 'bg-teal text-ink-static',
+}
 
 type Props = {
   mobileOpen?: boolean
@@ -96,19 +124,15 @@ function SidebarContent() {
 
   return (
     <>
-      <div className="px-6 pt-5 pb-3 flex items-center justify-between">
-        <div className="font-display text-xs uppercase tracking-[0.2em] font-bold">
-          Today
-        </div>
-        <div className="text-[10px] uppercase tracking-wider text-ink-soft">
-          {formatLong(today)}
-        </div>
-      </div>
+      <div className="pt-5" />
+
+      {WEEKLY_GAMES.length > 0 && (
+        <WeeklyBox today={today} pathname={location.pathname} />
+      )}
 
       <div className="px-6 flex flex-col gap-3">
-        {GAMES.map((g) => {
-          const resultKey = g.cadence === 'weekly' ? weekStartISO(today) : today
-          const result = getResult(resultKey, g.type)
+        {DAILY_GAMES.map((g) => {
+          const result = getResult(today, g.type)
           const active = location.pathname.startsWith(g.path)
           const status: 'play' | 'in_progress' | 'solved' | 'lost' = result
             ? result.status === 'solved'
@@ -126,31 +150,11 @@ function SidebarContent() {
                 shadow="md"
                 className="p-3 relative overflow-hidden transition-all group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 group-hover:shadow-neo-lg group-active:translate-x-[2px] group-active:translate-y-[2px] group-active:shadow-none"
               >
-                {g.cadence === 'weekly' && (
-                  <div
-                    className="absolute top-3 -right-8 w-28 text-center rotate-45 bg-mustard text-ink-static border-y-2 border-stroke font-display text-[9px] uppercase tracking-[0.15em] font-bold py-0.5 shadow-neo-sm pointer-events-none"
-                    aria-hidden
-                  >
-                    Weekly!
-                  </div>
-                )}
                 <div className="flex items-start gap-3">
                   <div
                     className={cn(
                       'border-neo-2 p-1.5 shrink-0',
-                      active
-                        ? 'bg-paper text-ink'
-                        : g.tone === 'coral'
-                          ? 'bg-coral text-ink-static'
-                          : g.tone === 'blue'
-                            ? 'bg-blue text-paper-static'
-                            : g.tone === 'lime'
-                              ? 'bg-lime text-ink-static'
-                              : g.tone === 'violet'
-                                ? 'bg-violet text-paper-static'
-                                : g.tone === 'pink'
-                                  ? 'bg-pink text-ink-static'
-                                  : 'bg-mustard text-ink-static',
+                      active ? 'bg-paper text-ink' : CARD_ICON_BG[g.tone],
                     )}
                   >
                     <Icon className="h-5 w-5 stroke-[2.5]" />
@@ -164,11 +168,9 @@ function SidebarContent() {
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <div className="font-display text-[10px] uppercase tracking-wider opacity-80">
-                    {g.cadence === 'weekly'
-                      ? `Week #${weekNumber(today)} · weekly`
-                      : `Day #${dayNumber(today)}`}
+                    Day #{dayNumber(today)}
                   </div>
-                  <StatusPill status={status} cadence={g.cadence} />
+                  <StatusPill status={status} cadence="daily" />
                 </div>
               </NeoCard>
             </Link>
@@ -178,6 +180,65 @@ function SidebarContent() {
 
       <div className="pb-4" />
     </>
+  )
+}
+
+function WeeklyBox({
+  today,
+  pathname,
+}: {
+  today: string
+  pathname: string
+}) {
+  const weekKey = weekStartISO(today)
+  return (
+    <div className="px-6 pb-4">
+      <NeoCard tone="paper" shadow="md" className="p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-display text-[10px] uppercase tracking-[0.2em] font-bold">
+            Weekly
+          </div>
+          <div className="text-[10px] uppercase tracking-wider text-ink-soft font-display">
+            Week #{weekNumber(today)}
+          </div>
+        </div>
+        <div className="flex items-stretch gap-2">
+          {WEEKLY_GAMES.map((g) => {
+            const active = pathname.startsWith(g.path)
+            const result = getResult(weekKey, g.type)
+            const solved = result?.status === 'solved'
+            const Icon = g.icon
+            return (
+              <Link
+                key={g.type}
+                to={g.path}
+                title={`${g.title}${solved ? ' · solved' : ''}`}
+                aria-label={g.title}
+                className={cn(
+                  'border-neo-2 p-2.5 shadow-neo-sm transition-all relative',
+                  'hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo',
+                  'active:translate-x-[1px] active:translate-y-[1px] active:shadow-none',
+                  active
+                    ? ACTIVE_TILE_BG[g.tone]
+                    : 'bg-cream-soft text-ink hover:bg-paper',
+                )}
+              >
+                <Icon className="h-5 w-5 stroke-[2.5]" />
+                {solved && !active && (
+                  <span
+                    className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-lime border-[2px] border-stroke"
+                    aria-hidden
+                  />
+                )}
+              </Link>
+            )
+          })}
+          <div className="ml-auto self-end flex items-center justify-center bg-[#cdb4f6] text-ink-static border-neo-2 shadow-neo-sm px-2 py-[6px] text-center font-display text-[10px] [html[data-readable=true]_&]:text-[8px] font-bold uppercase tracking-wider leading-tight whitespace-nowrap">
+            Updates on Mondays!
+          </div>
+        </div>
+      </NeoCard>
+    </div>
   )
 }
 

@@ -130,7 +130,24 @@ export async function searchGames(query: string): Promise<Game[]> {
     .join(',')
 
   const select = 'id,name,year,genre,platforms'
-  const [subRes, wbRes] = await Promise.all([
+
+  // AND pass: every token must appear as a substring of the name. This is what
+  // reliably surfaces multi-word titles whose individual tokens are common
+  // ("god of war", "the legend of zelda") — a stopword-ish token like "of"
+  // saturates the OR-based passes below, so without relevance ordering the real
+  // match gets pushed past the LIMIT before it can be reranked. Tokens are
+  // alphanumeric-only (see tokenize), so no ILIKE escaping is needed here.
+  let andQuery = null
+  if (tokens.length >= 2) {
+    let q = sb.from('games').select(select)
+    for (const t of tokens) {
+      q = q.ilike('name', `%${t}%`)
+    }
+    andQuery = q.limit(WORD_BOUNDARY_LIMIT)
+  }
+
+  const [andRes, subRes, wbRes] = await Promise.all([
+    andQuery,
     sb.from('games').select(select).or(subFilter).limit(CANDIDATE_LIMIT),
     wbFilter
       ? sb.from('games').select(select).or(wbFilter).limit(WORD_BOUNDARY_LIMIT)
@@ -145,10 +162,18 @@ export async function searchGames(query: string): Promise<Game[]> {
     console.warn('[gamedb] Supabase word-boundary search failed, falling back to mock:', wbRes.error)
     return searchMock(raw)
   }
+  if (andRes?.error) {
+    console.warn('[gamedb] Supabase all-tokens search failed, falling back to mock:', andRes.error)
+    return searchMock(raw)
+  }
 
   const seen = new Set<number>()
   const merged: Game[] = []
-  for (const row of [...((wbRes?.data ?? []) as GameRow[]), ...((subRes.data ?? []) as GameRow[])]) {
+  for (const row of [
+    ...((andRes?.data ?? []) as GameRow[]),
+    ...((wbRes?.data ?? []) as GameRow[]),
+    ...((subRes.data ?? []) as GameRow[]),
+  ]) {
     if (!seen.has(row.id)) {
       seen.add(row.id)
       merged.push(rowToGame(row))

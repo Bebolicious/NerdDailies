@@ -3,7 +3,15 @@ import { cn } from '../../lib/cn'
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode
-  tone?: 'coral' | 'lime' | 'mustard' | 'blue' | 'violet' | 'ink' | 'paper'
+  tone?:
+    | 'coral'
+    | 'lime'
+    | 'mustard'
+    | 'blue'
+    | 'violet'
+    | 'teal'
+    | 'ink'
+    | 'paper'
   size?: 'sm' | 'md' | 'lg'
 }
 
@@ -15,14 +23,15 @@ const toneClass: Record<NonNullable<Props['tone']>, string> = {
   mustard: 'bg-mustard text-ink-static hover:bg-mustard-deep',
   blue: 'bg-blue text-paper-static hover:bg-blue-deep',
   violet: 'bg-violet text-paper-static hover:bg-violet-deep',
+  teal: 'bg-teal text-ink-static hover:bg-teal-deep',
   ink: 'bg-emphasis text-paper-static hover:bg-emphasis-hover',
   paper: 'bg-paper text-ink hover:bg-cream-soft',
 }
 
 const sizeClass: Record<NonNullable<Props['size']>, string> = {
-  sm: 'px-3 py-1.5 text-xs',
-  md: 'px-5 py-3 text-sm',
-  lg: 'px-7 py-4 text-base',
+  sm: 'px-[11px] py-[5px] text-xs',
+  md: 'px-[19px] py-[11px] text-sm',
+  lg: 'px-[27px] py-[15px] text-base',
 }
 
 export function NeoButton({

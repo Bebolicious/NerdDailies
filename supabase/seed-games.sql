@@ -7459,3 +7459,24 @@ on conflict (id) do update set
   year      = excluded.year,
   genre     = excluded.genre,
   platforms = excluded.platforms;
+
+-- ── CUSTOM ADDITIONS ────────────────────────────────────────────────────────
+-- Manually-added obscure games. Edit name / year / genre / platforms before
+-- running. IDs live in the 9_000_000+ range so they never collide with IGDB
+-- ids pulled by scripts/import-igdb-games.mjs.
+insert into public.games (id, name, year, genre, platforms) values
+  (9000001, 'TODO Custom Game 1',  2000, 'Adventure', '{"PC"}'),
+  (9000002, 'TODO Custom Game 2',  2000, 'Adventure', '{"PC"}'),
+  (9000003, 'TODO Custom Game 3',  2000, 'Adventure', '{"PC"}'),
+  (9000004, 'TODO Custom Game 4',  2000, 'Adventure', '{"PC"}'),
+  (9000005, 'TODO Custom Game 5',  2000, 'Adventure', '{"PC"}'),
+  (9000006, 'TODO Custom Game 6',  2000, 'Adventure', '{"PC"}'),
+  (9000007, 'TODO Custom Game 7',  2000, 'Adventure', '{"PC"}'),
+  (9000008, 'TODO Custom Game 8',  2000, 'Adventure', '{"PC"}'),
+  (9000009, 'TODO Custom Game 9',  2000, 'Adventure', '{"PC"}'),
+  (9000010, 'TODO Custom Game 10', 2000, 'Adventure', '{"PC"}')
+on conflict (id) do update set
+  name      = excluded.name,
+  year      = excluded.year,
+  genre     = excluded.genre,
+  platforms = excluded.platforms;

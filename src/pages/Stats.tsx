@@ -21,6 +21,7 @@ export function Stats() {
     soundtrack: [],
     archive: [],
     crossword: [],
+    higherlower: [],
   }
   results.forEach((r) => byType[r.gameType].push(r))
 
@@ -40,20 +41,29 @@ export function Stats() {
         <div className="text-xs mt-2">Days with at least one puzzle solved.</div>
       </NeoCard>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(['screenshot', 'trophy', 'blur', 'soundtrack', 'crossword', 'archive'] as GameType[]).map((t) => {
+        {(['screenshot', 'trophy', 'blur', 'soundtrack', 'crossword', 'archive', 'higherlower'] as GameType[]).map((t) => {
           const rs = byType[t]
           const solved = rs.filter((r) => r.status === 'solved').length
-          // Crossword has no guess count — show solve count only.
-          const avg =
+          // For score-based games (crossword has no guesses, higherlower's
+          // guessCount is the score) we show a different sub-line.
+          const subline =
             t === 'crossword'
-              ? null
-              : solved > 0
-                ? (
-                    rs
-                      .filter((r) => r.status === 'solved')
-                      .reduce((a, b) => a + b.guessCount, 0) / solved
-                  ).toFixed(1)
-                : '—'
+              ? 'solved'
+              : t === 'higherlower'
+                ? solved > 0
+                  ? `avg score ${(
+                      rs
+                        .filter((r) => r.status === 'solved')
+                        .reduce((a, b) => a + b.guessCount, 0) / solved
+                    ).toFixed(1)} / 15`
+                  : 'completed runs'
+                : solved > 0
+                  ? `solved · avg ${(
+                      rs
+                        .filter((r) => r.status === 'solved')
+                        .reduce((a, b) => a + b.guessCount, 0) / solved
+                    ).toFixed(1)} guesses`
+                  : 'solved · avg — guesses'
           const tone =
             t === 'screenshot'
               ? 'coral'
@@ -65,14 +75,14 @@ export function Stats() {
                     ? 'mustard'
                     : t === 'crossword'
                       ? 'paper'
-                      : 'violet'
+                      : t === 'higherlower'
+                        ? 'teal'
+                        : 'violet'
           return (
             <NeoCard key={t} tone="paper" shadow="md" className="p-4">
               <TagPill tone={tone}>{t}</TagPill>
               <div className="font-display text-2xl font-bold mt-3">{solved}</div>
-              <div className="text-xs text-ink-soft">
-                {avg === null ? 'solved' : `solved · avg ${avg} guesses`}
-              </div>
+              <div className="text-xs text-ink-soft">{subline}</div>
               <div className="text-xs text-ink-soft mt-1">{rs.length} played</div>
             </NeoCard>
           )

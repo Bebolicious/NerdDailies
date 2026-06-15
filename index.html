@@ -24,11 +24,12 @@
           document.documentElement.setAttribute('data-theme', 'light');
         }
         try {
-          if (localStorage.getItem('dailies/readable') === 'true') {
+          // Readability is on by default. Only respect an explicit opt-out.
+          if (localStorage.getItem('dailies/readable') !== 'false') {
             document.documentElement.setAttribute('data-readable', 'true');
           }
         } catch (e) {
-          /* ignore */
+          document.documentElement.setAttribute('data-readable', 'true');
         }
       })();
     </script>

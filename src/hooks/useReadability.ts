@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react'
 const KEY = 'dailies/readable'
 
 function readInitial(): boolean {
-  if (typeof window === 'undefined') return false
+  if (typeof window === 'undefined') return true
+  // Default to readable ON. The boot script in index.html sets the attribute
+  // unless the user has explicitly opted out via localStorage.
   return document.documentElement.getAttribute('data-readable') === 'true'
 }
 
