@@ -177,9 +177,7 @@ function randomCharacters(n: number): CharacterId[] {
 function adjustCharacters(prev: CharacterId[], target: number): CharacterId[] {
   if (target <= prev.length) return prev.slice(0, target);
   const used = new Set(prev);
-  const available = shuffleInPlace(
-    CHARACTER_IDS.filter((id) => !used.has(id)),
-  );
+  const available = shuffleInPlace(CHARACTER_IDS.filter((id) => !used.has(id)));
   return [...prev, ...available.slice(0, target - prev.length)];
 }
 
@@ -198,7 +196,8 @@ function makePlayers(names: string[], characters: CharacterId[]): Player[] {
     id: `p${i + 2}-${Math.random().toString(36).slice(2, 8)}`,
     name: name.trim() || `Player ${i + 2}`,
     isHost: false,
-    character: characters[i + 1] ?? CHARACTER_IDS[(i + 1) % CHARACTER_IDS.length],
+    character:
+      characters[i + 1] ?? CHARACTER_IDS[(i + 1) % CHARACTER_IDS.length],
   }));
   shuffleInPlace(rest);
   return [host, ...rest];
@@ -967,8 +966,7 @@ function RoundIntro({
         </div>
         <div className="p-4 flex items-center justify-between gap-3 flex-wrap">
           <div className="text-[11px] text-ink-soft leading-snug max-w-[55%]">
-            Turn order is shuffled every round so nobody can piggyback off the
-            last picker.
+            Turn order is shuffled every round.
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <div className="flex items-center gap-2 font-display text-[10px] uppercase tracking-wider text-ink-soft">
