@@ -12,7 +12,7 @@ export function DevDateBanner() {
   const label = import.meta.env.DEV ? 'Dev date override' : 'Replay'
 
   return (
-    <div className="fixed bottom-4 left-4 z-50 border-neo bg-mustard text-ink-static shadow-neo px-3 py-2 flex items-center gap-3">
+    <div className="fixed bottom-4 right-4 z-50 border-neo bg-mustard text-ink-static shadow-neo px-3 py-2 flex items-center gap-3">
       <span className="font-display text-[10px] uppercase tracking-wider font-bold">
         {label}
       </span>

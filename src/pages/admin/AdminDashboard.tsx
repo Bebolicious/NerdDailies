@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { addDays, format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
-import { Archive, Camera, Grid3x3, Trophy, Music, Eye, ChevronLeft, ChevronRight, LogOut, Scale } from 'lucide-react'
+import { Archive, AlertTriangle, Camera, Grid3x3, Trophy, Music, Eye, ChevronLeft, ChevronRight, LogOut, Scale, Trash2 } from 'lucide-react'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
 import { TagPill } from '../../components/ui/TagPill'
@@ -19,6 +19,61 @@ type DayStatus = {
   crossword: boolean
 }
 
+// The five daily puzzle tables, all keyed by `puzzle_date`. Weekly games
+// (archive / higherlower) are keyed by week and intentionally excluded — a
+// single Monday isn't "a day's worth" of those.
+const DAILY_TABLES = [
+  'screenshot_puzzles',
+  'trophy_puzzles',
+  'blur_puzzles',
+  'soundtrack_puzzles',
+  'crossword_puzzles',
+] as const
+
+// Nuke every daily game for one date: storage files first, then DB rows.
+// Storage layout (see ARCHITECTURE.md §6):
+//  - screenshots/<date>/ and soundtracks/<date>/ are exclusive to one game,
+//    so the whole date prefix is safe to wipe.
+//  - covers/<date>/ is shared by Screenshot + Blur, but since we're removing
+//    BOTH on this date, blanket-wiping the prefix is safe here (and also clears
+//    orphans left by prior unsaved sessions). Trophy + Crossword have no files.
+// Best-effort: collects per-step errors instead of aborting, so DB space is
+// still freed even if one storage delete hiccups.
+async function deleteDayGames(
+  date: string,
+): Promise<{ rowsRemoved: number; errors: string[] }> {
+  const sb = getSupabase()
+  if (!sb) return { rowsRemoved: 0, errors: ['Supabase is not configured.'] }
+  const errors: string[] = []
+
+  for (const bucket of ['screenshots', 'soundtracks', 'covers'] as const) {
+    const { data: files, error: listErr } = await sb.storage
+      .from(bucket)
+      .list(date, { limit: 1000 })
+    if (listErr) {
+      errors.push(`${bucket}: could not list — ${listErr.message}`)
+      continue
+    }
+    if (files && files.length > 0) {
+      const paths = files.map((f) => `${date}/${f.name}`)
+      const { error: rmErr } = await sb.storage.from(bucket).remove(paths)
+      if (rmErr) errors.push(`${bucket}: could not delete files — ${rmErr.message}`)
+    }
+  }
+
+  let rowsRemoved = 0
+  for (const table of DAILY_TABLES) {
+    const { error, count } = await sb
+      .from(table)
+      .delete({ count: 'exact' })
+      .eq('puzzle_date', date)
+    if (error) errors.push(`${table}: ${error.message}`)
+    else rowsRemoved += count ?? 0
+  }
+
+  return { rowsRemoved, errors }
+}
+
 export function AdminDashboard() {
   const { email, loading } = useAdminSession()
   const nav = useNavigate()
@@ -26,6 +81,12 @@ export function AdminDashboard() {
   const [statuses, setStatuses] = useState<DayStatus[]>([])
   const [archiveWeeks, setArchiveWeeks] = useState<Set<string>>(new Set())
   const [higherLowerWeeks, setHigherLowerWeeks] = useState<Set<string>>(new Set())
+  const [reloadNonce, setReloadNonce] = useState(0)
+  // Day-deletion flow: which date's confirm modal is open, in-flight flag, and
+  // the result banner shown after a delete.
+  const [confirmDate, setConfirmDate] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteMsg, setDeleteMsg] = useState<string | null>(null)
 
   useEffect(() => {
     if (!loading && !email) nav('/admin/login')
@@ -102,7 +163,28 @@ export function AdminDashboard() {
     return () => {
       cancelled = true
     }
-  }, [days, monthStart, monthEnd])
+  }, [days, monthStart, monthEnd, reloadNonce])
+
+  const onConfirmDelete = useCallback(async () => {
+    if (!confirmDate) return
+    setDeleting(true)
+    setDeleteMsg(null)
+    const { rowsRemoved, errors } = await deleteDayGames(confirmDate)
+    setDeleting(false)
+    setConfirmDate(null)
+    setReloadNonce((n) => n + 1)
+    if (errors.length > 0) {
+      setDeleteMsg(
+        `Deleted ${rowsRemoved} game(s) for ${confirmDate}, but hit ${errors.length} issue(s): ${errors.join(' · ')}`,
+      )
+    } else {
+      setDeleteMsg(
+        rowsRemoved > 0
+          ? `Deleted all ${rowsRemoved} daily game(s) and files for ${confirmDate}.`
+          : `Nothing to delete for ${confirmDate}.`,
+      )
+    }
+  }, [confirmDate])
 
   if (loading) return null
 
@@ -169,6 +251,19 @@ export function AdminDashboard() {
           </div>
         </div>
 
+        {deleteMsg && (
+          <div className="mb-4 border-neo-2 bg-cream-soft px-3 py-2 text-xs font-display flex items-center justify-between gap-3">
+            <span>{deleteMsg}</span>
+            <button
+              type="button"
+              onClick={() => setDeleteMsg(null)}
+              className="font-display uppercase tracking-wider font-bold underline shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-7 gap-2 mb-2">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
             <div
@@ -188,6 +283,13 @@ export function AdminDashboard() {
             const iso = format(d, 'yyyy-MM-dd')
             const status = statuses.find((s) => s.date === iso)
             const isToday = iso === today
+            const hasAnyDaily =
+              !!status &&
+              (status.screenshot ||
+                status.trophy ||
+                status.blur ||
+                status.soundtrack ||
+                status.crossword)
             return (
               <NeoCard
                 key={iso}
@@ -198,15 +300,38 @@ export function AdminDashboard() {
                   isToday && 'bg-lime text-ink-static',
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-display text-sm font-bold">
+                <div className="flex items-center justify-between gap-1">
+                  <span
+                    className={cn(
+                      'font-display text-sm font-bold',
+                      // Dark mode: the today cell's bg/text land too close
+                      // together, so make today's date pop in red.
+                      isToday && 'dark:text-coral',
+                    )}
+                  >
                     {format(d, 'd')}
                   </span>
-                  {isToday && (
-                    <span className="font-display text-[8px] uppercase tracking-wider font-bold">
-                      Today
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {isToday && (
+                      <span className="font-display text-[8px] uppercase tracking-wider font-bold">
+                        Today
+                      </span>
+                    )}
+                    {hasAnyDaily && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteMsg(null)
+                          setConfirmDate(iso)
+                        }}
+                        aria-label={`Delete all daily games for ${iso}`}
+                        title="Delete all daily games for this day"
+                        className="border-neo-2 p-0.5 bg-paper text-ink hover:bg-coral hover:text-ink-static transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3 stroke-[3]" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-col gap-1">
                   <EditorLink
@@ -283,6 +408,108 @@ export function AdminDashboard() {
           </div>
         </div>
       </main>
+
+      {confirmDate && (
+        <ConfirmDeleteDay
+          date={confirmDate}
+          status={statuses.find((s) => s.date === confirmDate)}
+          deleting={deleting}
+          onCancel={() => setConfirmDate(null)}
+          onConfirm={onConfirmDelete}
+        />
+      )}
+    </div>
+  )
+}
+
+function ConfirmDeleteDay({
+  date,
+  status,
+  deleting,
+  onCancel,
+  onConfirm,
+}: {
+  date: string
+  status: DayStatus | undefined
+  deleting: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const present = status
+    ? (
+        [
+          ['screenshot', status.screenshot],
+          ['trophy', status.trophy],
+          ['blur', status.blur],
+          ['soundtrack', status.soundtrack],
+          ['crossword', status.crossword],
+        ] as const
+      )
+        .filter(([, set]) => set)
+        .map(([name]) => name)
+    : []
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Delete all daily games for ${date}`}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      <button
+        type="button"
+        aria-label="Cancel"
+        onClick={onCancel}
+        disabled={deleting}
+        className="absolute inset-0 bg-emphasis/70 backdrop-blur-sm cursor-pointer"
+      />
+      <NeoCard
+        tone="paper"
+        shadow="lg"
+        className="relative w-full max-w-md p-5"
+      >
+        <div className="flex items-center gap-2 mb-1 text-coral">
+          <AlertTriangle className="h-5 w-5 stroke-[3]" />
+          <div className="font-display text-[10px] uppercase tracking-[0.2em] font-bold">
+            Delete day · {date}
+          </div>
+        </div>
+        <h2 className="font-display text-2xl font-bold uppercase tracking-wider leading-tight mb-3">
+          Remove all daily games?
+        </h2>
+        <p className="text-xs text-ink-soft leading-snug mb-3">
+          This permanently deletes every daily puzzle and its uploaded files
+          (screenshots, covers, audio) for <strong>{date}</strong> from the
+          database and storage. Weekly games (Archive, Higher/Lower) are not
+          affected. This cannot be undone.
+        </p>
+        <div className="border-neo-2 bg-cream-soft px-3 py-2 mb-4">
+          <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1">
+            Will remove
+          </div>
+          {present.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {present.map((name) => (
+                <TagPill key={name} tone="coral">
+                  {name}
+                </TagPill>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs text-ink-soft">
+              Nothing set for this day.
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 flex-wrap">
+          <NeoButton tone="paper" size="sm" onClick={onCancel} disabled={deleting}>
+            Cancel
+          </NeoButton>
+          <NeoButton tone="coral" size="sm" onClick={onConfirm} disabled={deleting}>
+            <Trash2 className="inline h-3 w-3 mr-1" />
+            {deleting ? 'Deleting…' : 'Delete everything'}
+          </NeoButton>
+        </div>
+      </NeoCard>
     </div>
   )
 }

@@ -188,6 +188,10 @@ export type HigherLowerCategory =
   | 'budget'
   | 'hltb_main'
   | 'hltb_completionist'
+  | 'steam_peak'
+  | 'movie_adaptation'
+  | 'steam_reviews'
+  | 'twitch_peak'
 
 export type HigherLowerCategoryConfig = {
   id: HigherLowerCategory
@@ -195,11 +199,16 @@ export type HigherLowerCategoryConfig = {
   question: string // the prompt: "Which has the higher Metacritic score?"
   unitHint: string // placeholder/help shown in the admin value field
   valueLabel: string // small label shown above the revealed value on the card
+  // When true, the SMALLER raw value wins instead of the larger one. Used by
+  // "fastest"/"earliest" style categories (speedrun time, first movie year)
+  // where a lower number is the better answer. The admin still stores the real
+  // number (seconds, year); only the win direction flips.
+  lowerWins?: boolean
 }
 
-// Each category is "pick the side with the larger value". Speedrun + HLTB use
-// raw seconds/hours, so "larger value" naturally means "longer run/playthrough"
-// — the question text spells that out so players aren't surprised.
+// Default direction is "pick the side with the larger value". Categories that
+// set `lowerWins: true` flip that (smaller wins) — the question text always
+// spells out the direction so players aren't surprised.
 export const HIGHERLOWER_CATEGORIES: Record<
   HigherLowerCategory,
   HigherLowerCategoryConfig
@@ -234,10 +243,11 @@ export const HIGHERLOWER_CATEGORIES: Record<
   },
   speedrun_wr: {
     id: 'speedrun_wr',
-    label: 'Speedrun WR',
-    question: 'Which has the longer any% speedrun world record?',
-    unitHint: 'seconds — e.g. 1827 for 30:27',
+    label: 'Fastest Any%',
+    question: 'Which has the FASTER any% speedrun world record?',
+    unitHint: 'seconds — e.g. 1827 for 30:27 (lower = faster wins)',
     valueLabel: 'Any% WR',
+    lowerWins: true,
   },
   budget: {
     id: 'budget',
@@ -259,6 +269,36 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which takes longer to 100% complete?',
     unitHint: 'hours — e.g. 72',
     valueLabel: '100%',
+  },
+  steam_peak: {
+    id: 'steam_peak',
+    label: 'Steam peak',
+    question: 'Which had the higher all-time Steam peak player count?',
+    unitHint: 'peak concurrent players — e.g. 90000',
+    valueLabel: 'Steam peak',
+  },
+  movie_adaptation: {
+    id: 'movie_adaptation',
+    label: 'First movie',
+    question: 'Which got a movie adaptation FIRST?',
+    unitHint: 'year of first film — e.g. 1994 (earlier wins)',
+    valueLabel: '1st movie',
+    lowerWins: true,
+  },
+  // ── Recommended additions (easy to source, fun to guess) ──
+  steam_reviews: {
+    id: 'steam_reviews',
+    label: 'Steam reviews',
+    question: 'Which has more Steam user reviews?',
+    unitHint: 'total reviews — e.g. 250000',
+    valueLabel: 'Steam reviews',
+  },
+  twitch_peak: {
+    id: 'twitch_peak',
+    label: 'Twitch peak',
+    question: 'Which hit the higher peak concurrent Twitch viewers?',
+    unitHint: 'peak viewers — e.g. 1200000',
+    valueLabel: 'Twitch peak',
   },
 }
 

@@ -526,12 +526,14 @@ function PairEditor({
       {pair.a.value && pair.b.value && complete && (
         <div className="mt-4 border-neo-2 bg-cream-soft px-3 py-2 text-xs flex items-center justify-between flex-wrap gap-2">
           <span className="font-display uppercase tracking-wider text-ink-soft">
-            Higher value wins:
+            {cfg.lowerWins ? 'Lower value wins:' : 'Higher value wins:'}
           </span>
           <span className="font-display font-bold">
             {Number(pair.a.value) === Number(pair.b.value)
               ? '⟷ tied (both count as correct)'
-              : Number(pair.a.value) > Number(pair.b.value)
+              : (cfg.lowerWins
+                    ? Number(pair.a.value) < Number(pair.b.value)
+                    : Number(pair.a.value) > Number(pair.b.value))
                 ? `← Side A · ${pair.a.game?.name}`
                 : `Side B · ${pair.b.game?.name} →`}
           </span>

@@ -265,9 +265,37 @@ html[data-readable='true'] {
   animation: guest-banner-inline-pop 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Hot-seat "your turn" buzz — a quick brutalist shake on the starting
+   player's card at the top of each round. Short, hard, no lead-in. */
+@keyframes buzz {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+  15% {
+    transform: translateX(-3px) rotate(-1.5deg);
+  }
+  30% {
+    transform: translateX(3px) rotate(1.5deg);
+  }
+  45% {
+    transform: translateX(-3px) rotate(-1deg);
+  }
+  60% {
+    transform: translateX(3px) rotate(1deg);
+  }
+  80% {
+    transform: translateX(-1px);
+  }
+}
+@utility animate-buzz {
+  animation: buzz 600ms ease-in-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-guest-banner-corner,
-  .animate-guest-banner-inline {
+  .animate-guest-banner-inline,
+  .animate-buzz {
     animation: none;
   }
 }

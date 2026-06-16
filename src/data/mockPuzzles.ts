@@ -203,6 +203,10 @@ export function getMockHigherLowerPuzzle(week: string): HigherLowerPuzzle {
     'budget',
     'hltb_main',
     'hltb_completionist',
+    'steam_peak',
+    'movie_adaptation',
+    'steam_reviews',
+    'twitch_peak',
   ]
   const pairs = Array.from({ length: HIGHERLOWER_PAIR_COUNT }, (_, i) => {
     const a = pickGame(seed + i * 5)
@@ -297,6 +301,39 @@ function mockValues(
       return [
         { value: a, display: `${a}h` },
         { value: b, display: `${b}h` },
+      ]
+    }
+    case 'steam_peak': {
+      const a = Math.round(r(1) * 900000) + 1000
+      const b = Math.round(r(2) * 900000) + 1000
+      return [
+        { value: a, display: a.toLocaleString() },
+        { value: b, display: b.toLocaleString() },
+      ]
+    }
+    case 'movie_adaptation': {
+      // Year of the first film adaptation — earlier (lower) wins.
+      const a = 1985 + Math.round(r(1) * 35)
+      const b = 1985 + Math.round(r(2) * 35)
+      return [
+        { value: a, display: String(a) },
+        { value: b, display: String(b) },
+      ]
+    }
+    case 'steam_reviews': {
+      const a = Math.round(r(1) * 490000) + 1000
+      const b = Math.round(r(2) * 490000) + 1000
+      return [
+        { value: a, display: a.toLocaleString() },
+        { value: b, display: b.toLocaleString() },
+      ]
+    }
+    case 'twitch_peak': {
+      const a = Math.round(r(1) * 1400000) + 5000
+      const b = Math.round(r(2) * 1400000) + 5000
+      return [
+        { value: a, display: a.toLocaleString() },
+        { value: b, display: b.toLocaleString() },
       ]
     }
   }

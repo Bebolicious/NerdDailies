@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronRight,
   Crown,
   Minus,
+  Play,
   Plus,
   Scale,
   Share2,
@@ -27,6 +28,12 @@ import {
   type HigherLowerPair,
   type HigherLowerPuzzle,
 } from "../lib/types";
+import {
+  CHARACTER_IDS,
+  characterStyle,
+  getCharacter,
+  type CharacterId,
+} from "../lib/characters";
 
 type Choice = "a" | "b";
 type Mode = "solo" | "multiplayer";
@@ -38,38 +45,13 @@ type Pick = {
   at: number;
 };
 
-type PlayerTone = "mustard" | "coral" | "blue" | "lime" | "pink" | "violet";
-
 type Player = {
   id: string;
   name: string;
   isHost: boolean;
-  tone: PlayerTone;
+  // Each player is dealt a distinct character (portrait + identity color).
+  character: CharacterId;
 };
-
-const PLAYER_BG: Record<PlayerTone, string> = {
-  mustard: "bg-mustard text-ink-static",
-  coral: "bg-coral text-ink-static",
-  blue: "bg-blue text-paper-static",
-  lime: "bg-lime text-ink-static",
-  pink: "bg-pink text-ink-static",
-  violet: "bg-violet text-paper-static",
-};
-
-// Tones for non-host players. Host always gets 'mustard'. We cycle so up-to-10
-// players each get a distinct-ish swatch without clashing with the game's
-// teal active-highlight.
-const NON_HOST_TONES: PlayerTone[] = [
-  "coral",
-  "blue",
-  "lime",
-  "pink",
-  "violet",
-  "coral",
-  "blue",
-  "lime",
-  "pink",
-];
 
 const POINTS_PER_CORRECT = 100;
 const MIN_PLAYERS = 2;
@@ -89,11 +71,20 @@ type Session = {
   revealedForIndex: number | null;
 
   // ─── multiplayer only ────────────────────────────────────────────────────
-  players?: Player[]; // ordered, host at [0], rest randomized once at setup
+  players?: Player[]; // the roster; host at [0]. Display order in the HUD.
   scores?: Record<string, number>; // playerId → cumulative score (×100 increments)
   // playerId → choice for the CURRENT pair only. Cleared when advancing pairs.
   // Order of keys is insertion order, so size tells us whose turn is next.
   currentPairPicks?: Record<string, Choice>;
+  // Turn order for the CURRENT pair — player ids, fully reshuffled (host
+  // included) at the start of every round so nobody can piggyback off the
+  // previous picker. Regenerated on each advance; persisted so a reload keeps
+  // the same order mid-round.
+  pickOrder?: string[];
+  // Host opted out of the "<player> starts!" round-intro popups. Lives in the
+  // week-keyed session, so it only suppresses popups for THIS week — next
+  // week's fresh session brings them back automatically (never hardcoded off).
+  hideRoundIntros?: boolean;
 };
 
 function emptySession(now: number): Session {
@@ -129,6 +120,22 @@ function loadSession(week: string): Session | null {
       if (!hasProgress) return null;
       parsed.mode = "solo";
     }
+    // Multiplayer sessions written before per-round shuffling shipped have no
+    // pickOrder. Seed one from the roster so the in-progress round keeps a
+    // valid turn order; the next advance reshuffles it.
+    if (parsed.mode === "multiplayer" && parsed.players && !parsed.pickOrder) {
+      parsed.pickOrder = parsed.players.map((p) => p.id);
+    }
+    // Sessions written before characters shipped have players with the old
+    // `tone` field instead of `character`. Backfill distinct characters by
+    // index so they keep rendering.
+    if (parsed.mode === "multiplayer" && parsed.players) {
+      parsed.players = parsed.players.map((p, i) =>
+        p.character
+          ? p
+          : { ...p, character: CHARACTER_IDS[i % CHARACTER_IDS.length] },
+      );
+    }
     return parsed;
   } catch {
     return null;
@@ -151,20 +158,47 @@ function shuffleInPlace<T>(arr: T[]): T[] {
   return arr;
 }
 
-function makePlayers(names: string[]): Player[] {
-  // Host is always [0] and keeps its slot. The rest are shuffled.
+// Fully reshuffled turn order for one round — every player, host included, so
+// the lead-off picker is random each round and "piggybacking" off whoever went
+// first last round is pointless.
+function makePickOrder(players: Player[]): string[] {
+  return shuffleInPlace(players.map((p) => p.id));
+}
+
+// Deal `n` distinct characters at random. With n = MAX_PLAYERS the whole roster
+// is used; for fewer players it's a random subset.
+function randomCharacters(n: number): CharacterId[] {
+  return shuffleInPlace([...CHARACTER_IDS]).slice(0, n);
+}
+
+// Resize a character deal to `target` players WITHOUT disturbing the ones
+// already assigned: shrinking just drops the tail, growing appends fresh
+// randoms picked only from characters not already in use.
+function adjustCharacters(prev: CharacterId[], target: number): CharacterId[] {
+  if (target <= prev.length) return prev.slice(0, target);
+  const used = new Set(prev);
+  const available = shuffleInPlace(
+    CHARACTER_IDS.filter((id) => !used.has(id)),
+  );
+  return [...prev, ...available.slice(0, target - prev.length)];
+}
+
+function makePlayers(names: string[], characters: CharacterId[]): Player[] {
+  // Host is always roster slot [0] (stable HUD position). Per-round turn order
+  // is randomized separately via makePickOrder. Characters were dealt in the
+  // setup modal and travel with each player (host keeps slot-0's character).
   const [hostName, ...restNames] = names;
   const host: Player = {
     id: "host",
     name: hostName.trim() || "Host",
     isHost: true,
-    tone: "mustard",
+    character: characters[0] ?? CHARACTER_IDS[0],
   };
   const rest: Player[] = restNames.map((name, i) => ({
     id: `p${i + 2}-${Math.random().toString(36).slice(2, 8)}`,
     name: name.trim() || `Player ${i + 2}`,
     isHost: false,
-    tone: NON_HOST_TONES[i % NON_HOST_TONES.length],
+    character: characters[i + 1] ?? CHARACTER_IDS[(i + 1) % CHARACTER_IDS.length],
   }));
   shuffleInPlace(rest);
   return [host, ...rest];
@@ -195,6 +229,12 @@ function Gauntlet({
   // it for the rest of the session (the host can still reopen via a button on
   // the solo finale card behind it).
   const [leaderboardOpen, setLeaderboardOpen] = useState(true);
+  // The "X starts!" round-intro popup shows once per round in hot-seat. We
+  // track the last pair index whose intro was dismissed so it doesn't re-pop
+  // after the host closes it (or the countdown auto-starts the round).
+  const [introDismissedIndex, setIntroDismissedIndex] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
     // Don't persist until the host has actually committed to a mode. This
@@ -215,29 +255,78 @@ function Gauntlet({
   // In multiplayer, the next picker is the player at index = how many have
   // already picked for the current pair. Null when everyone has picked.
   const activePlayer: Player | null = useMemo(() => {
-    if (!isMultiplayer || !state.players) return null;
+    if (!isMultiplayer || !state.players || !state.pickOrder) return null;
     if (revealed) return null;
     const picked = Object.keys(state.currentPairPicks ?? {}).length;
-    return state.players[picked] ?? null;
-  }, [isMultiplayer, state.players, state.currentPairPicks, revealed]);
+    const id = state.pickOrder[picked];
+    return state.players.find((p) => p.id === id) ?? null;
+  }, [
+    isMultiplayer,
+    state.players,
+    state.pickOrder,
+    state.currentPairPicks,
+    revealed,
+  ]);
+
+  // The player who leads off the current round (pickOrder[0]). Drives the
+  // round-intro popup.
+  const startingPlayer: Player | null = useMemo(() => {
+    if (!isMultiplayer || !state.players || !state.pickOrder) return null;
+    const id = state.pickOrder[0];
+    return state.players.find((p) => p.id === id) ?? null;
+  }, [isMultiplayer, state.players, state.pickOrder]);
+
+  // Show the round-intro popup at the top of each hot-seat round: in
+  // multiplayer, before anyone has picked, and not yet dismissed for this pair.
+  const showRoundIntro =
+    isMultiplayer &&
+    !finished &&
+    !revealed &&
+    !state.hideRoundIntros &&
+    !!startingPlayer &&
+    Object.keys(state.currentPairPicks ?? {}).length === 0 &&
+    introDismissedIndex !== state.index;
+
+  // The index of the round that just became playable (intro popup gone, nobody
+  // has picked yet) — or null. Flips to a number the instant a fresh round
+  // opens up, which is the cue to buzz the starting player's HUD card.
+  const playReadyIndex =
+    isMultiplayer &&
+    !finished &&
+    !revealed &&
+    !showRoundIntro &&
+    Object.keys(state.currentPairPicks ?? {}).length === 0
+      ? state.index
+      : null;
+
+  // Host's in-popup checkbox to silence the round-intro popups for the rest of
+  // this week. Stored on the week-keyed session so it resets next week.
+  const onToggleHideIntros = useCallback((next: boolean) => {
+    setState((prev) => ({ ...prev, hideRoundIntros: next }));
+  }, []);
 
   const onConfirmSolo = useCallback(() => {
     setState((prev) => ({ ...prev, mode: "solo" }));
   }, []);
 
-  const onConfirmMultiplayer = useCallback((names: string[]) => {
-    setState((prev) => {
-      const players = makePlayers(names);
-      return {
-        ...prev,
-        mode: "multiplayer",
-        players,
-        scores: Object.fromEntries(players.map((p) => [p.id, 0])),
-        currentPairPicks: {},
-      };
-    });
-    setLeaderboardOpen(true);
-  }, []);
+  const onConfirmMultiplayer = useCallback(
+    (names: string[], characters: CharacterId[]) => {
+      setState((prev) => {
+        const players = makePlayers(names, characters);
+        return {
+          ...prev,
+          mode: "multiplayer",
+          players,
+          scores: Object.fromEntries(players.map((p) => [p.id, 0])),
+          currentPairPicks: {},
+          pickOrder: makePickOrder(players),
+        };
+      });
+      setLeaderboardOpen(true);
+      setIntroDismissedIndex(null);
+    },
+    [],
+  );
 
   const onPick = useCallback(
     (choice: Choice) => {
@@ -300,15 +389,25 @@ function Gauntlet({
         revealedForIndex: null,
         currentPairPicks:
           prev.mode === "multiplayer" ? {} : prev.currentPairPicks,
+        // Reshuffle the turn order for the new round (hot-seat only).
+        pickOrder:
+          prev.mode === "multiplayer" && prev.players
+            ? makePickOrder(prev.players)
+            : prev.pickOrder,
       };
     });
   }, [total, week]);
 
   const onPlayAgain = useCallback(() => {
     // Replay resets the session entirely — including the multiplayer roster.
-    // The mode picker will reappear so the host can pick again.
-    setState(emptySession(Date.now()));
+    // The mode picker will reappear so the host can pick again. The "hide
+    // intros" choice is week-scoped, so carry it across a same-week replay.
+    setState((prev) => ({
+      ...emptySession(Date.now()),
+      hideRoundIntros: prev.hideRoundIntros,
+    }));
     setLeaderboardOpen(true);
+    setIntroDismissedIndex(null);
   }, []);
 
   if (pairs.length === 0) {
@@ -407,6 +506,24 @@ function Gauntlet({
           currentPairPicks={state.currentPairPicks ?? {}}
           revealed={revealed}
           currentPair={currentPair}
+          playReadyIndex={playReadyIndex}
+          startingPlayerId={startingPlayer?.id ?? null}
+          pickOrder={state.pickOrder ?? null}
+        />
+      )}
+
+      {/* Round-intro popup — hot-seat only. Flies up from the bottom at the
+          start of each round announcing who leads off (since turn order is
+          reshuffled every round). Closes on the button, on backdrop click, or
+          automatically when the 7-second countdown elapses. */}
+      {showRoundIntro && startingPlayer && (
+        <RoundIntro
+          key={state.index}
+          player={startingPlayer}
+          pairNumber={Math.min(state.index + 1, total)}
+          hideForWeek={!!state.hideRoundIntros}
+          onToggleHide={onToggleHideIntros}
+          onClose={() => setIntroDismissedIndex(state.index)}
         />
       )}
 
@@ -444,10 +561,11 @@ function applyMultiplayerPick(
   currentPair: HigherLowerPair,
   choice: Choice,
 ): Session {
-  if (!prev.players || !prev.scores) return prev;
+  if (!prev.players || !prev.scores || !prev.pickOrder) return prev;
   const pairPicks = prev.currentPairPicks ?? {};
   const numPicked = Object.keys(pairPicks).length;
-  const player = prev.players[numPicked];
+  const playerId = prev.pickOrder[numPicked];
+  const player = prev.players.find((p) => p.id === playerId);
   if (!player) return prev;
   if (pairPicks[player.id] !== undefined) return prev;
 
@@ -489,6 +607,58 @@ function applyMultiplayerPick(
   };
 }
 
+// ─── character avatar ────────────────────────────────────────────────────────
+
+// Square portrait of a player's character, color-backed (shows through if the
+// art has transparency). Host gets a small crown badge in the corner.
+function CharacterAvatar({
+  characterId,
+  isHost,
+  showHostBadge = true,
+  size,
+  badgeSize,
+  className,
+}: {
+  characterId: CharacterId;
+  isHost?: boolean;
+  // Whether to overlay the corner crown badge on the host's portrait. The setup
+  // modal turns this off and shows a larger standalone crown in the row.
+  showHostBadge?: boolean;
+  size: number;
+  // Override the crown badge square size (px). Defaults to proportional to the
+  // avatar; the round-intro popup passes a small value so the big portrait
+  // isn't dominated by the crown.
+  badgeSize?: number;
+  className?: string;
+}) {
+  const c = getCharacter(characterId);
+  const badge = badgeSize ?? Math.round(size * 0.46);
+  return (
+    <div
+      className={cn(
+        "relative border-[2px] border-stroke overflow-hidden shrink-0",
+        className,
+      )}
+      style={{ width: size, height: size, background: c.background }}
+      aria-hidden
+    >
+      <img
+        src={c.img}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      {isHost && showHostBadge && (
+        <span
+          className="absolute top-0 right-0 bg-mustard text-ink-static border-l-[2px] border-b-[2px] border-stroke flex items-center justify-center"
+          style={{ width: badge, height: badge }}
+        >
+          <Crown size={Math.round(badge * 0.6)} className="stroke-[3]" />
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ─── setup modal ────────────────────────────────────────────────────────────
 
 function ModeSetup({
@@ -496,11 +666,16 @@ function ModeSetup({
   onMultiplayer,
 }: {
   onSolo: () => void;
-  onMultiplayer: (names: string[]) => void;
+  onMultiplayer: (names: string[], characters: CharacterId[]) => void;
 }) {
   const [picked, setPicked] = useState<Mode | null>(null);
   const [count, setCount] = useState(3);
   const [names, setNames] = useState<string[]>(() => defaultNames(3));
+  // Distinct characters dealt per player slot. Reshuffled whenever the player
+  // count changes (and when hot-seat is first picked) so the roster is random.
+  const [characters, setCharacters] = useState<CharacterId[]>(() =>
+    randomCharacters(3),
+  );
 
   function setCountAndPad(next: number) {
     const clamped = Math.max(MIN_PLAYERS, Math.min(MAX_PLAYERS, next));
@@ -512,6 +687,9 @@ function ModeSetup({
       }
       return out;
     });
+    // Keep already-assigned characters; only the incoming player(s) get a fresh
+    // random character from the ones not yet in use.
+    setCharacters((prev) => adjustCharacters(prev, clamped));
   }
 
   function patchName(idx: number, value: string) {
@@ -554,7 +732,10 @@ function ModeSetup({
             label="Online Hot-seat"
             sub="Share your screen; click for each friend. Host's score still saves to the daily."
             active={picked === "multiplayer"}
-            onClick={() => setPicked("multiplayer")}
+            onClick={() => {
+              setPicked("multiplayer");
+              setCharacters(randomCharacters(count));
+            }}
             icon={<Users className="h-4 w-4 stroke-[3]" />}
           />
         </div>
@@ -596,45 +777,41 @@ function ModeSetup({
             <div className="flex flex-col gap-2">
               {names.map((n, i) => {
                 const isHost = i === 0;
-                const tone: PlayerTone = isHost
-                  ? "mustard"
-                  : NON_HOST_TONES[(i - 1) % NON_HOST_TONES.length];
+                const characterId =
+                  characters[i] ?? CHARACTER_IDS[i % CHARACTER_IDS.length];
                 return (
                   <div
                     key={i}
                     className="flex items-center gap-2 border-neo-2 bg-cream-soft p-2"
                   >
-                    <div
-                      className={cn(
-                        "w-8 h-8 border-neo-2 flex items-center justify-center font-display text-sm font-bold shrink-0",
-                        PLAYER_BG[tone],
-                      )}
-                      aria-hidden
-                    >
-                      {isHost ? (
-                        <Crown className="h-4 w-4 stroke-[3]" />
-                      ) : (
-                        i + 1
-                      )}
-                    </div>
+                    <CharacterAvatar
+                      characterId={characterId}
+                      isHost={isHost}
+                      showHostBadge={false}
+                      size={36}
+                    />
                     <input
                       value={n}
                       onChange={(e) => patchName(i, e.target.value)}
                       placeholder={isHost ? "Host" : `Player ${i + 1}`}
                       className="flex-1 border-neo-2 bg-paper px-2 py-1.5 text-sm font-bold outline-none focus:bg-cream-soft min-w-0"
                     />
+                    <span className="font-display text-[9px] uppercase tracking-wider text-ink-soft shrink-0 w-16 text-right">
+                      {getCharacter(characterId).label}
+                    </span>
                     {isHost && (
-                      <TagPill tone="paper" className="shrink-0">
-                        Host
-                      </TagPill>
+                      <Crown
+                        className="h-6 w-6 stroke-[3] shrink-0 text-mustard-deep fill-mustard ml-2"
+                        aria-label="Host"
+                      />
                     )}
                   </div>
                 );
               })}
             </div>
             <div className="text-[10px] uppercase tracking-wider text-ink-soft font-display">
-              ▸ Order: Host always picks first. The rest are shuffled when you
-              start.
+              ▸ Characters are dealt at random · turn order reshuffles every
+              round (host included)
             </div>
           </div>
         )}
@@ -651,7 +828,8 @@ function ModeSetup({
             disabled={!picked}
             onClick={() => {
               if (picked === "solo") onSolo();
-              else if (picked === "multiplayer") onMultiplayer(names);
+              else if (picked === "multiplayer")
+                onMultiplayer(names, characters);
             }}
           >
             {picked === "multiplayer" ? "Start hot-seat" : "Play"}
@@ -710,6 +888,116 @@ function defaultNames(count: number): string[] {
   return names;
 }
 
+// ─── round intro popup ──────────────────────────────────────────────────────
+
+const ROUND_INTRO_SECONDS = 10;
+
+function RoundIntro({
+  player,
+  pairNumber,
+  hideForWeek,
+  onToggleHide,
+  onClose,
+}: {
+  player: Player;
+  pairNumber: number;
+  hideForWeek: boolean;
+  onToggleHide: (next: boolean) => void;
+  onClose: () => void;
+}) {
+  const [remaining, setRemaining] = useState(ROUND_INTRO_SECONDS);
+  // Keep the latest onClose without re-running the timer effect (which would
+  // reset the countdown). The component is keyed by pair index, so a fresh
+  // timer starts for each round.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const startedAt = Date.now();
+    const id = window.setInterval(() => {
+      const left =
+        ROUND_INTRO_SECONDS - Math.floor((Date.now() - startedAt) / 1000);
+      if (left <= 0) {
+        window.clearInterval(id);
+        setRemaining(0);
+        onCloseRef.current();
+      } else {
+        setRemaining(left);
+      }
+    }, 200);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${player.name} starts round ${pairNumber}`}
+      className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:p-8"
+    >
+      <button
+        type="button"
+        aria-label="Start round"
+        onClick={onClose}
+        className="absolute inset-0 cursor-pointer"
+      />
+      <NeoCard
+        tone="paper"
+        shadow="lg"
+        className="relative w-full max-w-md mb-2 sm:mb-12 p-0 overflow-hidden animate-achievement-pop"
+      >
+        <div
+          className="px-5 py-4 border-b-[3px] border-stroke flex items-center gap-3"
+          style={characterStyle(player.character)}
+        >
+          <CharacterAvatar
+            characterId={player.character}
+            isHost={player.isHost}
+            size={112}
+            badgeSize={20}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-4xl sm:text-5xl font-bold uppercase tracking-wide leading-[0.95] text-left">
+              <span className="block break-words">{player.name}</span>
+              <span className="block">Starts!</span>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-[11px] text-ink-soft leading-snug max-w-[55%]">
+            Turn order is shuffled every round so nobody can piggyback off the
+            last picker.
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2 font-display text-[10px] uppercase tracking-wider text-ink-soft">
+              <span>Auto-start</span>
+              <span className="w-9 h-9 border-neo-2 bg-cream-soft text-ink flex items-center justify-center font-bold text-lg tabular-nums">
+                {remaining}
+              </span>
+            </div>
+            <NeoButton tone="teal" size="sm" onClick={onClose}>
+              <Play className="inline h-3 w-3 mr-1" /> Start
+            </NeoButton>
+          </div>
+        </div>
+        <label className="flex items-center gap-2 px-4 py-3 border-t-[3px] border-stroke cursor-pointer select-none hover:bg-cream-soft">
+          <input
+            type="checkbox"
+            checked={hideForWeek}
+            onChange={(e) => onToggleHide(e.target.checked)}
+            className="w-4 h-4 accent-teal shrink-0"
+          />
+          <span className="font-display text-[11px] uppercase tracking-wider font-bold">
+            Don&apos;t show these popups again this week
+          </span>
+        </label>
+      </NeoCard>
+    </div>
+  );
+}
+
 // ─── in-game pieces ─────────────────────────────────────────────────────────
 
 function TurnBanner({
@@ -722,19 +1010,15 @@ function TurnBanner({
   const cfg = pair ? HIGHERLOWER_CATEGORIES[pair.category] : null;
   return (
     <div
-      className={cn(
-        "border-neo-2 shadow-neo-sm px-3 py-2 mb-2 flex items-center justify-between gap-3 flex-wrap",
-        PLAYER_BG[player.tone],
-      )}
+      className="border-neo-2 shadow-neo-sm px-3 py-2 mb-2 flex items-center justify-between gap-3 flex-wrap"
+      style={characterStyle(player.character)}
     >
       <div className="flex items-center gap-2 min-w-0">
-        {player.isHost ? (
-          <Crown className="h-4 w-4 stroke-[3] shrink-0" />
-        ) : (
-          <div className="w-5 h-5 border-[2px] border-stroke bg-paper text-ink flex items-center justify-center font-display text-[10px] font-bold shrink-0">
-            ?
-          </div>
-        )}
+        <CharacterAvatar
+          characterId={player.character}
+          isHost={player.isHost}
+          size={24}
+        />
         <div className="font-display text-xs sm:text-sm uppercase tracking-wider font-bold truncate">
           {player.name}
           <span className="opacity-70 ml-1">· your turn</span>
@@ -800,7 +1084,13 @@ function PairScreen({
   mode: Mode;
 }) {
   const cfg = HIGHERLOWER_CATEGORIES[pair.category];
-  const correctSide: Choice = pair.a.value >= pair.b.value ? "a" : "b";
+  // Most categories award the larger value; "lowerWins" ones (fastest run,
+  // earliest movie) award the smaller.
+  const lowerWins = cfg?.lowerWins ?? false;
+  const aBeatsB = lowerWins
+    ? pair.a.value <= pair.b.value
+    : pair.a.value >= pair.b.value;
+  const correctSide: Choice = aBeatsB ? "a" : "b";
   // Tie-breaker visual: a true tie isn't really winnable, but if the admin sets
   // identical values we award whichever the player picked.
   const tied = pair.a.value === pair.b.value;
@@ -984,6 +1274,9 @@ function PlayerHud({
   currentPairPicks,
   revealed,
   currentPair,
+  playReadyIndex,
+  startingPlayerId,
+  pickOrder,
 }: {
   players: Player[];
   scores: Record<string, number>;
@@ -991,7 +1284,24 @@ function PlayerHud({
   currentPairPicks: Record<string, Choice>;
   revealed: boolean;
   currentPair: HigherLowerPair | undefined;
+  playReadyIndex: number | null;
+  startingPlayerId: string | null;
+  pickOrder: string[] | null;
 }) {
+  // Buzz the starting player's card while a fresh round is playable but nobody
+  // has picked (playReadyIndex non-null). The class drops out between rounds —
+  // during the intro popup and once the lead-off pick lands — so it re-applies
+  // and the one-shot animation replays at the top of every round.
+  const buzzId = playReadyIndex !== null ? startingPlayerId : null;
+
+  // Display the cards in this round's turn order (left → right), so the panel
+  // mirrors who picks when even though the order is reshuffled each round.
+  const ordered = pickOrder
+    ? (pickOrder
+        .map((id) => players.find((p) => p.id === id))
+        .filter(Boolean) as Player[])
+    : players;
+
   return (
     <div className="sticky bottom-3 mt-6 z-20">
       <NeoCard tone="paper" shadow="lg" className="p-3">
@@ -1004,7 +1314,7 @@ function PlayerHud({
           </div>
         </div>
         <div className="flex items-stretch gap-2 overflow-x-auto pt-1 pb-2 px-1">
-          {players.map((p) => {
+          {ordered.map((p) => {
             const pick = currentPairPicks[p.id];
             const hasPicked = pick !== undefined;
             const isActive = p.id === activePlayerId;
@@ -1021,6 +1331,7 @@ function PlayerHud({
                 hasPicked={hasPicked}
                 revealed={revealed}
                 isCorrect={isCorrect}
+                buzz={p.id === buzzId}
               />
             );
           })}
@@ -1037,6 +1348,7 @@ function PlayerCard({
   hasPicked,
   revealed,
   isCorrect,
+  buzz,
 }: {
   player: Player;
   score: number;
@@ -1044,6 +1356,7 @@ function PlayerCard({
   hasPicked: boolean;
   revealed: boolean;
   isCorrect: boolean | null;
+  buzz: boolean;
 }) {
   const statusBg =
     revealed && isCorrect === true
@@ -1059,8 +1372,7 @@ function PlayerCard({
   // cleanly against the brutalist backdrop. The active player swaps the
   // stroke for the game's teal accent (same width, so no layout shift) and
   // gets a chunky offset shadow to lift it visually.
-  const borderClass =
-    isActive && !revealed ? "border-teal" : "border-stroke";
+  const borderClass = isActive && !revealed ? "border-teal" : "border-stroke";
   return (
     <div
       className={cn(
@@ -1069,22 +1381,16 @@ function PlayerCard({
         statusBg,
         isActive && !revealed && "shadow-neo",
         revealed && "shadow-neo-sm",
+        buzz && "animate-buzz",
       )}
       aria-current={isActive ? "true" : undefined}
     >
       <div className="flex items-center gap-2">
-        <div
-          className={cn(
-            "w-7 h-7 border-[2px] border-stroke flex items-center justify-center shrink-0 font-display text-sm font-bold",
-            PLAYER_BG[player.tone],
-          )}
-        >
-          {player.isHost ? (
-            <Crown className="h-3.5 w-3.5 stroke-[3]" />
-          ) : (
-            player.name.charAt(0).toUpperCase() || "?"
-          )}
-        </div>
+        <CharacterAvatar
+          characterId={player.character}
+          isHost={player.isHost}
+          size={28}
+        />
         <div className="min-w-0 flex-1">
           <div className="font-display text-xs uppercase tracking-wider font-bold leading-tight truncate">
             {player.name}
@@ -1217,18 +1523,11 @@ function LeaderboardModal({
                 <div className="font-display text-2xl font-bold tabular-nums w-8 text-center">
                   {i + 1}
                 </div>
-                <div
-                  className={cn(
-                    "w-9 h-9 border-[2px] border-stroke flex items-center justify-center font-display text-sm font-bold shrink-0",
-                    PLAYER_BG[row.player.tone],
-                  )}
-                >
-                  {row.player.isHost ? (
-                    <Crown className="h-4 w-4 stroke-[3]" />
-                  ) : (
-                    row.player.name.charAt(0).toUpperCase() || "?"
-                  )}
-                </div>
+                <CharacterAvatar
+                  characterId={row.player.character}
+                  isHost={row.player.isHost}
+                  size={36}
+                />
                 <div className="flex-1 min-w-0">
                   <div className="font-display text-sm uppercase tracking-wider font-bold leading-tight truncate">
                     {row.player.name}
@@ -1417,9 +1716,13 @@ function PairBreakdown({
 
 function isCorrect(pair: HigherLowerPair, choice: Choice): boolean {
   if (pair.a.value === pair.b.value) return true; // tie counts as correct
-  return choice === "a"
-    ? pair.a.value > pair.b.value
-    : pair.b.value > pair.a.value;
+  // Default: higher value wins. lowerWins categories (fastest run, earliest
+  // movie adaptation) flip it so the smaller value is the right pick.
+  const lowerWins = HIGHERLOWER_CATEGORIES[pair.category]?.lowerWins ?? false;
+  const aWins = lowerWins
+    ? pair.a.value < pair.b.value
+    : pair.a.value > pair.b.value;
+  return choice === "a" ? aWins : !aWins;
 }
 
 // Local alias used by the HUD — kept separate so the call site reads as
