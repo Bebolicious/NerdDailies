@@ -78,6 +78,32 @@ export function GameSearch({
     }
   }
 
+  // When two results share an identical name (e.g. "God of War" 2005 vs the
+  // 2018 reboot), tag the strictly-newer one with a "New" badge so the player
+  // can tell them apart now that the release year is no longer shown inline.
+  const newerIds = (() => {
+    const byName = new Map<string, Game[]>()
+    for (const g of results) {
+      const key = g.name.trim().toLowerCase()
+      const list = byName.get(key)
+      if (list) list.push(g)
+      else byName.set(key, [g])
+    }
+    const ids = new Set<Game['id']>()
+    for (const list of byName.values()) {
+      if (list.length < 2) continue
+      const years = list.map((g) => g.year).filter((y): y is number => y != null)
+      if (years.length === 0) continue
+      const maxYear = Math.max(...years)
+      // Only tag if there's an actual older sibling to disambiguate against.
+      if (!list.some((g) => g.year != null && g.year < maxYear)) continue
+      for (const g of list) {
+        if (g.year === maxYear) ids.add(g.id)
+      }
+    }
+    return ids
+  })()
+
   return (
     <div className="flex flex-col md:flex-row md:items-stretch gap-3">
       <div ref={boxRef} className="relative md:flex-1">
@@ -140,8 +166,13 @@ export function GameSearch({
                   i === activeIndex && 'bg-lime text-ink-static',
                 )}
               >
-                <span className="font-display text-xs uppercase tracking-wider font-bold">
+                <span className="font-display text-xs uppercase tracking-wider font-bold flex items-center gap-2">
                   {g.name}
+                  {newerIds.has(g.id) && (
+                    <span className="border-neo-2 px-1.5 py-0.5 text-[9px] leading-none font-bold normal-case tracking-normal bg-coral text-ink-static">
+                      New
+                    </span>
+                  )}
                 </span>
                 <span
                   className={cn(
