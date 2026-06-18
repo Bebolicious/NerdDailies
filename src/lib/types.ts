@@ -35,6 +35,7 @@ export type TrophyPuzzle = {
   rarity_pct?: number
   platform?: string
   gamerscore?: number
+  cover_url?: string // optional official cover, shown on the answer-reveal card
   submitter?: string
 }
 
@@ -57,6 +58,7 @@ export type SoundtrackPuzzle = {
   audio_url: string
   track_title?: string
   reveal_start_seconds: number // start of the unlock window
+  cover_url?: string // optional official cover, shown on the answer-reveal card
   submitter?: string
 }
 

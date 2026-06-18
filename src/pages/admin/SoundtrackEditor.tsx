@@ -19,6 +19,7 @@ export function SoundtrackEditor() {
   const [audioPath, setAudioPath] = useState<string | null>(null)
   const [trackTitle, setTrackTitle] = useState('')
   const [revealStart, setRevealStart] = useState('0')
+  const [coverPath, setCoverPath] = useState<string | null>(null)
   const [submitter, setSubmitter] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -53,6 +54,7 @@ export function SoundtrackEditor() {
         setAudioPath(data.audio_path)
         setTrackTitle(data.track_title ?? '')
         setRevealStart(String(data.reveal_start_seconds ?? 0))
+        setCoverPath((data.cover_path as string | null) ?? null)
         setSubmitter((data.submitter as string | null) ?? '')
       }
       setLoading(false)
@@ -91,12 +93,27 @@ export function SoundtrackEditor() {
     setMsg(`Trimmed to ${MAX_SECONDS}s and uploaded.`)
   }
 
+  async function uploadCover(file: File) {
+    const sb = getSupabase()
+    if (!sb || !date) return
+    const ext = file.name.split('.').pop() ?? 'png'
+    const path = `${date}/cover-${crypto.randomUUID()}.${ext}`
+    const { error } = await sb.storage
+      .from('covers')
+      .upload(path, file, { upsert: true })
+    if (error) {
+      setMsg(`Cover upload failed: ${error.message}`)
+      return
+    }
+    setCoverPath(path)
+  }
+
   async function clearPuzzle() {
     const sb = getSupabase()
     if (!sb || !date) return
     if (
       !window.confirm(
-        `Delete the soundtrack puzzle for ${date} and every uploaded audio file for that date? This cannot be undone.`,
+        `Delete the soundtrack puzzle for ${date}, every uploaded audio file for that date, and this puzzle's cover? This cannot be undone.`,
       )
     )
       return
@@ -128,6 +145,19 @@ export function SoundtrackEditor() {
       }
     }
 
+    // covers/ is shared with Screenshot/Blur/Trophy — only delete this
+    // puzzle's cover, never the whole date prefix.
+    if (coverPath) {
+      const { error: coverErr } = await sb.storage
+        .from('covers')
+        .remove([coverPath])
+      if (coverErr) {
+        setMsg(`Could not delete cover file: ${coverErr.message}`)
+        setClearing(false)
+        return
+      }
+    }
+
     const { error: rowErr } = await sb
       .from('soundtrack_puzzles')
       .delete()
@@ -142,6 +172,7 @@ export function SoundtrackEditor() {
     setAudioPath(null)
     setTrackTitle('')
     setRevealStart('0')
+    setCoverPath(null)
     setSubmitter('')
     setMsg('Cleared.')
     setClearing(false)
@@ -164,6 +195,7 @@ export function SoundtrackEditor() {
         audio_path: audioPath,
         track_title: trackTitle || null,
         reveal_start_seconds: Number(revealStart) || 0,
+        cover_path: coverPath,
         submitter: submitter.trim() || null,
         updated_at: new Date().toISOString(),
       },
@@ -200,6 +232,22 @@ export function SoundtrackEditor() {
               onChange={setSubmitter}
               gameType="soundtrack"
             />
+          </NeoCard>
+
+          <NeoCard tone="paper" shadow="md" className="p-5">
+            <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1">
+              Game cover (shown on the answer-reveal card)
+            </div>
+            <div className="text-[11px] text-ink-soft mb-3">
+              Portrait 3:4 — the official cover players see after the round ends.
+            </div>
+            <div className="w-40">
+              <CoverSlot
+                path={coverPath}
+                onUpload={uploadCover}
+                onClear={() => setCoverPath(null)}
+              />
+            </div>
           </NeoCard>
 
           <NeoCard tone="paper" shadow="md" className="p-5 flex flex-col gap-3">
@@ -329,5 +377,56 @@ export function SoundtrackEditor() {
         </div>
       )}
     </AdminLayout>
+  )
+}
+
+function CoverSlot({
+  path,
+  onUpload,
+  onClear,
+}: {
+  path: string | null
+  onUpload: (f: File) => void
+  onClear: () => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  const sb = getSupabase()
+  const preview =
+    path && sb ? sb.storage.from('covers').getPublicUrl(path).data.publicUrl : null
+  return (
+    <div className="border-neo bg-cream-soft aspect-[3/4] relative flex items-center justify-center overflow-hidden">
+      {preview ? (
+        <>
+          <img src={preview} alt="cover" className="w-full h-full object-cover" />
+          <button
+            onClick={onClear}
+            className="absolute top-1 right-1 border-neo-2 bg-paper p-1"
+          >
+            <X className="h-3 w-3 stroke-[3]" />
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={() => ref.current?.click()}
+          className="flex flex-col items-center gap-1 text-ink-soft px-2 text-center"
+        >
+          <Upload className="h-5 w-5 stroke-[2.5]" />
+          <span className="font-display text-[10px] uppercase tracking-wider font-bold">
+            Cover
+          </span>
+        </button>
+      )}
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) onUpload(f)
+          e.target.value = ''
+        }}
+      />
+    </div>
   )
 }

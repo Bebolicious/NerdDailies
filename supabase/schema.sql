@@ -211,6 +211,11 @@ create table if not exists public.crossword_puzzles (
 
 -- Community submitter credit. When set, the player UI renders a "GUEST · NAME"
 -- corner banner on the puzzle. Optional on every game.
+-- Trophy & Soundtrack also carry an optional official game cover (shown on the
+-- uniform answer-reveal card). Path lives in the shared 'covers' bucket.
+alter table public.trophy_puzzles     add column if not exists cover_path text;
+alter table public.soundtrack_puzzles add column if not exists cover_path text;
+
 alter table public.screenshot_puzzles add column if not exists submitter text;
 alter table public.trophy_puzzles     add column if not exists submitter text;
 alter table public.blur_puzzles       add column if not exists submitter text;

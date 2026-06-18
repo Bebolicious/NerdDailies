@@ -74,6 +74,7 @@ export async function fetchTrophyPuzzle(date: string): Promise<TrophyPuzzle> {
     rarity_pct: data.rarity_pct ?? undefined,
     platform: data.platform ?? undefined,
     gamerscore: data.gamerscore ?? undefined,
+    cover_url: data.cover_path ? toPublicUrl('covers')(data.cover_path) : undefined,
     submitter: data.submitter ?? undefined,
   }
 }
@@ -101,6 +102,7 @@ export async function fetchSoundtrackPuzzle(
     audio_url: toPublicUrl('soundtracks')(data.audio_path),
     track_title: data.track_title ?? undefined,
     reveal_start_seconds: data.reveal_start_seconds ?? 0,
+    cover_url: data.cover_path ? toPublicUrl('covers')(data.cover_path) : undefined,
     submitter: data.submitter ?? undefined,
   }
 }

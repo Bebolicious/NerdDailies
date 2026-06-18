@@ -503,16 +503,22 @@ function ArchiveRoom({
             opened={state.mysteryAOpened}
             box={puzzle.mystery_a}
             disabled={finished || state.candles < ARCHIVE_COSTS.mysteryBox}
+            finished={finished}
             cost={ARCHIVE_COSTS.mysteryBox}
+            wrongCount={wrongCount}
+            maxWrong={ARCHIVE_MAX_WRONG}
             onOpen={() =>
-              spend(ARCHIVE_COSTS.mysteryBox, (p) => ({
-                ...p,
-                mysteryAOpened: true,
-                jackpotUntil:
-                  puzzle.mystery_a.type === 'jackpot'
-                    ? Date.now() + 3000
-                    : p.jackpotUntil,
-              }))
+              spend(
+                puzzle.mystery_a.type === 'jackpot' ? 0 : ARCHIVE_COSTS.mysteryBox,
+                (p) => ({
+                  ...p,
+                  mysteryAOpened: true,
+                  jackpotUntil:
+                    puzzle.mystery_a.type === 'jackpot'
+                      ? Date.now() + 3000
+                      : p.jackpotUntil,
+                }),
+              )
             }
           />
           <MysteryBoxPanel
@@ -521,16 +527,22 @@ function ArchiveRoom({
             opened={state.mysteryBOpened}
             box={puzzle.mystery_b}
             disabled={finished || state.candles < ARCHIVE_COSTS.mysteryBox}
+            finished={finished}
             cost={ARCHIVE_COSTS.mysteryBox}
+            wrongCount={wrongCount}
+            maxWrong={ARCHIVE_MAX_WRONG}
             onOpen={() =>
-              spend(ARCHIVE_COSTS.mysteryBox, (p) => ({
-                ...p,
-                mysteryBOpened: true,
-                jackpotUntil:
-                  puzzle.mystery_b.type === 'jackpot'
-                    ? Date.now() + 3000
-                    : p.jackpotUntil,
-              }))
+              spend(
+                puzzle.mystery_b.type === 'jackpot' ? 0 : ARCHIVE_COSTS.mysteryBox,
+                (p) => ({
+                  ...p,
+                  mysteryBOpened: true,
+                  jackpotUntil:
+                    puzzle.mystery_b.type === 'jackpot'
+                      ? Date.now() + 3000
+                      : p.jackpotUntil,
+                }),
+              )
             }
           />
         </div>
@@ -1036,16 +1048,22 @@ function MysteryBoxPanel({
   opened,
   box,
   disabled,
+  finished,
   cost,
   onOpen,
+  wrongCount,
+  maxWrong,
 }: {
   label: string
   found: boolean
   opened: boolean
   box: ArchiveMysteryBox
   disabled?: boolean
+  finished?: boolean
   cost: number
   onOpen: () => void
+  wrongCount: number
+  maxWrong: number
 }) {
   if (!found) {
     return (
@@ -1054,6 +1072,37 @@ function MysteryBoxPanel({
           ? hidden ?
         </div>
       </div>
+    )
+  }
+  // A jackpot box (full-art reveal) is too strong to crack open early — it
+  // shimmers gold the moment it's found, but stays sealed until the player is
+  // down to their final guess (one wrong left). Once unlocked it opens for
+  // FREE regardless of candles left, so the reveal is a guaranteed last-guess
+  // lifeline rather than something you can't afford after exploring the room.
+  if (box.type === 'jackpot' && !opened) {
+    const jackpotLocked = wrongCount < maxWrong - 1
+    return (
+      <button
+        onClick={onOpen}
+        disabled={finished || jackpotLocked}
+        className={cn(
+          'archive-jackpot-tile relative overflow-hidden p-3 flex flex-col items-center justify-center gap-1 min-h-[88px] w-full text-ink disabled:cursor-not-allowed',
+        )}
+      >
+        <span className="text-2xl leading-none">{jackpotLocked ? '🔒' : '📦'}</span>
+        <div className="font-display text-[10px] uppercase tracking-wider font-bold text-center">
+          {label}
+        </div>
+        {jackpotLocked ? (
+          <div className="font-display text-[9px] uppercase tracking-wider font-bold text-center leading-tight text-mustard-deep">
+            ★ Jackpot · sealed until your last guess
+          </div>
+        ) : (
+          <div className="font-display text-[10px] uppercase tracking-wider font-bold text-center text-mustard-deep">
+            ★ Jackpot · free — open it now!
+          </div>
+        )}
+      </button>
     )
   }
   if (opened) {
@@ -1559,6 +1608,53 @@ function ArchiveStyles() {
       }
       .archive-chest-open {
         box-shadow: 0 0 20px color-mix(in oklab, var(--color-mustard) 25%, transparent) inset;
+      }
+      /* Jackpot mystery box — a golden border that endlessly shimmers so it
+         reads as the prize in the room, whether it's still sealed (locked
+         until the last guess) or ready to open. */
+      @keyframes archive-jackpot-shimmer {
+        0%, 100% {
+          border-color: var(--color-mustard);
+          box-shadow:
+            0 0 6px color-mix(in oklab, var(--color-mustard) 50%, transparent),
+            0 0 14px color-mix(in oklab, var(--color-mustard-deep) 35%, transparent);
+        }
+        50% {
+          border-color: var(--color-mustard-deep);
+          box-shadow:
+            0 0 12px color-mix(in oklab, var(--color-mustard) 75%, transparent),
+            0 0 26px color-mix(in oklab, var(--color-mustard-deep) 55%, transparent);
+        }
+      }
+      .archive-jackpot-tile {
+        background: var(--color-paper);
+        border: 3px solid var(--color-mustard);
+        animation: archive-jackpot-shimmer 1.8s ease-in-out infinite;
+      }
+      /* A diagonal gold sheen sweeping across the lid. */
+      .archive-jackpot-tile::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          115deg,
+          transparent 30%,
+          color-mix(in oklab, var(--color-mustard) 55%, transparent) 50%,
+          transparent 70%
+        );
+        transform: translateX(-130%);
+        animation: archive-jackpot-sweep 2.6s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes archive-jackpot-sweep {
+        0% { transform: translateX(-130%); }
+        60%, 100% { transform: translateX(130%); }
+      }
+      .archive-jackpot-tile:disabled {
+        cursor: not-allowed;
+      }
+      .archive-jackpot-tile:not(:disabled):hover {
+        transform: translate(-1px, -1px);
       }
       @keyframes archive-spare-glint {
         0%, 100% { opacity: 0; }

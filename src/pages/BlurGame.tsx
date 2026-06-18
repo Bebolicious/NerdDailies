@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Share2 } from 'lucide-react'
 import { NeoCard } from '../components/ui/NeoCard'
-import { NeoButton } from '../components/ui/NeoButton'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
 import { GuestBanner } from '../components/ui/GuestBanner'
@@ -9,6 +7,7 @@ import { InfoButton } from '../components/ui/InfoButton'
 import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
 import { GuessRow } from '../components/game/GuessRow'
+import { AnswerReveal } from '../components/game/AnswerReveal'
 import { useGameState } from '../hooks/useGameState'
 import { useBlurPuzzle } from '../hooks/usePuzzle'
 import { todayISO } from '../lib/dates'
@@ -16,9 +15,9 @@ import { BLUR_LEVELS_PX } from '../lib/types'
 import { sharesFranchise } from '../lib/franchise'
 
 const TOTAL_GUESSES = 6
-const BASE_COVER_WIDTH_PX = 420
+const BASE_COVER_WIDTH_PX = 520
 
-// Browser zoom shrinks every CSS pixel uniformly, so a fixed `w-[420px]`
+// Browser zoom shrinks every CSS pixel uniformly, so a fixed-width
 // cover still looks smaller at 90% zoom than at 100%. We compensate by
 // reading the zoom level (outerWidth / innerWidth — unaffected by Windows
 // display scaling, only by browser zoom) and multiplying the cover width by
@@ -87,7 +86,7 @@ function BlurInner({
             tone="ink"
             shadow="md"
             style={{ '--blur-cover-w': `${coverWidthPx}px` } as React.CSSProperties}
-            className="p-0 overflow-hidden relative aspect-[3/4] w-full max-w-[360px] mx-auto md:w-[var(--blur-cover-w)] md:max-w-[var(--blur-cover-w)] md:mx-0 md:shrink-0"
+            className="p-0 overflow-hidden relative aspect-[3/4] w-full max-w-[440px] mx-auto md:w-[var(--blur-cover-w)] md:max-w-[var(--blur-cover-w)] md:mx-0 md:shrink-0"
           >
             <div className="relative w-full h-full bg-cream overflow-hidden">
               <img
@@ -120,27 +119,12 @@ function BlurInner({
 
         <div className="md:w-[300px] shrink-0 flex flex-col gap-2 md:min-h-0 md:overflow-y-auto pr-1">
           {finished && (
-            <NeoCard tone="paper" shadow="sm" className="p-3">
-              <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
-                Today's game was
-              </div>
-              <div className="font-display text-lg font-bold mt-2 leading-tight">
-                {puzzle.game.name}
-              </div>
-              <div className="text-[11px] text-ink-soft mt-1 uppercase tracking-wider">
-                {puzzle.game.year} · {puzzle.game.genre}
-              </div>
-              <div className="mt-2 flex items-center gap-2 flex-wrap">
-                <TagPill tone={game.status === 'solved' ? 'lime' : 'coral'}>
-                  {game.status === 'solved'
-                    ? `Solved in ${game.guesses.length}`
-                    : 'Streak broken'}
-                </TagPill>
-                <NeoButton tone="blue" size="sm">
-                  <Share2 className="inline h-3 w-3 mr-1" /> Share
-                </NeoButton>
-              </div>
-            </NeoCard>
+            <AnswerReveal
+              game={puzzle.game}
+              status={game.status === 'solved' ? 'solved' : 'lost'}
+              guessCount={game.guesses.length}
+              shareTone="blue"
+            />
           )}
 
           {game.guesses.length === 0 ? (

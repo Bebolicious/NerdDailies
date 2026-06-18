@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { Upload, X } from 'lucide-react'
 import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
@@ -18,6 +19,7 @@ export function TrophyEditor() {
   const [rarity, setRarity] = useState('')
   const [platform, setPlatform] = useState('')
   const [gamerscore, setGamerscore] = useState('')
+  const [coverPath, setCoverPath] = useState<string | null>(null)
   const [submitter, setSubmitter] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -52,6 +54,7 @@ export function TrophyEditor() {
         setRarity(data.rarity_pct?.toString() ?? '')
         setPlatform(data.platform ?? '')
         setGamerscore(data.gamerscore?.toString() ?? '')
+        setCoverPath((data.cover_path as string | null) ?? null)
         setSubmitter((data.submitter as string | null) ?? '')
       }
       setLoading(false)
@@ -62,17 +65,46 @@ export function TrophyEditor() {
     }
   }, [date])
 
+  async function uploadCover(file: File) {
+    const sb = getSupabase()
+    if (!sb || !date) return
+    const ext = file.name.split('.').pop() ?? 'png'
+    const path = `${date}/cover-${crypto.randomUUID()}.${ext}`
+    const { error } = await sb.storage
+      .from('covers')
+      .upload(path, file, { upsert: true })
+    if (error) {
+      setMsg(`Cover upload failed: ${error.message}`)
+      return
+    }
+    setCoverPath(path)
+  }
+
   async function clearPuzzle() {
     const sb = getSupabase()
     if (!sb || !date) return
     if (
       !window.confirm(
-        `Delete the trophy puzzle for ${date}? This cannot be undone.`,
+        `Delete the trophy puzzle for ${date} and this puzzle's cover? This cannot be undone.`,
       )
     )
       return
     setClearing(true)
     setMsg(null)
+
+    // covers/ is shared with Screenshot/Blur/Soundtrack — only delete this
+    // puzzle's cover, never the whole date prefix.
+    if (coverPath) {
+      const { error: coverErr } = await sb.storage
+        .from('covers')
+        .remove([coverPath])
+      if (coverErr) {
+        setMsg(`Could not delete cover file: ${coverErr.message}`)
+        setClearing(false)
+        return
+      }
+    }
+
     const { error } = await sb
       .from('trophy_puzzles')
       .delete()
@@ -89,6 +121,7 @@ export function TrophyEditor() {
     setRarity('')
     setPlatform('')
     setGamerscore('')
+    setCoverPath(null)
     setSubmitter('')
     setMsg('Cleared.')
     setClearing(false)
@@ -115,6 +148,7 @@ export function TrophyEditor() {
         rarity_pct: rarity ? Number(rarity) : null,
         platform: platform || null,
         gamerscore: gamerscore ? Number(gamerscore) : null,
+        cover_path: coverPath,
         submitter: submitter.trim() || null,
         updated_at: new Date().toISOString(),
       },
@@ -145,6 +179,22 @@ export function TrophyEditor() {
               onChange={setSubmitter}
               gameType="trophy"
             />
+          </NeoCard>
+
+          <NeoCard tone="paper" shadow="md" className="p-5">
+            <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1">
+              Game cover (shown on the answer-reveal card)
+            </div>
+            <div className="text-[11px] text-ink-soft mb-3">
+              Portrait 3:4 — the official cover players see after the round ends.
+            </div>
+            <div className="w-40">
+              <CoverSlot
+                path={coverPath}
+                onUpload={uploadCover}
+                onClear={() => setCoverPath(null)}
+              />
+            </div>
           </NeoCard>
 
           <NeoCard tone="paper" shadow="md" className="p-5 flex flex-col gap-3">
@@ -244,6 +294,57 @@ export function TrophyEditor() {
         </div>
       )}
     </AdminLayout>
+  )
+}
+
+function CoverSlot({
+  path,
+  onUpload,
+  onClear,
+}: {
+  path: string | null
+  onUpload: (f: File) => void
+  onClear: () => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  const sb = getSupabase()
+  const preview =
+    path && sb ? sb.storage.from('covers').getPublicUrl(path).data.publicUrl : null
+  return (
+    <div className="border-neo bg-cream-soft aspect-[3/4] relative flex items-center justify-center overflow-hidden">
+      {preview ? (
+        <>
+          <img src={preview} alt="cover" className="w-full h-full object-cover" />
+          <button
+            onClick={onClear}
+            className="absolute top-1 right-1 border-neo-2 bg-paper p-1"
+          >
+            <X className="h-3 w-3 stroke-[3]" />
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={() => ref.current?.click()}
+          className="flex flex-col items-center gap-1 text-ink-soft px-2 text-center"
+        >
+          <Upload className="h-5 w-5 stroke-[2.5]" />
+          <span className="font-display text-[10px] uppercase tracking-wider font-bold">
+            Cover
+          </span>
+        </button>
+      )}
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) onUpload(f)
+          e.target.value = ''
+        }}
+      />
+    </div>
   )
 }
 

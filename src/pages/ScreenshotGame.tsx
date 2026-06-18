@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { NeoCard } from '../components/ui/NeoCard'
-import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
 import { GuestBanner } from '../components/ui/GuestBanner'
 import { InfoButton } from '../components/ui/InfoButton'
 import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
 import { GuessRow } from '../components/game/GuessRow'
+import { AnswerReveal } from '../components/game/AnswerReveal'
 import { useGameState } from '../hooks/useGameState'
 import { useScreenshotPuzzle } from '../hooks/usePuzzle'
 import { todayISO } from '../lib/dates'
@@ -120,33 +120,12 @@ function ScreenshotInner({
 
         <div className="md:w-[300px] shrink-0 flex flex-col gap-2 md:min-h-0 md:overflow-y-auto pr-1">
           {finished && (
-            <NeoCard tone="paper" shadow="sm" className="p-3">
-              <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
-                Today's game was
-              </div>
-              {puzzle.cover_url && (
-                <div className="mt-2 mx-auto w-[170px] border-neo bg-cream-soft overflow-hidden">
-                  <img
-                    src={puzzle.cover_url}
-                    alt={`${puzzle.game.name} cover`}
-                    className="w-full aspect-[2/3] object-cover"
-                  />
-                </div>
-              )}
-              <div className="font-display text-lg font-bold mt-2 leading-tight">
-                {puzzle.game.name}
-              </div>
-              <div className="text-[11px] text-ink-soft mt-1 uppercase tracking-wider">
-                {puzzle.game.year} · {puzzle.game.genre}
-              </div>
-              {game.status === 'solved' && (
-                <div className="mt-2">
-                  <TagPill tone="lime">
-                    {`Solved in ${game.guesses.length}`}
-                  </TagPill>
-                </div>
-              )}
-            </NeoCard>
+            <AnswerReveal
+              game={puzzle.game}
+              coverUrl={puzzle.cover_url}
+              status={game.status === 'solved' ? 'solved' : 'lost'}
+              guessCount={game.guesses.length}
+            />
           )}
 
           {reversedGuesses.length === 0 ? (

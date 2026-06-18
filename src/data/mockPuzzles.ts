@@ -75,6 +75,7 @@ export function getMockTrophyPuzzle(date: string): TrophyPuzzle {
     rarity_pct: 4.2,
     platform: game.platforms?.[0] ?? 'PC',
     gamerscore: 12,
+    cover_url: fakeCover(seed, game.name),
   }
 }
 
@@ -358,6 +359,7 @@ export function getMockSoundtrackPuzzle(date: string): SoundtrackPuzzle {
     audio_url: '', // empty = silent placeholder; admin upload swaps this in
     track_title: 'Main Theme',
     reveal_start_seconds: 0,
+    cover_url: fakeCover(seed, game.name),
   }
 }
 
