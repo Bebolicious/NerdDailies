@@ -9,8 +9,7 @@ type ShareTone = 'blue' | 'mustard' | 'lime' | 'coral'
 
 type Props = {
   game: Game
-  /** Optional official cover art. Omit for games (e.g. Blur) where the cover
-   *  already lives in the main image slot and a thumbnail would be redundant. */
+  /** Optional cover art thumbnail. Omit when no cover is available. */
   coverUrl?: string
   status: 'solved' | 'lost'
   guessCount: number

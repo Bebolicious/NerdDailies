@@ -121,6 +121,7 @@ function BlurInner({
           {finished && (
             <AnswerReveal
               game={puzzle.game}
+              coverUrl={puzzle.cover_url}
               status={game.status === 'solved' ? 'solved' : 'lost'}
               guessCount={game.guesses.length}
               shareTone="blue"

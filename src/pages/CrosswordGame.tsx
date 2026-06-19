@@ -68,7 +68,7 @@ function CrosswordInner({
       : downClueMap.get(currentSlot.number))
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
         <div className="flex items-center gap-4 flex-wrap">
           <div>
@@ -141,7 +141,7 @@ function CrosswordInner({
         </div>
       </NeoCard>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,620px)_minmax(0,1fr)_minmax(0,1fr)] gap-5 items-start">
         {/* Grid panel */}
         <div className="relative">
           {/* Hidden input — receives all keystrokes. Always-focused while
@@ -173,7 +173,7 @@ function CrosswordInner({
               className="grid mx-auto"
               style={{
                 gridTemplateColumns: `repeat(${puzzle.size}, minmax(0, 1fr))`,
-                maxWidth: `min(100%, ${puzzle.size * 80}px)`,
+                maxWidth: `min(100%, ${puzzle.size * 100}px)`,
               }}
             >
               {puzzle.solution.map((sol, i) => (
@@ -212,33 +212,33 @@ function CrosswordInner({
           )}
         </div>
 
-        {/* Clue sidebar */}
-        <div className="flex flex-col gap-3 lg:max-h-[640px] lg:overflow-y-auto lg:pr-1">
-          <ClueList
-            title="Across"
-            slots={layout.acrossSlots}
-            clueMap={acrossClueMap}
-            currentSlot={currentSlot}
-            currentDirection={direction}
-            onPick={(slot) => {
-              selectClue(slot)
-              refocusInput()
-            }}
-            disabled={status !== 'playing'}
-          />
-          <ClueList
-            title="Down"
-            slots={layout.downSlots}
-            clueMap={downClueMap}
-            currentSlot={currentSlot}
-            currentDirection={direction}
-            onPick={(slot) => {
-              selectClue(slot)
-              refocusInput()
-            }}
-            disabled={status !== 'playing'}
-          />
-        </div>
+        {/* Across clues */}
+        <ClueList
+          title="Across"
+          slots={layout.acrossSlots}
+          clueMap={acrossClueMap}
+          currentSlot={currentSlot}
+          currentDirection={direction}
+          onPick={(slot) => {
+            selectClue(slot)
+            refocusInput()
+          }}
+          disabled={status !== 'playing'}
+        />
+
+        {/* Down clues */}
+        <ClueList
+          title="Down"
+          slots={layout.downSlots}
+          clueMap={downClueMap}
+          currentSlot={currentSlot}
+          currentDirection={direction}
+          onPick={(slot) => {
+            selectClue(slot)
+            refocusInput()
+          }}
+          disabled={status !== 'playing'}
+        />
       </div>
 
       {modal !== 'none' && (

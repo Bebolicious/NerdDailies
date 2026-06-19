@@ -17,8 +17,19 @@
       // Apply theme + readability before React mounts to avoid a flash.
       (function () {
         try {
+          // An explicit choice (the settings toggle) wins and persists.
+          // Otherwise follow the OS preference.
           var stored = localStorage.getItem('dailies/theme');
-          var theme = stored === 'dark' ? 'dark' : 'light';
+          var theme;
+          if (stored === 'dark' || stored === 'light') {
+            theme = stored;
+          } else {
+            theme =
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          }
           document.documentElement.setAttribute('data-theme', theme);
         } catch (e) {
           document.documentElement.setAttribute('data-theme', 'light');
