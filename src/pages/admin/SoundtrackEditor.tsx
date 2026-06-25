@@ -7,11 +7,13 @@ import { NeoButton } from '../../components/ui/NeoButton'
 import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
+import { compressImage, IMG_PRESETS } from '../../lib/imageCompress'
 import type { Game } from '../../lib/types'
 import { formatLong } from '../../lib/dates'
 import { trimAndEncodeToMp3 } from '../../lib/audioTrim'
 
 const MAX_SECONDS = 60
+const CACHE_FOREVER = '31536000' // puzzle assets are immutable once set.
 
 export function SoundtrackEditor() {
   const { date } = useParams<{ date: string }>()
@@ -83,7 +85,11 @@ export function SoundtrackEditor() {
     const path = `${date}/${crypto.randomUUID()}.mp3`
     const { error } = await sb.storage
       .from('soundtracks')
-      .upload(path, toUpload, { upsert: true, contentType: 'audio/mpeg' })
+      .upload(path, toUpload, {
+        upsert: true,
+        contentType: 'audio/mpeg',
+        cacheControl: CACHE_FOREVER,
+      })
     setProcessing(false)
     if (error) {
       setMsg(`Upload failed: ${error.message}`)
@@ -96,11 +102,12 @@ export function SoundtrackEditor() {
   async function uploadCover(file: File) {
     const sb = getSupabase()
     if (!sb || !date) return
-    const ext = file.name.split('.').pop() ?? 'png'
+    const compressed = await compressImage(file, IMG_PRESETS.cover)
+    const ext = compressed.name.split('.').pop() ?? 'webp'
     const path = `${date}/cover-${crypto.randomUUID()}.${ext}`
     const { error } = await sb.storage
       .from('covers')
-      .upload(path, file, { upsert: true })
+      .upload(path, compressed, { upsert: true, cacheControl: CACHE_FOREVER })
     if (error) {
       setMsg(`Cover upload failed: ${error.message}`)
       return

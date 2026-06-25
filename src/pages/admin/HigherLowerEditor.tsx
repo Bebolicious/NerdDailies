@@ -8,6 +8,7 @@ import { TagPill } from '../../components/ui/TagPill'
 import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
+import { compressImage, IMG_PRESETS } from '../../lib/imageCompress'
 import { weekStartISO } from '../../lib/dates'
 import {
   HIGHERLOWER_CATEGORIES,
@@ -144,11 +145,12 @@ export function HigherLowerEditor() {
   async function uploadCover(idx: number, side: 'a' | 'b', file: File) {
     const sb = getSupabase()
     if (!sb || !week) return
-    const ext = file.name.split('.').pop() ?? 'png'
+    const compressed = await compressImage(file, IMG_PRESETS.higherlower)
+    const ext = compressed.name.split('.').pop() ?? 'webp'
     const path = `${week}/p${idx}-${side}-${crypto.randomUUID()}.${ext}`
     const { error } = await sb.storage
       .from('higherlower')
-      .upload(path, file, { upsert: true })
+      .upload(path, compressed, { upsert: true, cacheControl: '31536000' })
     if (error) {
       setMsg(`Cover upload failed: ${error.message}`)
       return

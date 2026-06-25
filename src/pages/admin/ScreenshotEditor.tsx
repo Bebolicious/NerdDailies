@@ -7,8 +7,11 @@ import { NeoButton } from '../../components/ui/NeoButton'
 import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
+import { compressImage, IMG_PRESETS } from '../../lib/imageCompress'
 import type { Game } from '../../lib/types'
 import { formatLong } from '../../lib/dates'
+
+const CACHE_FOREVER = '31536000' // 1yr — puzzle assets are immutable once set.
 
 const SLOT_COUNT = 6
 
@@ -65,11 +68,12 @@ export function ScreenshotEditor() {
   async function uploadAt(index: number, file: File) {
     const sb = getSupabase()
     if (!sb || !date) return
-    const ext = file.name.split('.').pop() ?? 'png'
+    const compressed = await compressImage(file, IMG_PRESETS.screenshot)
+    const ext = compressed.name.split('.').pop() ?? 'webp'
     const path = `${date}/${index + 1}-${crypto.randomUUID()}.${ext}`
     const { error } = await sb.storage
       .from('screenshots')
-      .upload(path, file, { upsert: true })
+      .upload(path, compressed, { upsert: true, cacheControl: CACHE_FOREVER })
     if (error) {
       setMsg(`Upload failed: ${error.message}`)
       return
@@ -84,11 +88,12 @@ export function ScreenshotEditor() {
   async function uploadCover(file: File) {
     const sb = getSupabase()
     if (!sb || !date) return
-    const ext = file.name.split('.').pop() ?? 'png'
+    const compressed = await compressImage(file, IMG_PRESETS.cover)
+    const ext = compressed.name.split('.').pop() ?? 'webp'
     const path = `${date}/cover-${crypto.randomUUID()}.${ext}`
     const { error } = await sb.storage
       .from('covers')
-      .upload(path, file, { upsert: true })
+      .upload(path, compressed, { upsert: true, cacheControl: CACHE_FOREVER })
     if (error) {
       setMsg(`Cover upload failed: ${error.message}`)
       return

@@ -31,7 +31,9 @@ export async function fetchScreenshotPuzzle(
   if (!sb) return getMockScreenshotPuzzle(date)
   const { data, error } = await sb
     .from('screenshot_puzzles')
-    .select('*')
+    .select(
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,image_paths,cover_path,submitter',
+    )
     .eq('puzzle_date', date)
     .maybeSingle()
   if (error || !data) return getMockScreenshotPuzzle(date)
@@ -55,7 +57,9 @@ export async function fetchTrophyPuzzle(date: string): Promise<TrophyPuzzle> {
   if (!sb) return getMockTrophyPuzzle(date)
   const { data, error } = await sb
     .from('trophy_puzzles')
-    .select('*')
+    .select(
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,trophy_name,trophy_description,clues,rarity_pct,platform,gamerscore,cover_path,submitter',
+    )
     .eq('puzzle_date', date)
     .maybeSingle()
   if (error || !data) return getMockTrophyPuzzle(date)
@@ -86,7 +90,9 @@ export async function fetchSoundtrackPuzzle(
   if (!sb) return getMockSoundtrackPuzzle(date)
   const { data, error } = await sb
     .from('soundtrack_puzzles')
-    .select('*')
+    .select(
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,audio_path,track_title,reveal_start_seconds,cover_path,submitter',
+    )
     .eq('puzzle_date', date)
     .maybeSingle()
   if (error || !data) return getMockSoundtrackPuzzle(date)
@@ -112,7 +118,9 @@ export async function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
   if (!sb) return getMockBlurPuzzle(date)
   const { data, error } = await sb
     .from('blur_puzzles')
-    .select('*')
+    .select(
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,cover_path,submitter',
+    )
     .eq('puzzle_date', date)
     .maybeSingle()
   if (error || !data) return getMockBlurPuzzle(date)
@@ -135,7 +143,9 @@ export async function fetchArchivePuzzle(week: string): Promise<ArchivePuzzle> {
   if (!sb) return getMockArchivePuzzle(week)
   const { data, error } = await sb
     .from('archive_puzzles')
-    .select('*')
+    .select(
+      'id,puzzle_week,game_id,game_name,game_year,game_genre,weekly_theme,clue_year,clue_genre,clue_platform,clue_pitch,clue_memo,clue_review,audio_path,frame1_path,frame2_path,chest_logo_path,mystery_a,mystery_b,trash_crossed_out,submitter',
+    )
     .eq('puzzle_week', week)
     .maybeSingle()
   if (error || !data) return getMockArchivePuzzle(week)
@@ -174,7 +184,7 @@ export async function fetchCrosswordPuzzle(
   if (!sb) return getMockCrosswordPuzzle(date)
   const { data, error } = await sb
     .from('crossword_puzzles')
-    .select('*')
+    .select('id,puzzle_date,size,solution,clues_across,clues_down,submitter')
     .eq('puzzle_date', date)
     .maybeSingle()
   if (error || !data) return getMockCrosswordPuzzle(date)
@@ -199,13 +209,15 @@ export async function fetchHigherLowerPuzzle(
   if (!sb) return getMockHigherLowerPuzzle(week)
   const { data, error } = await sb
     .from('higherlower_puzzles')
-    .select('*')
+    .select('id,puzzle_week,theme,submitter')
     .eq('puzzle_week', week)
     .maybeSingle()
   if (error || !data) return getMockHigherLowerPuzzle(week)
   const { data: pairRows } = await sb
     .from('higherlower_pairs')
-    .select('*')
+    .select(
+      'id,position,category,game_a_id,game_a_name,game_a_year,game_a_cover_path,game_a_value,game_a_display,game_b_id,game_b_name,game_b_year,game_b_cover_path,game_b_value,game_b_display',
+    )
     .eq('puzzle_id', data.id)
     .order('position', { ascending: true })
   const url = toPublicUrl('higherlower')

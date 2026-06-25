@@ -54,18 +54,21 @@ let ACCESS_TOKEN
 // Curated list. IGDB platform IDs are stable (these match values returned
 // from /v4/platforms). `newer` = released after SNES (1990) — used by
 // --extend mode to skip retro platforms when pulling deeper ranks.
+// `current: true` = a platform still selling new releases today. Used by
+// --year mode to pull a year's worth of releases for the current generation
+// only (current consoles + PC), including titles not out yet.
 const PLATFORMS = [
-  { id: 6,   label: 'PC',          newer: true  },
+  { id: 6,   label: 'PC',          newer: true,  current: true },
   { id: 7,   label: 'PS1',         newer: true  },
   { id: 8,   label: 'PS2',         newer: true  },
   { id: 9,   label: 'PS3',         newer: true  },
   { id: 48,  label: 'PS4',         newer: true  },
-  { id: 167, label: 'PS5',         newer: true  },
+  { id: 167, label: 'PS5',         newer: true,  current: true },
   { id: 11,  label: 'Xbox',        newer: true  },
   { id: 12,  label: 'Xbox 360',    newer: true  },
   { id: 49,  label: 'Xbox One',    newer: true  },
-  { id: 169, label: 'Xbox Series', newer: true  },
-  { id: 130, label: 'Switch',      newer: true  },
+  { id: 169, label: 'Xbox Series', newer: true,  current: true },
+  { id: 130, label: 'Switch',      newer: true,  current: true },
   { id: 41,  label: 'Wii U',       newer: true  },
   { id: 5,   label: 'Wii',         newer: true  },
   { id: 21,  label: 'GameCube',    newer: true  },
@@ -96,10 +99,51 @@ function cliInt(flag, fallback) {
   const arg = process.argv.find((a) => a.startsWith(`${flag}=`))
   return arg ? Number(arg.slice(flag.length + 1)) : fallback
 }
+// --year=YYYY mode: pull the top ~100 games released (or scheduled to release)
+// in calendar year YYYY for current-gen platforms only, ranked by anticipation
+// (`hypes`) so unreleased-but-upcoming titles are included. Appends to the seed
+// and skips ids already present, like --extend.
+const YEAR = cliInt('--year', null)
+const APPEND = EXTEND || YEAR != null
 const PAGE_START = EXTEND ? cliInt('--start', 2) : 0
-const PAGE_COUNT = EXTEND ? cliInt('--count', 3) : 2
+const PAGE_COUNT = YEAR != null ? 1 : EXTEND ? cliInt('--count', 3) : 2
 
 async function fetchTopGamesForPlatform(platformId, page) {
+  if (YEAR != null) {
+    // Release window for the target year, in unix seconds (UTC). Sorting by
+    // `hypes` (number of users anticipating) ranks both already-released hits
+    // and not-yet-out titles, unlike total_rating_count which only exists once
+    // a game has been rated.
+    const start = Date.UTC(YEAR, 0, 1) / 1000
+    const end = Date.UTC(YEAR + 1, 0, 1) / 1000
+    const yearBody = `
+      fields name, first_release_date, genres.name, platforms.abbreviation;
+      where platforms = (${platformId})
+        & game_type = 0
+        & version_parent = null
+        & first_release_date >= ${start}
+        & first_release_date < ${end}
+        & hypes != null;
+      sort hypes desc;
+      limit 100;
+      offset ${page * 100};
+    `.trim()
+    const res = await fetch(IGDB_URL, {
+      method: 'POST',
+      headers: {
+        'Client-ID': CLIENT_ID,
+        Authorization: `Bearer ${ACCESS_TOKEN}`,
+        'Content-Type': 'text/plain',
+        Accept: 'application/json',
+      },
+      body: yearBody,
+    })
+    if (!res.ok) {
+      throw new Error(`IGDB ${res.status} for platform ${platformId}: ${await res.text()}`)
+    }
+    return res.json()
+  }
+
   // APICalypse query:
   //   - game_type = 0  → main games only (skips DLC, expansions, bundles).
   //     (Was `category` in older IGDB v4 — renamed to game_type.)
@@ -178,8 +222,17 @@ function gameToValues(g) {
 async function main() {
   ACCESS_TOKEN = await getAccessToken()
 
-  const platforms = EXTEND ? PLATFORMS.filter((p) => p.newer) : PLATFORMS
-  if (EXTEND) {
+  const platforms =
+    YEAR != null
+      ? PLATFORMS.filter((p) => p.current)
+      : EXTEND
+        ? PLATFORMS.filter((p) => p.newer)
+        : PLATFORMS
+  if (YEAR != null) {
+    console.log(
+      `--year=${YEAR}: pulling top 100 ${YEAR} releases (by hypes) for ${platforms.length} current platforms: ${platforms.map((p) => p.label).join(', ')}\n`,
+    )
+  } else if (EXTEND) {
     console.log(
       `--extend: pulling pages ${PAGE_START}-${PAGE_START + PAGE_COUNT - 1} for ${platforms.length} newer platforms\n`,
     )
@@ -192,7 +245,7 @@ async function main() {
   const here = dirname(fileURLToPath(import.meta.url))
   const outPath = resolve(here, '..', 'supabase', 'seed-games.sql')
   const existingIds = new Set()
-  if (EXTEND) {
+  if (APPEND) {
     const existing = await readFile(outPath, 'utf8').catch(() => '')
     for (const m of existing.matchAll(/^\s*\((\d+),/gm)) {
       existingIds.add(Number(m[1]))
@@ -232,7 +285,14 @@ async function main() {
     `\n${games.length} new games (${totalFetched} fetched, ${dedupRun} within-run dups, ${skippedExisting} already in seed)`,
   )
 
-  const header = EXTEND
+  const header = YEAR != null
+    ? [
+        '',
+        `-- Year: top ${YEAR} releases (by hypes) for current platforms (${platforms.map((p) => p.label).join(', ')}).`,
+        `-- Appended ${new Date().toISOString().slice(0, 10)} by scripts/import-igdb-games.mjs --year=${YEAR}`,
+        'insert into public.games (id, name, year, genre, platforms) values',
+      ].join('\n')
+    : EXTEND
     ? [
         '',
         `-- Extend: pages ${PAGE_START}-${PAGE_START + PAGE_COUNT - 1} (ranks ${PAGE_START * 100}-${(PAGE_START + PAGE_COUNT) * 100 - 1}) for platforms newer than SNES.`,
@@ -261,7 +321,7 @@ on conflict (id) do update set
 
   await mkdir(dirname(outPath), { recursive: true })
 
-  if (EXTEND) {
+  if (APPEND) {
     if (games.length === 0) {
       console.log('\nNo new games to append — seed file unchanged.')
     } else {

@@ -35,7 +35,9 @@ export function GameSearch({
 
   useEffect(() => {
     let cancelled = false
-    if (!query.trim()) {
+    // Wait for ≥3 chars before hitting the DB — 1–2 char prefixes match a huge
+    // candidate set and fire on nearly every keystroke, which is wasted egress.
+    if (query.trim().length < 3) {
       setResults([])
       return
     }
@@ -46,7 +48,7 @@ export function GameSearch({
           setActiveIndex(0)
         }
       })
-    }, 200)
+    }, 350)
     return () => {
       cancelled = true
       clearTimeout(t)

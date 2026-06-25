@@ -7,6 +7,7 @@ import { NeoButton } from '../../components/ui/NeoButton'
 import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
+import { compressImage, IMG_PRESETS } from '../../lib/imageCompress'
 import type { Game } from '../../lib/types'
 import { formatLong } from '../../lib/dates'
 
@@ -68,11 +69,12 @@ export function TrophyEditor() {
   async function uploadCover(file: File) {
     const sb = getSupabase()
     if (!sb || !date) return
-    const ext = file.name.split('.').pop() ?? 'png'
+    const compressed = await compressImage(file, IMG_PRESETS.cover)
+    const ext = compressed.name.split('.').pop() ?? 'webp'
     const path = `${date}/cover-${crypto.randomUUID()}.${ext}`
     const { error } = await sb.storage
       .from('covers')
-      .upload(path, file, { upsert: true })
+      .upload(path, compressed, { upsert: true, cacheControl: '31536000' })
     if (error) {
       setMsg(`Cover upload failed: ${error.message}`)
       return

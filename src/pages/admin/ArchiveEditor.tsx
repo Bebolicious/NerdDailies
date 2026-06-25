@@ -7,6 +7,7 @@ import { NeoButton } from '../../components/ui/NeoButton'
 import { SubmitterField } from '../../components/ui/SubmitterField'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
+import { compressImage, IMG_PRESETS } from '../../lib/imageCompress'
 import type {
   ArchiveMysteryBox,
   ArchiveMysteryBoxOutcome,
@@ -14,6 +15,8 @@ import type {
 } from '../../lib/types'
 import { weekStartISO } from '../../lib/dates'
 import { trimAndEncodeToMp3 } from '../../lib/audioTrim'
+
+const CACHE_FOREVER = '31536000' // puzzle assets are immutable once set.
 
 const MAX_AUDIO_SECONDS = 30
 const OUTCOMES: ArchiveMysteryBoxOutcome[] = [
@@ -112,11 +115,13 @@ export function ArchiveEditor() {
   ) {
     const sb = getSupabase()
     if (!sb || !week) return
-    const ext = file.name.split('.').pop() ?? 'png'
+    const preset = kind === 'chest' ? IMG_PRESETS.archiveLogo : IMG_PRESETS.archiveFrame
+    const compressed = await compressImage(file, preset)
+    const ext = compressed.name.split('.').pop() ?? 'webp'
     const path = `${week}/${kind}-${crypto.randomUUID()}.${ext}`
     const { error } = await sb.storage
       .from('archive')
-      .upload(path, file, { upsert: true })
+      .upload(path, compressed, { upsert: true, cacheControl: CACHE_FOREVER })
     if (error) {
       setMsg(`${kind} upload failed: ${error.message}`)
       return
@@ -142,7 +147,11 @@ export function ArchiveEditor() {
     const path = `${week}/radio-${crypto.randomUUID()}.mp3`
     const { error } = await sb.storage
       .from('archive')
-      .upload(path, toUpload, { upsert: true, contentType: 'audio/mpeg' })
+      .upload(path, toUpload, {
+        upsert: true,
+        contentType: 'audio/mpeg',
+        cacheControl: CACHE_FOREVER,
+      })
     setProcessingAudio(false)
     if (error) return setMsg(`Audio upload failed: ${error.message}`)
     setAudioPath(path)

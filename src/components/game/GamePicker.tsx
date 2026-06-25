@@ -21,7 +21,9 @@ export function GamePicker({
 
   useEffect(() => {
     let cancelled = false
-    if (!query.trim()) {
+    // Wait for ≥3 chars before hitting the DB — 1–2 char prefixes match a huge
+    // candidate set and fire on nearly every keystroke, which is wasted egress.
+    if (query.trim().length < 3) {
       setResults([])
       return
     }
@@ -29,7 +31,7 @@ export function GamePicker({
       searchGames(query).then((r) => {
         if (!cancelled) setResults(r)
       })
-    }, 200)
+    }, 350)
     return () => {
       cancelled = true
       clearTimeout(t)
