@@ -12,6 +12,11 @@ import { todayISO } from '../lib/dates'
 import type { CrosswordClue, CrosswordPuzzle } from '../lib/types'
 import { cn } from '../lib/cn'
 
+// Non-breaking-space sentinel kept in the hidden input so that Backspace on a
+// mobile virtual keyboard always has a character to delete (and thus fires a
+// reliable delete event). Invisible because the input is opacity-0.
+const KEYBOARD_GUARD =' '
+
 export function CrosswordGame() {
   const date = todayISO()
   const puzzle = useCrosswordPuzzle(date)
@@ -41,6 +46,8 @@ function CrosswordInner({
     selectCell,
     selectClue,
     handleKeyDown,
+    setCellLetter,
+    backspace,
     check,
     reveal,
   } = state
@@ -145,13 +152,33 @@ function CrosswordInner({
         {/* Grid panel */}
         <div className="relative">
           {/* Hidden input — receives all keystrokes. Always-focused while
-              playing so the on-screen keyboard pops on mobile. */}
+              playing so the on-screen keyboard pops on mobile.
+
+              Desktop typing comes through `onKeyDown` (which calls
+              preventDefault, suppressing the input event). Mobile virtual
+              keyboards fire keydown with key="Unidentified", so the real
+              character arrives via `onInput` instead. The non-empty sentinel
+              value (GUARD) ensures Backspace always has something to delete so
+              the delete event reliably fires on Android. The input must have a
+              real (1px) size and not be display:none so iOS opens the
+              keyboard on focus. */}
           <input
             ref={inputRef}
             type="text"
-            className="absolute opacity-0 -z-10 w-0 h-0"
-            value=""
+            className="absolute top-0 left-0 w-px h-px opacity-0 pointer-events-none"
+            value={KEYBOARD_GUARD}
             onChange={() => {}}
+            onInput={(e) => {
+              const native = e.nativeEvent as InputEvent
+              const type = native.inputType ?? ''
+              if (type.startsWith('delete')) {
+                backspace()
+              } else if (native.data) {
+                // Swipe/autocomplete can deliver multiple chars; feed each
+                // through setCellLetter, which ignores non-letters.
+                for (const ch of native.data) setCellLetter(ch)
+              }
+            }}
             onKeyDown={(e) => {
               handleKeyDown({
                 key: e.key,
