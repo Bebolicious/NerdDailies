@@ -79,13 +79,6 @@ const BAND_CLASS: Record<ConnectionsDifficulty, string> = {
   3: 'bg-coral text-ink-static',
 }
 
-const DIFFICULTY_EMOJI: Record<ConnectionsDifficulty, string> = {
-  0: '🟨',
-  1: '🟩',
-  2: '🟦',
-  3: '🟥',
-}
-
 export function ConnectionsGame() {
   const today = todayISO()
   const week = weekStartISO(today)
@@ -245,7 +238,8 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
     finished || state.selected.length !== CONNECTIONS_GROUP_SIZE
 
   return (
-    <div className="max-w-2xl pb-16">
+    <div className="flex-1 min-h-0 w-full overflow-y-auto flex justify-center items-start">
+      <div className="w-full max-w-3xl px-1 py-4">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
         <h1 className="font-display text-xl uppercase tracking-wider font-bold flex items-center gap-2">
           <LayoutGrid className="h-5 w-5 stroke-[3]" />
@@ -308,7 +302,7 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
           <div
             key={shakeKey}
             className={cn(
-              'grid grid-cols-4 gap-1.5 sm:gap-2',
+              'grid grid-cols-4 gap-2',
               toast === 'One away…' || toast === 'Not a group'
                 ? 'animate-connections-shake'
                 : undefined,
@@ -323,7 +317,7 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
                   onClick={() => toggleWord(w)}
                   aria-pressed={selected}
                   className={cn(
-                    'border-neo-2 min-h-[58px] sm:min-h-[68px] px-1 flex items-center justify-center text-center',
+                    'border-neo-2 h-[64px] sm:h-[80px] px-1 flex items-center justify-center text-center',
                     'font-display text-[11px] sm:text-sm uppercase tracking-wide font-bold leading-tight break-words',
                     'transition-all hover:-translate-y-[1px]',
                     selected
@@ -408,10 +402,10 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
                 type="checkbox"
                 checked={state.unlimited}
                 onChange={(e) => onToggleUnlimited(e.target.checked)}
-                className="w-4 h-4 accent-orange shrink-0"
+                className="appearance-none rounded-none w-4 h-4 border-neo bg-paper checked:bg-orange cursor-pointer shrink-0"
               />
               <span className="font-display text-[11px] uppercase tracking-wider font-bold">
-                Unlimited guesses (no life limit)
+                Unlimited guesses
               </span>
             </label>
           </>
@@ -427,6 +421,7 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
           />
         )}
       </NeoCard>
+      </div>
     </div>
   )
 }
@@ -528,11 +523,10 @@ function buildShare(
   status: Status,
   guesses: ConnectionsDifficulty[][],
 ): string {
-  const grid = guesses
-    .map((row) => row.map((d) => DIFFICULTY_EMOJI[d]).join(''))
-    .join('\n')
-  const head = `Connections · Week ${weekNumber(week)} ${
-    status === 'won' ? '✓' : '✗'
-  }`
-  return grid ? `${head}\n${grid}` : head
+  const w = weekNumber(week)
+  const n = guesses.length
+  const tries = `${n} guess${n === 1 ? '' : 'es'}`
+  return status === 'won'
+    ? `Connections · Week ${w}\nSolved in ${tries}`
+    : `Connections · Week ${w}\nDidn't solve it · ${tries}`
 }
