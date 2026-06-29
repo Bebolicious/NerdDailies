@@ -25,6 +25,11 @@ const HigherLowerGame = lazy(() =>
     default: m.HigherLowerGame,
   })),
 )
+const ConnectionsGame = lazy(() =>
+  import('./pages/ConnectionsGame').then((m) => ({
+    default: m.ConnectionsGame,
+  })),
+)
 const HowToPlay = lazy(() =>
   import('./pages/HowToPlay').then((m) => ({ default: m.HowToPlay })),
 )
@@ -75,6 +80,11 @@ const HigherLowerEditor = lazy(() =>
     default: m.HigherLowerEditor,
   })),
 )
+const ConnectionsEditor = lazy(() =>
+  import('./pages/admin/ConnectionsEditor').then((m) => ({
+    default: m.ConnectionsEditor,
+  })),
+)
 
 function App() {
   return (
@@ -92,6 +102,10 @@ function App() {
           <Route
             path="/admin/higherlower/:date"
             element={<HigherLowerEditor />}
+          />
+          <Route
+            path="/admin/connections/:date"
+            element={<ConnectionsEditor />}
           />
 
           <Route path="/" element={<Navigate to="/screenshot" replace />} />
@@ -148,6 +162,14 @@ function App() {
             element={
               <ShellLayout>
                 <HigherLowerGame />
+              </ShellLayout>
+            }
+          />
+          <Route
+            path="/connections"
+            element={
+              <ShellLayout>
+                <ConnectionsGame />
               </ShellLayout>
             }
           />

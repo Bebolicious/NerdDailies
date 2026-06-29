@@ -1,6 +1,8 @@
 import type {
   ArchivePuzzle,
   BlurPuzzle,
+  ConnectionsGroup,
+  ConnectionsPuzzle,
   CrosswordPuzzle,
   HigherLowerCategory,
   HigherLowerPuzzle,
@@ -347,6 +349,59 @@ function formatSeconds(total: number): string {
   return h > 0
     ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
     : `${m}:${String(s).padStart(2, '0')}`
+}
+
+// Deterministic mock for the weekly Connections puzzle. Four fixed groups of
+// four words; the board layout is shuffled with a week-seeded RNG so it's
+// stable for a given week but varies week to week.
+export function getMockConnectionsPuzzle(week: string): ConnectionsPuzzle {
+  const groups: ConnectionsGroup[] = [
+    {
+      difficulty: 0,
+      category: 'Nintendo mascots',
+      words: ['Mario', 'Link', 'Kirby', 'Pikachu'],
+    },
+    {
+      difficulty: 1,
+      category: 'FromSoftware games',
+      words: ['Sekiro', 'Bloodborne', 'Elden Ring', 'Dark Souls'],
+    },
+    {
+      difficulty: 2,
+      category: '___ of War',
+      words: ['God', 'Gears', 'Ace', 'Art'],
+    },
+    {
+      difficulty: 3,
+      category: 'Hidden colors',
+      words: ['Crimson', 'Azure', 'Olive', 'Violet'],
+    },
+  ]
+  const allWords = groups.flatMap((g) => g.words)
+  const seed = hash(week + 'connections')
+  const layout = seededShuffle(allWords, seed)
+  return {
+    id: 'mock-connections-' + seed,
+    puzzle_week: week,
+    theme: 'Mock weekly connections',
+    groups,
+    layout,
+  }
+}
+
+// A small deterministic Fisher–Yates so the mock board is stable per week.
+function seededShuffle<T>(input: T[], seed: number): T[] {
+  const arr = input.slice()
+  let s = seed || 1
+  const rand = () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff
+    return s / 0x7fffffff
+  }
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  return arr
 }
 
 export function getMockSoundtrackPuzzle(date: string): SoundtrackPuzzle {

@@ -111,6 +111,8 @@
   --color-violet-deep: #9657f0;
   --color-teal: #4ec5b5;
   --color-teal-deep: #2ea395;
+  --color-orange: #ff8a3d;
+  --color-orange-deep: #e8702a;
 
   --font-pixel: 'Press Start 2P', monospace;
   --font-display: 'VT323', 'JetBrains Mono', monospace;
@@ -292,10 +294,44 @@ html[data-readable='true'] {
   animation: buzz 600ms ease-in-out both;
 }
 
+/* Connections — solved-group band slamming in once 4 correct words lock. Hard
+   neo-brutalist entrance: drop from a touch above with a small overshoot. */
+@keyframes connections-solve {
+  0% {
+    transform: translateY(-18px) scale(0.96);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(4px) scale(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+@utility animate-connections-solve {
+  animation: connections-solve 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Quick shake on a wrong Connections guess (the 4 still-selected cards). */
+@keyframes connections-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+@utility animate-connections-shake {
+  animation: connections-shake 380ms ease-in-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-guest-banner-corner,
   .animate-guest-banner-inline,
-  .animate-buzz {
+  .animate-buzz,
+  .animate-connections-solve,
+  .animate-connections-shake {
     animation: none;
   }
 }

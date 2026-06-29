@@ -8,7 +8,7 @@ export function HowToPlay() {
         How to play
       </h1>
       <p className="text-sm text-ink-soft mb-6">
-        Five small puzzles drop every day at local midnight, plus two larger
+        Five small puzzles drop every day at local midnight, plus a few larger
         weekly games that fresh up on Monday. No sign-in — your history lives
         on this device.
       </p>
@@ -76,6 +76,20 @@ export function HowToPlay() {
             play all 15. Your score is your correct count, plus a rank from
             Coin&nbsp;flipper to Analyst. Use the Replay button on the end
             screen to retry the week as many times as you like.
+          </p>
+        </NeoCard>
+        <NeoCard tone="paper" shadow="md" className="p-5">
+          <TagPill tone="orange" className="mb-2">
+            Connections · weekly
+          </TagPill>
+          <p className="text-sm mt-2">
+            Sixteen words hide four secret groups of four. Tap four you think
+            belong together and hit <strong>Submit</strong>. Get all four groups
+            before four mistakes — the game tells you when you're{' '}
+            <strong>one away</strong>. Each group's difficulty color (Yellow,
+            Green, Blue, Red) is revealed only when you solve it. Prefer a
+            no-pressure run? Flip on <strong>Unlimited guesses</strong> to drop
+            the life limit. New puzzle every Monday.
           </p>
         </NeoCard>
       </div>

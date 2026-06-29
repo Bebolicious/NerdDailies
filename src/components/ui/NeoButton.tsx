@@ -10,6 +10,7 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
     | 'blue'
     | 'violet'
     | 'teal'
+    | 'orange'
     | 'ink'
     | 'paper'
   size?: 'sm' | 'md' | 'lg'
@@ -24,6 +25,7 @@ const toneClass: Record<NonNullable<Props['tone']>, string> = {
   blue: 'bg-blue text-paper-static hover:bg-blue-deep',
   violet: 'bg-violet text-paper-static hover:bg-violet-deep',
   teal: 'bg-teal text-ink-static hover:bg-teal-deep',
+  orange: 'bg-orange text-ink-static hover:bg-orange-deep',
   ink: 'bg-emphasis text-paper-static hover:bg-emphasis-hover',
   paper: 'bg-paper text-ink hover:bg-cream-soft',
 }

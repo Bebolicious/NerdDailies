@@ -11,6 +11,7 @@ type Props = HTMLAttributes<HTMLDivElement> & {
     | 'blue'
     | 'violet'
     | 'teal'
+    | 'orange'
     | 'pink'
     | 'ink'
   shadow?: 'none' | 'sm' | 'md' | 'lg'
@@ -24,6 +25,7 @@ const toneClass: Record<NonNullable<Props['tone']>, string> = {
   blue: 'bg-blue text-paper-static',
   violet: 'bg-violet text-paper-static',
   teal: 'bg-teal text-ink-static',
+  orange: 'bg-orange text-ink-static',
   pink: 'bg-pink',
   ink: 'bg-emphasis text-paper-static',
 }

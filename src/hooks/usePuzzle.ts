@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   fetchArchivePuzzle,
   fetchBlurPuzzle,
+  fetchConnectionsPuzzle,
   fetchCrosswordPuzzle,
   fetchHigherLowerPuzzle,
   fetchScreenshotPuzzle,
@@ -11,6 +12,7 @@ import {
 import type {
   ArchivePuzzle,
   BlurPuzzle,
+  ConnectionsPuzzle,
   CrosswordPuzzle,
   HigherLowerPuzzle,
   ScreenshotPuzzle,
@@ -83,6 +85,18 @@ export function useHigherLowerPuzzle(week: string) {
   useEffect(() => {
     let cancelled = false
     fetchHigherLowerPuzzle(week).then((p) => !cancelled && setPuzzle(p))
+    return () => {
+      cancelled = true
+    }
+  }, [week])
+  return puzzle
+}
+
+export function useConnectionsPuzzle(week: string) {
+  const [puzzle, setPuzzle] = useState<ConnectionsPuzzle | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetchConnectionsPuzzle(week).then((p) => !cancelled && setPuzzle(p))
     return () => {
       cancelled = true
     }

@@ -209,6 +209,21 @@ create table if not exists public.crossword_puzzles (
   updated_at timestamptz default now()
 );
 
+-- The weekly Connections game. Keyed by puzzle_week (Monday of the ISO week).
+-- 16 words split into 4 hidden groups of 4. `groups` holds the answer key
+-- (category + words + difficulty); `layout` is the fixed shuffled board order
+-- (16 words) generated at save time so every player sees the same arrangement.
+create table if not exists public.connections_puzzles (
+  id uuid primary key default gen_random_uuid(),
+  puzzle_week date not null unique,
+  theme text,
+  groups jsonb not null,                     -- [{difficulty,category,words[4]}] × 4
+  layout text[] not null,                    -- 16 words in display order
+  submitter text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- Community submitter credit. When set, the player UI renders a "GUEST · NAME"
 -- corner banner on the puzzle. Optional on every game.
 -- Trophy & Soundtrack also carry an optional official game cover (shown on the
@@ -223,6 +238,7 @@ alter table public.soundtrack_puzzles add column if not exists submitter text;
 alter table public.archive_puzzles    add column if not exists submitter text;
 alter table public.crossword_puzzles  add column if not exists submitter text;
 alter table public.higherlower_puzzles add column if not exists submitter text;
+alter table public.connections_puzzles add column if not exists submitter text;
 
 -- ── RLS ─────────────────────────────────────────────────────────────────────
 -- Anyone can READ puzzles for any date (so the public app can fetch them).
@@ -237,6 +253,7 @@ alter table public.archive_puzzles     enable row level security;
 alter table public.crossword_puzzles   enable row level security;
 alter table public.higherlower_puzzles enable row level security;
 alter table public.higherlower_pairs   enable row level security;
+alter table public.connections_puzzles enable row level security;
 
 drop policy if exists "public read games" on public.games;
 create policy "public read games" on public.games
@@ -316,6 +333,15 @@ create policy "public read higherlower pairs" on public.higherlower_pairs
 
 drop policy if exists "admin write higherlower pairs" on public.higherlower_pairs;
 create policy "admin write higherlower pairs" on public.higherlower_pairs
+  for all using (auth.role() = 'authenticated')
+         with check (auth.role() = 'authenticated');
+
+drop policy if exists "public read connections" on public.connections_puzzles;
+create policy "public read connections" on public.connections_puzzles
+  for select using (true);
+
+drop policy if exists "admin write connections" on public.connections_puzzles;
+create policy "admin write connections" on public.connections_puzzles
   for all using (auth.role() = 'authenticated')
          with check (auth.role() = 'authenticated');
 

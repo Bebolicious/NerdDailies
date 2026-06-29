@@ -5,6 +5,7 @@ import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
 import { SubmitterField } from '../../components/ui/SubmitterField'
+import { PlatformMultiSelect } from '../../components/ui/PlatformMultiSelect'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import { compressImage, IMG_PRESETS } from '../../lib/imageCompress'
@@ -18,7 +19,7 @@ export function TrophyEditor() {
   const [trophyDesc, setTrophyDesc] = useState('')
   const [clues, setClues] = useState<string[]>(['', '', '', ''])
   const [rarity, setRarity] = useState('')
-  const [platform, setPlatform] = useState('')
+  const [platforms, setPlatforms] = useState<string[]>([])
   const [gamerscore, setGamerscore] = useState('')
   const [coverPath, setCoverPath] = useState<string | null>(null)
   const [submitter, setSubmitter] = useState('')
@@ -53,7 +54,12 @@ export function TrophyEditor() {
         const existingClues = (data.clues as string[]) ?? []
         setClues([0, 1, 2, 3].map((i) => existingClues[i] ?? ''))
         setRarity(data.rarity_pct?.toString() ?? '')
-        setPlatform(data.platform ?? '')
+        setPlatforms(
+          ((data.platform as string | null) ?? '')
+            .split(',')
+            .map((p) => p.trim())
+            .filter(Boolean),
+        )
         setGamerscore(data.gamerscore?.toString() ?? '')
         setCoverPath((data.cover_path as string | null) ?? null)
         setSubmitter((data.submitter as string | null) ?? '')
@@ -121,7 +127,7 @@ export function TrophyEditor() {
     setTrophyDesc('')
     setClues(['', '', '', ''])
     setRarity('')
-    setPlatform('')
+    setPlatforms([])
     setGamerscore('')
     setCoverPath(null)
     setSubmitter('')
@@ -148,7 +154,7 @@ export function TrophyEditor() {
         trophy_description: trophyDesc.trim(),
         clues: clues.map((c) => c.trim()).filter(Boolean),
         rarity_pct: rarity ? Number(rarity) : null,
-        platform: platform || null,
+        platform: platforms.join(', ') || null,
         gamerscore: gamerscore ? Number(gamerscore) : null,
         cover_path: coverPath,
         submitter: submitter.trim() || null,
@@ -217,21 +223,13 @@ export function TrophyEditor() {
                 className="border-neo bg-cream-soft px-3 py-2 text-sm font-bold w-full outline-none focus:bg-paper resize-y"
               />
             </Field>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <Field label="Rarity %">
                 <input
                   type="number"
                   step="0.1"
                   value={rarity}
                   onChange={(e) => setRarity(e.target.value)}
-                  className="border-neo bg-cream-soft px-3 py-2 text-sm font-bold w-full outline-none focus:bg-paper"
-                />
-              </Field>
-              <Field label="Platform">
-                <input
-                  value={platform}
-                  onChange={(e) => setPlatform(e.target.value)}
-                  placeholder="NES"
                   className="border-neo bg-cream-soft px-3 py-2 text-sm font-bold w-full outline-none focus:bg-paper"
                 />
               </Field>
@@ -244,6 +242,7 @@ export function TrophyEditor() {
                 />
               </Field>
             </div>
+            <PlatformMultiSelect value={platforms} onChange={setPlatforms} />
           </NeoCard>
 
           <NeoCard tone="paper" shadow="md" className="p-5">

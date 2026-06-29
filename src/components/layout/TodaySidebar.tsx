@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Archive, Camera, Eye, Grid3x3, Music, Scale, Trophy, X } from 'lucide-react'
+import { Archive, Camera, Eye, Grid3x3, LayoutGrid, Music, Scale, Trophy, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { NeoCard } from '../ui/NeoCard'
 import { TagPill } from '../ui/TagPill'
@@ -8,7 +8,7 @@ import { getResult } from '../../lib/scoreStore'
 import type { GameType } from '../../lib/types'
 import { cn } from '../../lib/cn'
 
-type GameTone = 'coral' | 'blue' | 'mustard' | 'lime' | 'violet' | 'pink' | 'teal'
+type GameTone = 'coral' | 'blue' | 'mustard' | 'lime' | 'violet' | 'pink' | 'teal' | 'orange'
 
 type GameEntry = {
   type: GameType
@@ -18,6 +18,7 @@ type GameEntry = {
   tone: GameTone
   icon: typeof Camera
   cadence: 'daily' | 'weekly'
+  disabled?: boolean
 }
 
 const GAMES: GameEntry[] = [
@@ -26,8 +27,10 @@ const GAMES: GameEntry[] = [
   { type: 'blur', title: 'Blur Reveal', blurb: 'Guess the game from its blurred cover.', path: '/blur', tone: 'lime', icon: Eye, cadence: 'daily' },
   { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name the game by only listening.', path: '/soundtrack', tone: 'mustard', icon: Music, cadence: 'daily' },
   { type: 'crossword', title: 'Mini Crossword', blurb: 'Fill the mini. Across and Down clues — no timer.', path: '/crossword', tone: 'pink', icon: Grid3x3, cadence: 'daily' },
-  { type: 'archive', title: 'The Archive', blurb: 'Weekly. Spend candles in a dark archive room to identify a mystery game.', path: '/archive', tone: 'violet', icon: Archive, cadence: 'weekly' },
   { type: 'higherlower', title: 'Higher / Lower', blurb: 'Weekly gauntlet — pick which game is higher across 15 stat showdowns.', path: '/higherlower', tone: 'teal', icon: Scale, cadence: 'weekly' },
+  { type: 'connections', title: 'Connections', blurb: 'Weekly. Sort 16 words into 4 secret groups of four.', path: '/connections', tone: 'orange', icon: LayoutGrid, cadence: 'weekly' },
+  // Temporarily disabled while being reworked — keep last so it sits far right.
+  { type: 'archive', title: 'The Archive', blurb: 'Weekly. Spend candles in a dark archive room to identify a mystery game.', path: '/archive', tone: 'violet', icon: Archive, cadence: 'weekly', disabled: true },
 ]
 
 const DAILY_GAMES = GAMES.filter((g) => g.cadence === 'daily')
@@ -41,6 +44,7 @@ const ACTIVE_TILE_BG: Record<GameTone, string> = {
   violet: 'bg-violet text-paper-static',
   pink: 'bg-pink text-ink-static',
   teal: 'bg-teal text-ink-static',
+  orange: 'bg-orange text-ink-static',
 }
 
 const CARD_ICON_BG: Record<GameTone, string> = {
@@ -51,6 +55,7 @@ const CARD_ICON_BG: Record<GameTone, string> = {
   violet: 'bg-violet text-paper-static',
   pink: 'bg-pink text-ink-static',
   teal: 'bg-teal text-ink-static',
+  orange: 'bg-orange text-ink-static',
 }
 
 type Props = {
@@ -204,10 +209,29 @@ function WeeklyBox({
         </div>
         <div className="flex items-stretch gap-2">
           {WEEKLY_GAMES.map((g) => {
+            const Icon = g.icon
+
+            if (g.disabled) {
+              return (
+                <div
+                  key={g.type}
+                  title={`${g.title} · reworking`}
+                  aria-label={`${g.title} (reworking)`}
+                  className="border-neo-2 shadow-neo-sm relative overflow-hidden bg-cream-soft text-ink-soft cursor-not-allowed select-none"
+                >
+                  <div className="p-2.5 opacity-50">
+                    <Icon className="h-5 w-5 stroke-[2.5]" />
+                  </div>
+                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-45 w-[160%] bg-[#dc2626] text-paper-static text-center font-display text-[8px] font-bold uppercase tracking-wider leading-none py-[2px]">
+                    Reworking
+                  </span>
+                </div>
+              )
+            }
+
             const active = pathname.startsWith(g.path)
             const result = getResult(weekKey, g.type)
             const solved = result?.status === 'solved'
-            const Icon = g.icon
             return (
               <Link
                 key={g.type}
@@ -233,9 +257,6 @@ function WeeklyBox({
               </Link>
             )
           })}
-          <div className="ml-auto self-end flex items-center justify-center bg-[#cdb4f6] text-ink-static border-neo-2 shadow-neo-sm px-2 py-[6px] text-center font-display text-[10px] [html[data-readable=true]_&]:text-[8px] font-bold uppercase tracking-wider leading-tight whitespace-nowrap">
-            Updates on Mondays!
-          </div>
         </div>
       </NeoCard>
     </div>

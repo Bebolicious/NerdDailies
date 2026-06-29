@@ -22,6 +22,7 @@ export function Stats() {
     archive: [],
     crossword: [],
     higherlower: [],
+    connections: [],
   }
   results.forEach((r) => byType[r.gameType].push(r))
 
@@ -41,13 +42,13 @@ export function Stats() {
         <div className="text-xs mt-2">Days with at least one puzzle solved.</div>
       </NeoCard>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(['screenshot', 'trophy', 'blur', 'soundtrack', 'crossword', 'archive', 'higherlower'] as GameType[]).map((t) => {
+        {(['screenshot', 'trophy', 'blur', 'soundtrack', 'crossword', 'archive', 'higherlower', 'connections'] as GameType[]).map((t) => {
           const rs = byType[t]
           const solved = rs.filter((r) => r.status === 'solved').length
           // For score-based games (crossword has no guesses, higherlower's
           // guessCount is the score) we show a different sub-line.
           const subline =
-            t === 'crossword'
+            t === 'crossword' || t === 'connections'
               ? 'solved'
               : t === 'higherlower'
                 ? solved > 0
@@ -77,7 +78,9 @@ export function Stats() {
                       ? 'paper'
                       : t === 'higherlower'
                         ? 'teal'
-                        : 'violet'
+                        : t === 'connections'
+                          ? 'orange'
+                          : 'violet'
           return (
             <NeoCard key={t} tone="paper" shadow="md" className="p-4">
               <TagPill tone={tone}>{t}</TagPill>

@@ -10,6 +10,7 @@ type Props = {
     | 'blue'
     | 'violet'
     | 'teal'
+    | 'orange'
     | 'ink'
     | 'paper'
   className?: string
@@ -22,6 +23,7 @@ const toneClass: Record<NonNullable<Props['tone']>, string> = {
   blue: 'bg-blue text-paper-static',
   violet: 'bg-violet text-paper-static',
   teal: 'bg-teal text-ink-static',
+  orange: 'bg-orange text-ink-static',
   ink: 'bg-emphasis text-paper-static',
   paper: 'bg-paper text-ink',
 }

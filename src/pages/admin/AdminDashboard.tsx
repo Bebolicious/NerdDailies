@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { addDays, format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
-import { Archive, AlertTriangle, Camera, Grid3x3, Trophy, Music, Eye, ChevronLeft, ChevronRight, LogOut, Scale, Trash2 } from 'lucide-react'
+import { Archive, AlertTriangle, Camera, Grid3x3, LayoutGrid, Trophy, Music, Eye, ChevronLeft, ChevronRight, LogOut, Scale, Trash2 } from 'lucide-react'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
 import { TagPill } from '../../components/ui/TagPill'
@@ -81,6 +81,7 @@ export function AdminDashboard() {
   const [statuses, setStatuses] = useState<DayStatus[]>([])
   const [archiveWeeks, setArchiveWeeks] = useState<Set<string>>(new Set())
   const [higherLowerWeeks, setHigherLowerWeeks] = useState<Set<string>>(new Set())
+  const [connectionsWeeks, setConnectionsWeeks] = useState<Set<string>>(new Set())
   const [reloadNonce, setReloadNonce] = useState(0)
   // Day-deletion flow: which date's confirm modal is open, in-flight flag, and
   // the result banner shown after a delete.
@@ -116,11 +117,12 @@ export function AdminDashboard() {
         )
         setArchiveWeeks(new Set())
         setHigherLowerWeeks(new Set())
+        setConnectionsWeeks(new Set())
         return
       }
       const from = format(monthStart, 'yyyy-MM-dd')
       const to = format(monthEnd, 'yyyy-MM-dd')
-      const [s, t, b, m, a, x, h] = await Promise.all([
+      const [s, t, b, m, a, x, h, c] = await Promise.all([
         sb.from('screenshot_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('trophy_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('blur_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
@@ -128,6 +130,7 @@ export function AdminDashboard() {
         sb.from('archive_puzzles').select('puzzle_week').gte('puzzle_week', from).lte('puzzle_week', to),
         sb.from('crossword_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('higherlower_puzzles').select('puzzle_week').gte('puzzle_week', from).lte('puzzle_week', to),
+        sb.from('connections_puzzles').select('puzzle_week').gte('puzzle_week', from).lte('puzzle_week', to),
       ])
       const setOf = (rows: { puzzle_date: string }[] | null) =>
         new Set((rows ?? []).map((r) => r.puzzle_date))
@@ -142,9 +145,13 @@ export function AdminDashboard() {
       const hSet = new Set(
         (h.data as { puzzle_week: string }[] | null)?.map((r) => r.puzzle_week) ?? [],
       )
+      const cSet = new Set(
+        (c.data as { puzzle_week: string }[] | null)?.map((r) => r.puzzle_week) ?? [],
+      )
       if (cancelled) return
       setArchiveWeeks(aSet)
       setHigherLowerWeeks(hSet)
+      setConnectionsWeeks(cSet)
       setStatuses(
         days.map((d) => {
           const iso = format(d, 'yyyy-MM-dd')
@@ -248,6 +255,7 @@ export function AdminDashboard() {
             <Legend tone="bg-pink" label="Crossword" />
             <Legend tone="bg-violet" label="Archive (weekly · Mon)" />
             <Legend tone="bg-teal" label="Higher/Lower (weekly · Mon)" />
+            <Legend tone="bg-orange" label="Connections (weekly · Mon)" />
           </div>
         </div>
 
@@ -363,6 +371,11 @@ export function AdminDashboard() {
                         type="higherlower"
                         set={higherLowerWeeks.has(weekStartISO(iso))}
                       />
+                      <EditorLink
+                        iso={iso}
+                        type="connections"
+                        set={connectionsWeeks.has(weekStartISO(iso))}
+                      />
                     </>
                   )}
                 </div>
@@ -404,6 +417,13 @@ export function AdminDashboard() {
               onClick={() => nav(`/admin/higherlower/${weekStartISO(today)}`)}
             >
               <Scale className="inline h-3 w-3 mr-1" /> This week's higher/lower
+            </NeoButton>
+            <NeoButton
+              tone="orange"
+              size="sm"
+              onClick={() => nav(`/admin/connections/${weekStartISO(today)}`)}
+            >
+              <LayoutGrid className="inline h-3 w-3 mr-1" /> This week's connections
             </NeoButton>
           </div>
         </div>
@@ -537,6 +557,7 @@ function EditorLink({
     | 'archive'
     | 'crossword'
     | 'higherlower'
+    | 'connections'
   set?: boolean
 }) {
   const Icon =
@@ -552,7 +573,9 @@ function EditorLink({
               ? Grid3x3
               : type === 'higherlower'
                 ? Scale
-                : Archive
+                : type === 'connections'
+                  ? LayoutGrid
+                  : Archive
   const tone =
     type === 'screenshot'
       ? 'bg-coral text-ink-static'
@@ -566,8 +589,11 @@ function EditorLink({
               ? 'bg-pink text-ink-static'
               : type === 'higherlower'
                 ? 'bg-teal text-ink-static'
-                : 'bg-violet text-paper-static'
-  const isWeekly = type === 'archive' || type === 'higherlower'
+                : type === 'connections'
+                  ? 'bg-orange text-ink-static'
+                  : 'bg-violet text-paper-static'
+  const isWeekly =
+    type === 'archive' || type === 'higherlower' || type === 'connections'
   return (
     <Link
       to={`/admin/${type}/${iso}`}

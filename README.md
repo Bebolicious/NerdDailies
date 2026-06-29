@@ -1,10 +1,12 @@
 # DAILIES
 
 Daily game-guessing hub. Five daily puzzles — **Screenshot**, **Trophy**,
-**Blur Reveal**, **Soundtrack**, **Mini Crossword** — plus two weekly games
-that refresh every Monday: **The Archive** (atmospheric clue-room) and
-**Higher / Lower** (15-pair stat gauntlet with an Online Hot-seat multiplayer
-mode). React + Vite + TypeScript, Tailwind v4, Supabase, neo-brutalist UI.
+**Blur Reveal**, **Soundtrack**, **Mini Crossword** — plus weekly games that
+refresh every Monday: **Higher / Lower** (15-pair stat gauntlet with an Online
+Hot-seat multiplayer mode), **Connections** (sort 16 words into 4 secret
+groups), and **The Archive** (atmospheric clue-room — currently disabled in the
+sidebar while it's reworked). React + Vite + TypeScript, Tailwind v4, Supabase,
+neo-brutalist UI.
 
 ## Quick start
 
@@ -22,8 +24,8 @@ placeholder puzzles, so the UI is fully playable out of the box.
 2. In the SQL editor, paste and run `supabase/schema.sql`. This creates:
    - `screenshot_puzzles`, `trophy_puzzles`, `blur_puzzles`,
      `soundtrack_puzzles`, `crossword_puzzles` (keyed by `puzzle_date`).
-   - `archive_puzzles`, `higherlower_puzzles` + `higherlower_pairs` (keyed
-     by `puzzle_week` — Monday of the ISO week).
+   - `archive_puzzles`, `higherlower_puzzles` + `higherlower_pairs`,
+     `connections_puzzles` (keyed by `puzzle_week` — Monday of the ISO week).
    - `screenshots`, `soundtracks`, `covers`, `archive`, `higherlower`
      public-read storage buckets.
    - RLS: public read, authenticated write.
@@ -44,7 +46,7 @@ mocks otherwise — no code change needed when you flip it on.
 
 - `/admin` — month calendar. Each day shows one chip per daily game type
   (screenshot / trophy / blur / soundtrack / crossword); Mondays also expose
-  the two weekly game chips (archive / higher-lower). Filled = colored,
+  the weekly game chips (archive / higher-lower / connections). Filled = colored,
   empty = "+ add" / "+ week". Click a chip to open its editor. A row of
   quick-jump buttons at the bottom drops you straight into today's puzzles.
 - `/admin/screenshot/:date` — pick game + upload 6 ordered images
@@ -67,6 +69,10 @@ mocks otherwise — no code change needed when you flip it on.
   category dropdown, two `GamePicker` rows, numeric value, optional display
   override (`1:42:35` / `$220M` / `96%`), optional cover upload. ↑/↓ to
   reorder, trash to reset a row. Sticky save bar shows completion count.
+- `/admin/connections/:date` — snaps to Monday. Four difficulty-colored
+  sections (Yellow→Green→Blue→Red); fill a category name + 4 words each. All
+  16 words must be unique. Save shuffles them into the fixed board everyone
+  sees and stores it; Clear deletes the week's puzzle.
 
 ## Game catalog
 
@@ -106,12 +112,12 @@ src/
     game/     GameSearch, GamePicker, GuessRow, GameHeader, SoundtrackPlayer
   pages/
     ScreenshotGame, TrophyGame, BlurGame, SoundtrackGame,
-    CrosswordGame, ArchiveGame, HigherLowerGame
+    CrosswordGame, ArchiveGame, HigherLowerGame, ConnectionsGame
     HowToPlay, Stats, Replay
     admin/
       AdminLogin, AdminDashboard, AdminLayout,
       ScreenshotEditor, TrophyEditor, BlurEditor, SoundtrackEditor,
-      CrosswordEditor, ArchiveEditor, HigherLowerEditor
+      CrosswordEditor, ArchiveEditor, HigherLowerEditor, ConnectionsEditor
   hooks/
     useGameState, useCountdown, useStreak, useAdminSession, usePuzzle,
     useReadability, useTheme
@@ -129,7 +135,8 @@ supabase/
 - Local-only scores: `localStorage` key `dailies/results/v1`. Higher/Lower
   also stores a per-week session at `dailies/higherlower-session/v1/<week>`
   (host + multiplayer roster + per-pair picks); only the host's score is
-  mirrored to the global results map.
+  mirrored to the global results map. Connections stores its per-week session
+  at `dailies/connections-session/v1/<week>`.
 - Day numbering anchored to `PROJECT_EPOCH` in `src/lib/dates.ts` — change
   the date there if you want day #1 to fall on a different day.
 - Streak = consecutive days with at least one puzzle solved.

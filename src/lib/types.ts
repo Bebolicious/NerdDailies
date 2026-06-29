@@ -6,6 +6,7 @@ export type GameType =
   | 'archive'
   | 'crossword'
   | 'higherlower'
+  | 'connections'
 
 export type Game = {
   id: number
@@ -326,6 +327,55 @@ export type HigherLowerPuzzle = {
   puzzle_week: string
   theme?: string
   pairs: HigherLowerPair[]
+  submitter?: string
+}
+
+// ── CONNECTIONS (weekly) ────────────────────────────────────────────────────
+//
+// A 16-word grouping puzzle (one new set per week). The player sorts 16 words
+// into four hidden groups of four. Each group carries a difficulty (0 = easiest
+// … 3 = hardest) whose color is only revealed once the group is solved. Group
+// membership is by exact word string, so words are unique across the puzzle.
+
+export const CONNECTIONS_GROUP_COUNT = 4
+export const CONNECTIONS_GROUP_SIZE = 4
+export const CONNECTIONS_WORD_COUNT =
+  CONNECTIONS_GROUP_COUNT * CONNECTIONS_GROUP_SIZE // 16
+export const CONNECTIONS_MAX_MISTAKES = 4
+
+// Difficulty index 0..3. Color + label are revealed when the group is solved.
+// The hexes intentionally match our existing accent tokens (mustard / lime /
+// blue / coral) so the bands sit in the brand palette.
+export type ConnectionsDifficulty = 0 | 1 | 2 | 3
+
+export type ConnectionsDifficultyConfig = {
+  difficulty: ConnectionsDifficulty
+  label: string // 'Yellow' | 'Green' | 'Blue' | 'Red'
+  tone: 'mustard' | 'lime' | 'blue' | 'coral' // maps to bg-<tone>
+  hint: string // shown in the admin section header
+}
+
+export const CONNECTIONS_DIFFICULTIES: ConnectionsDifficultyConfig[] = [
+  { difficulty: 0, label: 'Yellow', tone: 'mustard', hint: 'Easiest — straightforward.' },
+  { difficulty: 1, label: 'Green', tone: 'lime', hint: 'Familiar trivia or definitions.' },
+  { difficulty: 2, label: 'Blue', tone: 'blue', hint: 'Wordplay, associations, trickier facts.' },
+  { difficulty: 3, label: 'Red', tone: 'coral', hint: 'Most abstract / cryptic.' },
+]
+
+export type ConnectionsGroup = {
+  difficulty: ConnectionsDifficulty
+  category: string // revealed label, e.g. "FromSoftware games"
+  words: string[] // exactly CONNECTIONS_GROUP_SIZE
+}
+
+export type ConnectionsPuzzle = {
+  id: string
+  puzzle_week: string // ISO date of the Monday this puzzle runs
+  theme?: string
+  groups: ConnectionsGroup[] // length CONNECTIONS_GROUP_COUNT
+  // The 16 words in their fixed on-screen order (shuffled once at save time so
+  // every player sees the same board). Each entry is a word in `groups`.
+  layout: string[]
   submitter?: string
 }
 

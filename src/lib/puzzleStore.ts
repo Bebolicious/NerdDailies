@@ -2,6 +2,7 @@ import { getSupabase, isSupabaseConfigured } from './supabase'
 import {
   getMockArchivePuzzle,
   getMockBlurPuzzle,
+  getMockConnectionsPuzzle,
   getMockCrosswordPuzzle,
   getMockHigherLowerPuzzle,
   getMockScreenshotPuzzle,
@@ -12,6 +13,8 @@ import type {
   ArchiveMysteryBox,
   ArchivePuzzle,
   BlurPuzzle,
+  ConnectionsGroup,
+  ConnectionsPuzzle,
   CrosswordClue,
   CrosswordPuzzle,
   HigherLowerCategory,
@@ -248,6 +251,27 @@ export async function fetchHigherLowerPuzzle(
     theme: data.theme ?? undefined,
     submitter: data.submitter ?? undefined,
     pairs,
+  }
+}
+
+export async function fetchConnectionsPuzzle(
+  week: string,
+): Promise<ConnectionsPuzzle> {
+  const sb = getSupabase()
+  if (!sb) return getMockConnectionsPuzzle(week)
+  const { data, error } = await sb
+    .from('connections_puzzles')
+    .select('id,puzzle_week,theme,groups,layout,submitter')
+    .eq('puzzle_week', week)
+    .maybeSingle()
+  if (error || !data) return getMockConnectionsPuzzle(week)
+  return {
+    id: data.id,
+    puzzle_week: data.puzzle_week,
+    theme: data.theme ?? undefined,
+    groups: data.groups as ConnectionsGroup[],
+    layout: (data.layout as string[]) ?? [],
+    submitter: data.submitter ?? undefined,
   }
 }
 
