@@ -68,15 +68,15 @@ export function useArchivePuzzle(week: string) {
   return puzzle
 }
 
-export function useCrosswordPuzzle(date: string) {
+export function useCrosswordPuzzle(week: string) {
   const [puzzle, setPuzzle] = useState<CrosswordPuzzle | null>(null)
   useEffect(() => {
     let cancelled = false
-    fetchCrosswordPuzzle(date).then((p) => !cancelled && setPuzzle(p))
+    fetchCrosswordPuzzle(week).then((p) => !cancelled && setPuzzle(p))
     return () => {
       cancelled = true
     }
-  }, [date])
+  }, [week])
   return puzzle
 }
 
@@ -92,15 +92,15 @@ export function useHigherLowerPuzzle(week: string) {
   return puzzle
 }
 
-export function useConnectionsPuzzle(week: string) {
+export function useConnectionsPuzzle(date: string) {
   const [puzzle, setPuzzle] = useState<ConnectionsPuzzle | null>(null)
   useEffect(() => {
     let cancelled = false
-    fetchConnectionsPuzzle(week).then((p) => !cancelled && setPuzzle(p))
+    fetchConnectionsPuzzle(date).then((p) => !cancelled && setPuzzle(p))
     return () => {
       cancelled = true
     }
-  }, [week])
+  }, [date])
   return puzzle
 }
 

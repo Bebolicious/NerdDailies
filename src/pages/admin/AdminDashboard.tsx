@@ -16,18 +16,18 @@ type DayStatus = {
   trophy: boolean
   blur: boolean
   soundtrack: boolean
-  crossword: boolean
+  connections: boolean
 }
 
 // The five daily puzzle tables, all keyed by `puzzle_date`. Weekly games
-// (archive / higherlower) are keyed by week and intentionally excluded — a
-// single Monday isn't "a day's worth" of those.
+// (archive / higherlower / crossword) are keyed by week and intentionally
+// excluded — a single Monday isn't "a day's worth" of those.
 const DAILY_TABLES = [
   'screenshot_puzzles',
   'trophy_puzzles',
   'blur_puzzles',
   'soundtrack_puzzles',
-  'crossword_puzzles',
+  'connections_puzzles',
 ] as const
 
 // Nuke every daily game for one date: storage files first, then DB rows.
@@ -36,7 +36,7 @@ const DAILY_TABLES = [
 //    so the whole date prefix is safe to wipe.
 //  - covers/<date>/ is shared by Screenshot + Blur, but since we're removing
 //    BOTH on this date, blanket-wiping the prefix is safe here (and also clears
-//    orphans left by prior unsaved sessions). Trophy + Crossword have no files.
+//    orphans left by prior unsaved sessions). Trophy + Connections have no files.
 // Best-effort: collects per-step errors instead of aborting, so DB space is
 // still freed even if one storage delete hiccups.
 async function deleteDayGames(
@@ -81,7 +81,7 @@ export function AdminDashboard() {
   const [statuses, setStatuses] = useState<DayStatus[]>([])
   const [archiveWeeks, setArchiveWeeks] = useState<Set<string>>(new Set())
   const [higherLowerWeeks, setHigherLowerWeeks] = useState<Set<string>>(new Set())
-  const [connectionsWeeks, setConnectionsWeeks] = useState<Set<string>>(new Set())
+  const [crosswordWeeks, setCrosswordWeeks] = useState<Set<string>>(new Set())
   const [reloadNonce, setReloadNonce] = useState(0)
   // Day-deletion flow: which date's confirm modal is open, in-flight flag, and
   // the result banner shown after a delete.
@@ -112,12 +112,12 @@ export function AdminDashboard() {
             trophy: false,
             blur: false,
             soundtrack: false,
-            crossword: false,
+            connections: false,
           })),
         )
         setArchiveWeeks(new Set())
         setHigherLowerWeeks(new Set())
-        setConnectionsWeeks(new Set())
+        setCrosswordWeeks(new Set())
         return
       }
       const from = format(monthStart, 'yyyy-MM-dd')
@@ -128,9 +128,9 @@ export function AdminDashboard() {
         sb.from('blur_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('soundtrack_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('archive_puzzles').select('puzzle_week').gte('puzzle_week', from).lte('puzzle_week', to),
-        sb.from('crossword_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
+        sb.from('connections_puzzles').select('puzzle_date').gte('puzzle_date', from).lte('puzzle_date', to),
         sb.from('higherlower_puzzles').select('puzzle_week').gte('puzzle_week', from).lte('puzzle_week', to),
-        sb.from('connections_puzzles').select('puzzle_week').gte('puzzle_week', from).lte('puzzle_week', to),
+        sb.from('crossword_puzzles').select('puzzle_week').gte('puzzle_week', from).lte('puzzle_week', to),
       ])
       const setOf = (rows: { puzzle_date: string }[] | null) =>
         new Set((rows ?? []).map((r) => r.puzzle_date))
@@ -138,7 +138,7 @@ export function AdminDashboard() {
       const tSet = setOf(t.data)
       const bSet = setOf(b.data)
       const mSet = setOf(m.data)
-      const xSet = setOf(x.data)
+      const xSet = setOf(x.data) // connections — daily
       const aSet = new Set(
         (a.data as { puzzle_week: string }[] | null)?.map((r) => r.puzzle_week) ?? [],
       )
@@ -147,11 +147,11 @@ export function AdminDashboard() {
       )
       const cSet = new Set(
         (c.data as { puzzle_week: string }[] | null)?.map((r) => r.puzzle_week) ?? [],
-      )
+      ) // crossword — weekly
       if (cancelled) return
       setArchiveWeeks(aSet)
       setHigherLowerWeeks(hSet)
-      setConnectionsWeeks(cSet)
+      setCrosswordWeeks(cSet)
       setStatuses(
         days.map((d) => {
           const iso = format(d, 'yyyy-MM-dd')
@@ -161,7 +161,7 @@ export function AdminDashboard() {
             trophy: tSet.has(iso),
             blur: bSet.has(iso),
             soundtrack: mSet.has(iso),
-            crossword: xSet.has(iso),
+            connections: xSet.has(iso),
           }
         }),
       )
@@ -252,10 +252,10 @@ export function AdminDashboard() {
             <Legend tone="bg-blue" label="Trophy" />
             <Legend tone="bg-lime" label="Blur" />
             <Legend tone="bg-mustard" label="Soundtrack" />
-            <Legend tone="bg-pink" label="Crossword" />
+            <Legend tone="bg-orange" label="Connections" />
+            <Legend tone="bg-pink" label="Crossword (weekly · Mon)" />
             <Legend tone="bg-violet" label="Archive (weekly · Mon)" />
             <Legend tone="bg-teal" label="Higher/Lower (weekly · Mon)" />
-            <Legend tone="bg-orange" label="Connections (weekly · Mon)" />
           </div>
         </div>
 
@@ -297,7 +297,7 @@ export function AdminDashboard() {
                 status.trophy ||
                 status.blur ||
                 status.soundtrack ||
-                status.crossword)
+                status.connections)
             return (
               <NeoCard
                 key={iso}
@@ -356,11 +356,16 @@ export function AdminDashboard() {
                   />
                   <EditorLink
                     iso={iso}
-                    type="crossword"
-                    set={status?.crossword}
+                    type="connections"
+                    set={status?.connections}
                   />
                   {getDay(d) === 1 && (
                     <>
+                      <EditorLink
+                        iso={iso}
+                        type="crossword"
+                        set={crosswordWeeks.has(weekStartISO(iso))}
+                      />
                       <EditorLink
                         iso={iso}
                         type="archive"
@@ -370,11 +375,6 @@ export function AdminDashboard() {
                         iso={iso}
                         type="higherlower"
                         set={higherLowerWeeks.has(weekStartISO(iso))}
-                      />
-                      <EditorLink
-                        iso={iso}
-                        type="connections"
-                        set={connectionsWeeks.has(weekStartISO(iso))}
                       />
                     </>
                   )}
@@ -401,8 +401,15 @@ export function AdminDashboard() {
             <NeoButton tone="mustard" size="sm" onClick={() => nav(`/admin/soundtrack/${today}`)}>
               <Music className="inline h-3 w-3 mr-1" /> Today's soundtrack
             </NeoButton>
-            <NeoButton tone="paper" size="sm" onClick={() => nav(`/admin/crossword/${today}`)}>
-              <Grid3x3 className="inline h-3 w-3 mr-1" /> Today's crossword
+            <NeoButton tone="orange" size="sm" onClick={() => nav(`/admin/connections/${today}`)}>
+              <LayoutGrid className="inline h-3 w-3 mr-1" /> Today's connections
+            </NeoButton>
+            <NeoButton
+              tone="paper"
+              size="sm"
+              onClick={() => nav(`/admin/crossword/${weekStartISO(today)}`)}
+            >
+              <Grid3x3 className="inline h-3 w-3 mr-1" /> This week's crossword
             </NeoButton>
             <NeoButton
               tone="violet"
@@ -417,13 +424,6 @@ export function AdminDashboard() {
               onClick={() => nav(`/admin/higherlower/${weekStartISO(today)}`)}
             >
               <Scale className="inline h-3 w-3 mr-1" /> This week's higher/lower
-            </NeoButton>
-            <NeoButton
-              tone="orange"
-              size="sm"
-              onClick={() => nav(`/admin/connections/${weekStartISO(today)}`)}
-            >
-              <LayoutGrid className="inline h-3 w-3 mr-1" /> This week's connections
             </NeoButton>
           </div>
         </div>
@@ -462,7 +462,7 @@ function ConfirmDeleteDay({
           ['trophy', status.trophy],
           ['blur', status.blur],
           ['soundtrack', status.soundtrack],
-          ['crossword', status.crossword],
+          ['connections', status.connections],
         ] as const
       )
         .filter(([, set]) => set)
@@ -499,8 +499,8 @@ function ConfirmDeleteDay({
         <p className="text-xs text-ink-soft leading-snug mb-3">
           This permanently deletes every daily puzzle and its uploaded files
           (screenshots, covers, audio) for <strong>{date}</strong> from the
-          database and storage. Weekly games (Archive, Higher/Lower) are not
-          affected. This cannot be undone.
+          database and storage. Weekly games (Crossword, Archive, Higher/Lower)
+          are not affected. This cannot be undone.
         </p>
         <div className="border-neo-2 bg-cream-soft px-3 py-2 mb-4">
           <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1">
@@ -593,7 +593,7 @@ function EditorLink({
                   ? 'bg-orange text-ink-static'
                   : 'bg-violet text-paper-static'
   const isWeekly =
-    type === 'archive' || type === 'higherlower' || type === 'connections'
+    type === 'archive' || type === 'higherlower' || type === 'crossword'
   return (
     <Link
       to={`/admin/${type}/${iso}`}

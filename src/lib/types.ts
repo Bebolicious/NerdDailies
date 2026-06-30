@@ -146,7 +146,7 @@ export const ARCHIVE_COSTS = {
   trash: 0,
 } as const
 
-// ── CROSSWORD (daily) ───────────────────────────────────────────────────────
+// ── CROSSWORD (weekly) ──────────────────────────────────────────────────────
 //
 // A mini crossword. The solution is a flat row-major array of length size*size;
 // each cell is either a single uppercase letter or `null` (a block / hidden
@@ -165,7 +165,7 @@ export type CrosswordClue = {
 
 export type CrosswordPuzzle = {
   id: string
-  puzzle_date: string
+  puzzle_week: string // ISO date of the Monday this puzzle runs
   size: number
   solution: (string | null)[] // length = size * size
   clues_across: CrosswordClue[]
@@ -330,9 +330,9 @@ export type HigherLowerPuzzle = {
   submitter?: string
 }
 
-// ── CONNECTIONS (weekly) ────────────────────────────────────────────────────
+// ── CONNECTIONS (daily) ─────────────────────────────────────────────────────
 //
-// A 16-word grouping puzzle (one new set per week). The player sorts 16 words
+// A 16-word grouping puzzle (one new set per day). The player sorts 16 words
 // into four hidden groups of four. Each group carries a difficulty (0 = easiest
 // … 3 = hardest) whose color is only revealed once the group is solved. Group
 // membership is by exact word string, so words are unique across the puzzle.
@@ -370,7 +370,7 @@ export type ConnectionsGroup = {
 
 export type ConnectionsPuzzle = {
   id: string
-  puzzle_week: string // ISO date of the Monday this puzzle runs
+  puzzle_date: string
   theme?: string
   groups: ConnectionsGroup[] // length CONNECTIONS_GROUP_COUNT
   // The 16 words in their fixed on-screen order (shuffled once at save time so

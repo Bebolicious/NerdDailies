@@ -42,14 +42,15 @@ export function HowToPlay() {
           </p>
         </NeoCard>
         <NeoCard tone="paper" shadow="md" className="p-5">
-          <TagPill tone="paper" className="mb-2">Mini Crossword</TagPill>
+          <TagPill tone="orange" className="mb-2">Connections</TagPill>
           <p className="text-sm mt-2">
-            Fill every white square. Click a clue (right) or any cell to start;
-            clicking a selected cell swaps between across and down. Tab or
-            Enter jumps to the next clue. There's no timer — instead, you have{' '}
-            <strong>Check</strong> and <strong>Reveal</strong>, each with three
-            scopes (square, word, puzzle). Reveal a whole word and that answer
-            locks in.
+            Sixteen words hide four secret groups of four. Tap four you think
+            belong together and hit <strong>Submit</strong>. Get all four groups
+            before four mistakes — the game tells you when you're{' '}
+            <strong>one away</strong>. Each group's difficulty color (Yellow,
+            Green, Blue, Red) is revealed only when you solve it. Prefer a
+            no-pressure run? Flip on <strong>Unlimited guesses</strong> to drop
+            the life limit. New puzzle every day.
           </p>
         </NeoCard>
         <NeoCard tone="paper" shadow="md" className="p-5">
@@ -79,17 +80,16 @@ export function HowToPlay() {
           </p>
         </NeoCard>
         <NeoCard tone="paper" shadow="md" className="p-5">
-          <TagPill tone="orange" className="mb-2">
-            Connections · weekly
+          <TagPill tone="paper" className="mb-2">
+            Mini Crossword · weekly
           </TagPill>
           <p className="text-sm mt-2">
-            Sixteen words hide four secret groups of four. Tap four you think
-            belong together and hit <strong>Submit</strong>. Get all four groups
-            before four mistakes — the game tells you when you're{' '}
-            <strong>one away</strong>. Each group's difficulty color (Yellow,
-            Green, Blue, Red) is revealed only when you solve it. Prefer a
-            no-pressure run? Flip on <strong>Unlimited guesses</strong> to drop
-            the life limit. New puzzle every Monday.
+            A fresh mini drops every Monday. Fill every white square. Click a
+            clue (right) or any cell to start; clicking a selected cell swaps
+            between across and down. Tab or Enter jumps to the next clue.
+            There's no timer — instead, you have <strong>Check</strong> and{' '}
+            <strong>Reveal</strong>, each with three scopes (square, word,
+            puzzle). Reveal a whole word and that answer locks in.
           </p>
         </NeoCard>
       </div>

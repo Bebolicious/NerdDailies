@@ -6,7 +6,7 @@ import { NeoButton } from '../../components/ui/NeoButton'
 import { TagPill } from '../../components/ui/TagPill'
 import { SubmitterField } from '../../components/ui/SubmitterField'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
-import { formatLong } from '../../lib/dates'
+import { weekStartISO } from '../../lib/dates'
 import { computeLayout } from '../../lib/crossword'
 import type { WordSlot } from '../../lib/crossword'
 import {
@@ -22,6 +22,7 @@ const CLUE_KEY = (dir: 'across' | 'down', n: number) => `${dir}-${n}`
 
 export function CrosswordEditor() {
   const { date } = useParams<{ date: string }>()
+  const week = date ? weekStartISO(date) : null
   const [size, setSize] = useState<number>(5)
   // letters[] is a flat row-major array — '' means "block on save".
   const [letters, setLetters] = useState<string[]>(() => new Array(25).fill(''))
@@ -39,14 +40,14 @@ export function CrosswordEditor() {
     let cancelled = false
     async function load() {
       const sb = getSupabase()
-      if (!sb || !date) {
+      if (!sb || !week) {
         setLoading(false)
         return
       }
       const { data } = await sb
         .from('crossword_puzzles')
         .select('*')
-        .eq('puzzle_date', date)
+        .eq('puzzle_week', week)
         .maybeSingle()
       if (cancelled) return
       if (data) {
@@ -71,7 +72,7 @@ export function CrosswordEditor() {
     return () => {
       cancelled = true
     }
-  }, [date])
+  }, [week])
 
   // Resize grid when size changes. Preserve top-left letters where possible.
   function resizeTo(next: number) {
@@ -143,10 +144,10 @@ export function CrosswordEditor() {
 
   async function clearPuzzle() {
     const sb = getSupabase()
-    if (!sb || !date) return
+    if (!sb || !week) return
     if (
       !window.confirm(
-        `Delete the crossword puzzle for ${date}? This cannot be undone.`,
+        `Delete the crossword puzzle for week of ${week}? This cannot be undone.`,
       )
     )
       return
@@ -155,7 +156,7 @@ export function CrosswordEditor() {
     const { error } = await sb
       .from('crossword_puzzles')
       .delete()
-      .eq('puzzle_date', date)
+      .eq('puzzle_week', week)
     if (error) {
       setMsg(`Could not delete puzzle row: ${error.message}`)
       setClearing(false)
@@ -171,7 +172,7 @@ export function CrosswordEditor() {
 
   async function save() {
     const sb = getSupabase()
-    if (!sb || !date) return
+    if (!sb || !week) return
     if (blockingErrors.length > 0) {
       setMsg(blockingErrors[0])
       return
@@ -188,7 +189,7 @@ export function CrosswordEditor() {
     }))
     const { error } = await sb.from('crossword_puzzles').upsert(
       {
-        puzzle_date: date,
+        puzzle_week: week,
         size,
         solution,
         clues_across: cluesAcross,
@@ -196,7 +197,7 @@ export function CrosswordEditor() {
         submitter: submitter.trim() || null,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'puzzle_date' },
+      { onConflict: 'puzzle_week' },
     )
     setSaving(false)
     setMsg(error ? `Save failed: ${error.message}` : 'Saved.')
@@ -261,8 +262,12 @@ export function CrosswordEditor() {
 
   return (
     <AdminLayout
-      title={`Crossword · ${date}`}
-      subtitle={`Schedule for ${date && formatLong(date)}.`}
+      title={`Crossword · week of ${week}`}
+      subtitle={
+        date
+          ? `URL date ${date} → snapped to Monday ${week}. Editing is per-week.`
+          : ''
+      }
     >
       {!isSupabaseConfigured() && (
         <NeoCard tone="coral" shadow="sm" className="p-3 mb-4 text-sm">

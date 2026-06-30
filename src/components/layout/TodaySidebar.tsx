@@ -26,9 +26,9 @@ const GAMES: GameEntry[] = [
   { type: 'trophy', title: 'Trophy', blurb: 'Guess the game based on a trophy/achievement.', path: '/trophy', tone: 'blue', icon: Trophy, cadence: 'daily' },
   { type: 'blur', title: 'Blur Reveal', blurb: 'Guess the game from its blurred cover.', path: '/blur', tone: 'lime', icon: Eye, cadence: 'daily' },
   { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name the game by only listening.', path: '/soundtrack', tone: 'mustard', icon: Music, cadence: 'daily' },
-  { type: 'crossword', title: 'Mini Crossword', blurb: 'Fill the mini. Across and Down clues — no timer.', path: '/crossword', tone: 'pink', icon: Grid3x3, cadence: 'daily' },
+  { type: 'connections', title: 'Connections', blurb: 'Sort 16 words into 4 secret groups of four.', path: '/connections', tone: 'orange', icon: LayoutGrid, cadence: 'daily' },
+  { type: 'crossword', title: 'Mini Crossword', blurb: 'Weekly. Fill the mini — Across and Down clues, no timer.', path: '/crossword', tone: 'pink', icon: Grid3x3, cadence: 'weekly' },
   { type: 'higherlower', title: 'Higher / Lower', blurb: 'Weekly gauntlet — pick which game is higher across 15 stat showdowns.', path: '/higherlower', tone: 'teal', icon: Scale, cadence: 'weekly' },
-  { type: 'connections', title: 'Connections', blurb: 'Weekly. Sort 16 words into 4 secret groups of four.', path: '/connections', tone: 'orange', icon: LayoutGrid, cadence: 'weekly' },
   // Temporarily disabled while being reworked — keep last so it sits far right.
   { type: 'archive', title: 'The Archive', blurb: 'Weekly. Spend candles in a dark archive room to identify a mystery game.', path: '/archive', tone: 'violet', icon: Archive, cadence: 'weekly', disabled: true },
 ]

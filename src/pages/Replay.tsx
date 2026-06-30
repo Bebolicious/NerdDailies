@@ -1,4 +1,4 @@
-import { Camera, Eye, Grid3x3, Music, Trophy, Check, X } from 'lucide-react'
+import { Camera, Eye, LayoutGrid, Music, Trophy, Check, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { addDays, format, parseISO } from 'date-fns'
 import { NeoCard } from '../components/ui/NeoCard'
@@ -11,13 +11,13 @@ const DAILY_GAMES: Array<{
   type: GameType
   label: string
   icon: typeof Camera
-  tone: 'coral' | 'blue' | 'lime' | 'mustard' | 'pink'
+  tone: 'coral' | 'blue' | 'lime' | 'mustard' | 'orange'
 }> = [
   { type: 'screenshot', label: 'Screenshot', icon: Camera, tone: 'coral' },
   { type: 'trophy', label: 'Trophy', icon: Trophy, tone: 'blue' },
   { type: 'blur', label: 'Blur Reveal', icon: Eye, tone: 'lime' },
   { type: 'soundtrack', label: 'Soundtrack', icon: Music, tone: 'mustard' },
-  { type: 'crossword', label: 'Mini Crossword', icon: Grid3x3, tone: 'pink' },
+  { type: 'connections', label: 'Connections', icon: LayoutGrid, tone: 'orange' },
 ]
 
 export function Replay() {
@@ -101,7 +101,7 @@ function DailyDots({ dateISO }: { dateISO: string }) {
                         ? 'bg-lime text-ink-static'
                         : g.tone === 'mustard'
                           ? 'bg-mustard text-ink-static'
-                          : 'bg-pink text-ink-static'
+                          : 'bg-orange text-ink-static'
                   : lost
                     ? 'bg-coral text-ink-static'
                     : 'bg-paper text-ink-soft opacity-50',

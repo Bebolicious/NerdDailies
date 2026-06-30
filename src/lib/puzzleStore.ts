@@ -181,22 +181,22 @@ export async function fetchArchivePuzzle(week: string): Promise<ArchivePuzzle> {
 }
 
 export async function fetchCrosswordPuzzle(
-  date: string,
+  week: string,
 ): Promise<CrosswordPuzzle> {
   const sb = getSupabase()
-  if (!sb) return getMockCrosswordPuzzle(date)
+  if (!sb) return getMockCrosswordPuzzle(week)
   const { data, error } = await sb
     .from('crossword_puzzles')
-    .select('id,puzzle_date,size,solution,clues_across,clues_down,submitter')
-    .eq('puzzle_date', date)
+    .select('id,puzzle_week,size,solution,clues_across,clues_down,submitter')
+    .eq('puzzle_week', week)
     .maybeSingle()
-  if (error || !data) return getMockCrosswordPuzzle(date)
+  if (error || !data) return getMockCrosswordPuzzle(week)
   // Postgres text[] returns the JS string "NULL" or actually preserves nulls?
   // Supabase's PostgREST returns SQL NULL as JS null inside the array, so the
   // shape lines up with CrosswordPuzzle.solution directly.
   return {
     id: data.id,
-    puzzle_date: data.puzzle_date,
+    puzzle_week: data.puzzle_week,
     size: data.size,
     solution: data.solution as (string | null)[],
     clues_across: (data.clues_across as CrosswordClue[]) ?? [],
@@ -255,19 +255,19 @@ export async function fetchHigherLowerPuzzle(
 }
 
 export async function fetchConnectionsPuzzle(
-  week: string,
+  date: string,
 ): Promise<ConnectionsPuzzle> {
   const sb = getSupabase()
-  if (!sb) return getMockConnectionsPuzzle(week)
+  if (!sb) return getMockConnectionsPuzzle(date)
   const { data, error } = await sb
     .from('connections_puzzles')
-    .select('id,puzzle_week,theme,groups,layout,submitter')
-    .eq('puzzle_week', week)
+    .select('id,puzzle_date,theme,groups,layout,submitter')
+    .eq('puzzle_date', date)
     .maybeSingle()
-  if (error || !data) return getMockConnectionsPuzzle(week)
+  if (error || !data) return getMockConnectionsPuzzle(date)
   return {
     id: data.id,
-    puzzle_week: data.puzzle_week,
+    puzzle_date: data.puzzle_date,
     theme: data.theme ?? undefined,
     groups: data.groups as ConnectionsGroup[],
     layout: (data.layout as string[]) ?? [],

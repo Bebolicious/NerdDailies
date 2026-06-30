@@ -8,7 +8,7 @@ import { useCrosswordPuzzle } from '../hooks/usePuzzle'
 import { useCrosswordState } from '../hooks/useCrosswordState'
 import type { CheckScope } from '../hooks/useCrosswordState'
 import type { Direction, WordSlot } from '../lib/crossword'
-import { todayISO } from '../lib/dates'
+import { todayISO, weekStartISO } from '../lib/dates'
 import type { CrosswordClue, CrosswordPuzzle } from '../lib/types'
 import { cn } from '../lib/cn'
 
@@ -18,20 +18,22 @@ import { cn } from '../lib/cn'
 const KEYBOARD_GUARD =' '
 
 export function CrosswordGame() {
-  const date = todayISO()
-  const puzzle = useCrosswordPuzzle(date)
+  // Weekly game — the result/session key is the Monday of the current week so
+  // any visit Mon–Sun resolves to the same puzzle (mirrors the other weeklies).
+  const week = weekStartISO(todayISO())
+  const puzzle = useCrosswordPuzzle(week)
   if (!puzzle) return <div className="text-sm text-ink-soft">Loading puzzle…</div>
-  return <CrosswordInner key={puzzle.id} puzzle={puzzle} date={date} />
+  return <CrosswordInner key={puzzle.id} puzzle={puzzle} week={week} />
 }
 
 function CrosswordInner({
   puzzle,
-  date,
+  week,
 }: {
   puzzle: CrosswordPuzzle
-  date: string
+  week: string
 }) {
-  const state = useCrosswordState({ date, puzzle })
+  const state = useCrosswordState({ date: week, puzzle })
   const {
     layout,
     values,
@@ -232,7 +234,7 @@ function CrosswordInner({
               <div className="flex items-center gap-3">
                 <Grid3x3 className="h-5 w-5 shrink-0" />
                 <div className="text-sm font-bold">
-                  Solved! See you tomorrow for the next mini.
+                  Solved! See you next week for the next mini.
                 </div>
               </div>
             </NeoCard>
@@ -530,7 +532,7 @@ function ResultModal({
         </div>
         <div className="text-sm mb-4">
           {kind === 'won'
-            ? "You solved today's mini. The grid will stay solved on this device."
+            ? "You solved this week's mini. The grid will stay solved on this device."
             : 'One or more squares are wrong. Use Check to find them, then keep going.'}
         </div>
         <div className="flex justify-end">

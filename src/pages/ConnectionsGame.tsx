@@ -7,7 +7,7 @@ import { TagPill } from '../components/ui/TagPill'
 import { InfoButton } from '../components/ui/InfoButton'
 import { GuestBanner } from '../components/ui/GuestBanner'
 import { useConnectionsPuzzle } from '../hooks/usePuzzle'
-import { todayISO, weekNumber, weekStartISO } from '../lib/dates'
+import { dayNumber, todayISO } from '../lib/dates'
 import { cn } from '../lib/cn'
 import { saveResult } from '../lib/scoreStore'
 import {
@@ -51,9 +51,9 @@ function emptySession(now: number): Session {
   }
 }
 
-function loadSession(week: string): Session | null {
+function loadSession(date: string): Session | null {
   try {
-    const raw = localStorage.getItem(SESSION_PREFIX + week)
+    const raw = localStorage.getItem(SESSION_PREFIX + date)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Session
     if (parsed.version !== 1) return null
@@ -63,9 +63,9 @@ function loadSession(week: string): Session | null {
   }
 }
 
-function persistSession(week: string, state: Session) {
+function persistSession(date: string, state: Session) {
   try {
-    localStorage.setItem(SESSION_PREFIX + week, JSON.stringify(state))
+    localStorage.setItem(SESSION_PREFIX + date, JSON.stringify(state))
   } catch {
     /* noop */
   }
@@ -81,16 +81,15 @@ const BAND_CLASS: Record<ConnectionsDifficulty, string> = {
 
 export function ConnectionsGame() {
   const today = todayISO()
-  const week = weekStartISO(today)
-  const puzzle = useConnectionsPuzzle(week)
+  const puzzle = useConnectionsPuzzle(today)
   if (!puzzle)
     return <div className="text-sm text-ink-soft">Loading connections…</div>
-  return <Board key={puzzle.id} puzzle={puzzle} week={week} />
+  return <Board key={puzzle.id} puzzle={puzzle} date={today} />
 }
 
-function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
+function Board({ puzzle, date }: { puzzle: ConnectionsPuzzle; date: string }) {
   const [state, setState] = useState<Session>(
-    () => loadSession(week) ?? emptySession(Date.now()),
+    () => loadSession(date) ?? emptySession(Date.now()),
   )
   // Ephemeral, per-client display order of the 16 tiles. Starts from the puzzle
   // layout (identical for everyone) and only changes when the player hits
@@ -100,8 +99,8 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
   const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
-    persistSession(week, state)
-  }, [week, state])
+    persistSession(date, state)
+  }, [date, state])
 
   // Auto-dismiss the feedback toast.
   useEffect(() => {
@@ -131,7 +130,7 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
     if (state.status === 'playing' || savedRef.current) return
     savedRef.current = true
     saveResult({
-      date: week,
+      date,
       gameType: 'connections',
       status: state.status === 'won' ? 'solved' : 'lost',
       guessCount: state.mistakes,
@@ -140,7 +139,7 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
       finishedAt: state.finishedAt ?? Date.now(),
     })
     window.dispatchEvent(new Event('dailies:result-saved'))
-  }, [state.status, state.mistakes, state.startedAt, state.finishedAt, week])
+  }, [state.status, state.mistakes, state.startedAt, state.finishedAt, date])
 
   const toggleWord = useCallback(
     (w: string) => {
@@ -245,12 +244,12 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
           <LayoutGrid className="h-5 w-5 stroke-[3]" />
           Connections
           <span className="text-[10px] text-ink-soft font-bold ml-2">
-            · Week #{weekNumber(week)}
+            · Day #{dayNumber(date)}
           </span>
         </h1>
         <InfoButton
           title="Connections"
-          text="Find four groups of four. Tap four words you think share a connection, then Submit. Four mistakes ends the run — or flip on Unlimited to play without a life limit. A new puzzle drops every Monday."
+          text="Find four groups of four. Tap four words you think share a connection, then Submit. Four mistakes ends the run — or flip on Unlimited to play without a life limit. A new puzzle drops every day."
         />
       </div>
 
@@ -414,7 +413,7 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
         {finished && (
           <Finale
             status={state.status}
-            week={week}
+            date={date}
             guesses={state.guesses}
             mistakes={state.mistakes}
             unlimited={state.unlimited}
@@ -428,21 +427,21 @@ function Board({ puzzle, week }: { puzzle: ConnectionsPuzzle; week: string }) {
 
 function Finale({
   status,
-  week,
+  date,
   guesses,
   mistakes,
   unlimited,
 }: {
   status: Status
-  week: string
+  date: string
   guesses: ConnectionsDifficulty[][]
   mistakes: number
   unlimited: boolean
 }) {
   const [copied, setCopied] = useState(false)
   const share = useMemo(
-    () => buildShare(week, status, guesses),
-    [week, status, guesses],
+    () => buildShare(date, status, guesses),
+    [date, status, guesses],
   )
   return (
     <div className="mt-5 flex flex-col gap-4">
@@ -451,7 +450,7 @@ function Finale({
           {status === 'won' ? 'Solved' : 'Out of guesses'}
         </div>
         <div className="font-display text-3xl font-bold mt-1 leading-none">
-          {status === 'won' ? 'All four groups!' : 'Better luck next week'}
+          {status === 'won' ? 'All four groups!' : 'Better luck tomorrow'}
         </div>
         <div className="text-[11px] uppercase tracking-wider font-display mt-3 opacity-90">
           {unlimited
@@ -519,14 +518,14 @@ function shuffleArray<T>(input: T[]): T[] {
 }
 
 function buildShare(
-  week: string,
+  date: string,
   status: Status,
   guesses: ConnectionsDifficulty[][],
 ): string {
-  const w = weekNumber(week)
+  const d = dayNumber(date)
   const n = guesses.length
   const tries = `${n} guess${n === 1 ? '' : 'es'}`
   return status === 'won'
-    ? `Connections · Week ${w}\nSolved in ${tries}`
-    : `Connections · Week ${w}\nDidn't solve it · ${tries}`
+    ? `Connections · Day ${d}\nSolved in ${tries}`
+    : `Connections · Day ${d}\nDidn't solve it · ${tries}`
 }

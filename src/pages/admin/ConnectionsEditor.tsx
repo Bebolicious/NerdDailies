@@ -6,7 +6,7 @@ import { NeoButton } from '../../components/ui/NeoButton'
 import { TagPill } from '../../components/ui/TagPill'
 import { SubmitterField } from '../../components/ui/SubmitterField'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
-import { weekStartISO } from '../../lib/dates'
+import { formatLong } from '../../lib/dates'
 import {
   CONNECTIONS_DIFFICULTIES,
   CONNECTIONS_GROUP_SIZE,
@@ -36,7 +36,6 @@ const SECTION_CLASS: Record<number, string> = {
 
 export function ConnectionsEditor() {
   const { date } = useParams<{ date: string }>()
-  const week = date ? weekStartISO(date) : null
 
   const [theme, setTheme] = useState('')
   const [submitter, setSubmitter] = useState('')
@@ -50,14 +49,14 @@ export function ConnectionsEditor() {
     let cancelled = false
     async function load() {
       const sb = getSupabase()
-      if (!sb || !week) {
+      if (!sb || !date) {
         setLoading(false)
         return
       }
       const { data } = await sb
         .from('connections_puzzles')
         .select('*')
-        .eq('puzzle_week', week)
+        .eq('puzzle_date', date)
         .maybeSingle()
       if (cancelled) return
       if (data) {
@@ -81,7 +80,7 @@ export function ConnectionsEditor() {
     return () => {
       cancelled = true
     }
-  }, [week])
+  }, [date])
 
   function patchCategory(i: number, value: string) {
     setGroups((prev) =>
@@ -102,7 +101,7 @@ export function ConnectionsEditor() {
 
   async function save() {
     const sb = getSupabase()
-    if (!sb || !week) return
+    if (!sb || !date) return
     if (!validation.ok) {
       setMsg(validation.error)
       return
@@ -121,14 +120,14 @@ export function ConnectionsEditor() {
 
     const { error } = await sb.from('connections_puzzles').upsert(
       {
-        puzzle_week: week,
+        puzzle_date: date,
         theme: theme.trim() || null,
         groups: cleanGroups,
         layout,
         submitter: submitter.trim() || null,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'puzzle_week' },
+      { onConflict: 'puzzle_date' },
     )
     setSaving(false)
     if (error) return setMsg(`Save failed: ${error.message}`)
@@ -137,10 +136,10 @@ export function ConnectionsEditor() {
 
   async function clearPuzzle() {
     const sb = getSupabase()
-    if (!sb || !week) return
+    if (!sb || !date) return
     if (
       !window.confirm(
-        `Delete the Connections puzzle for week of ${week}? This cannot be undone.`,
+        `Delete the Connections puzzle for ${date}? This cannot be undone.`,
       )
     )
       return
@@ -149,7 +148,7 @@ export function ConnectionsEditor() {
     const { error } = await sb
       .from('connections_puzzles')
       .delete()
-      .eq('puzzle_week', week)
+      .eq('puzzle_date', date)
     setClearing(false)
     if (error) return setMsg(`Could not delete: ${error.message}`)
     setTheme('')
@@ -160,12 +159,8 @@ export function ConnectionsEditor() {
 
   return (
     <AdminLayout
-      title={`Connections · week of ${week}`}
-      subtitle={
-        date
-          ? `URL date ${date} → snapped to Monday ${week}. Editing is per-week.`
-          : ''
-      }
+      title={`Connections · ${date}`}
+      subtitle={`Schedule for ${date && formatLong(date)}.`}
     >
       {!isSupabaseConfigured() && (
         <NeoCard tone="coral" shadow="sm" className="p-3 mb-4 text-sm">
@@ -178,7 +173,7 @@ export function ConnectionsEditor() {
         <div className="flex flex-col gap-5">
           <NeoCard tone="paper" shadow="md" className="p-5">
             <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
-              <TagPill tone="orange">Weekly · 4 groups of 4</TagPill>
+              <TagPill tone="orange">Daily · 4 groups of 4</TagPill>
               <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
                 {validation.filledGroups} / {CONNECTIONS_DIFFICULTIES.length}{' '}
                 groups complete

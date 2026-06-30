@@ -162,10 +162,10 @@ export function getMockArchivePuzzle(week: string): ArchivePuzzle {
 //  2  A  C  E  S
 //  3  R  E  S  T
 //
-// Date-independent because hand-crafting a valid interlocking puzzle per date
+// Week-independent because hand-crafting a valid interlocking puzzle per week
 // is out of scope for a placeholder — the admin editor will produce the real
-// daily puzzles.
-export function getMockCrosswordPuzzle(date: string): CrosswordPuzzle {
+// weekly puzzles.
+export function getMockCrosswordPuzzle(week: string): CrosswordPuzzle {
   const solution: (string | null)[] = [
     'S', 'P', 'A', 'R',
     'P', 'A', 'C', 'E',
@@ -173,8 +173,8 @@ export function getMockCrosswordPuzzle(date: string): CrosswordPuzzle {
     'R', 'E', 'S', 'T',
   ]
   return {
-    id: 'mock-crossword-' + date,
-    puzzle_date: date,
+    id: 'mock-crossword-' + week,
+    puzzle_week: week,
     size: 4,
     solution,
     clues_across: [
@@ -351,10 +351,10 @@ function formatSeconds(total: number): string {
     : `${m}:${String(s).padStart(2, '0')}`
 }
 
-// Deterministic mock for the weekly Connections puzzle. Four fixed groups of
-// four words; the board layout is shuffled with a week-seeded RNG so it's
-// stable for a given week but varies week to week.
-export function getMockConnectionsPuzzle(week: string): ConnectionsPuzzle {
+// Deterministic mock for the daily Connections puzzle. Four fixed groups of
+// four words; the board layout is shuffled with a date-seeded RNG so it's
+// stable for a given day but varies day to day.
+export function getMockConnectionsPuzzle(date: string): ConnectionsPuzzle {
   const groups: ConnectionsGroup[] = [
     {
       difficulty: 0,
@@ -378,12 +378,12 @@ export function getMockConnectionsPuzzle(week: string): ConnectionsPuzzle {
     },
   ]
   const allWords = groups.flatMap((g) => g.words)
-  const seed = hash(week + 'connections')
+  const seed = hash(date + 'connections')
   const layout = seededShuffle(allWords, seed)
   return {
     id: 'mock-connections-' + seed,
-    puzzle_week: week,
-    theme: 'Mock weekly connections',
+    puzzle_date: date,
+    theme: 'Mock daily connections',
     groups,
     layout,
   }

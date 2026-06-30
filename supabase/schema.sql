@@ -194,13 +194,14 @@ create table if not exists public.higherlower_pairs (
 create index if not exists higherlower_pairs_puzzle_idx
   on public.higherlower_pairs (puzzle_id, position);
 
--- The daily mini-crossword. No IGDB game reference — the puzzle is the answer.
--- `solution` is a flat row-major array; null entries are blocks. Clues are
--- stored as JSON arrays of {number, text}; numbering is derived client-side
--- from the solution so the DB stays small.
+-- The weekly mini-crossword. Keyed by puzzle_week (Monday of the ISO week).
+-- No IGDB game reference — the puzzle is the answer. `solution` is a flat
+-- row-major array; null entries are blocks. Clues are stored as JSON arrays of
+-- {number, text}; numbering is derived client-side from the solution so the DB
+-- stays small.
 create table if not exists public.crossword_puzzles (
   id uuid primary key default gen_random_uuid(),
-  puzzle_date date not null unique,
+  puzzle_week date not null unique,          -- Monday of the ISO week
   size int not null check (size between 4 and 8),
   solution text[] not null,                  -- length = size*size; null = block
   clues_across jsonb not null default '[]'::jsonb,
@@ -209,13 +210,13 @@ create table if not exists public.crossword_puzzles (
   updated_at timestamptz default now()
 );
 
--- The weekly Connections game. Keyed by puzzle_week (Monday of the ISO week).
+-- The daily Connections game. Keyed by puzzle_date.
 -- 16 words split into 4 hidden groups of 4. `groups` holds the answer key
 -- (category + words + difficulty); `layout` is the fixed shuffled board order
 -- (16 words) generated at save time so every player sees the same arrangement.
 create table if not exists public.connections_puzzles (
   id uuid primary key default gen_random_uuid(),
-  puzzle_week date not null unique,
+  puzzle_date date not null unique,
   theme text,
   groups jsonb not null,                     -- [{difficulty,category,words[4]}] × 4
   layout text[] not null,                    -- 16 words in display order
@@ -223,6 +224,32 @@ create table if not exists public.connections_puzzles (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+-- ── CADENCE SWAP migration ───────────────────────────────────────────────────
+-- Crossword moved daily → weekly (now keyed by puzzle_week) and Connections
+-- moved weekly → daily (now keyed by puzzle_date). On pre-existing databases,
+-- rename the key column so its unique index follows along. Idempotent: only
+-- fires when the old column is still present and the new one isn't.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'crossword_puzzles'
+               and column_name = 'puzzle_date')
+     and not exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'crossword_puzzles'
+               and column_name = 'puzzle_week') then
+    alter table public.crossword_puzzles rename column puzzle_date to puzzle_week;
+  end if;
+
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'connections_puzzles'
+               and column_name = 'puzzle_week')
+     and not exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'connections_puzzles'
+               and column_name = 'puzzle_date') then
+    alter table public.connections_puzzles rename column puzzle_week to puzzle_date;
+  end if;
+end $$;
 
 -- Community submitter credit. When set, the player UI renders a "GUEST · NAME"
 -- corner banner on the puzzle. Optional on every game.
