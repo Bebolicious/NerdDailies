@@ -202,7 +202,7 @@ create index if not exists higherlower_pairs_puzzle_idx
 create table if not exists public.crossword_puzzles (
   id uuid primary key default gen_random_uuid(),
   puzzle_week date not null unique,          -- Monday of the ISO week
-  size int not null check (size between 4 and 8),
+  size int not null check (size between 4 and 13),
   solution text[] not null,                  -- length = size*size; null = block
   clues_across jsonb not null default '[]'::jsonb,
   clues_down jsonb not null default '[]'::jsonb,
@@ -250,6 +250,14 @@ begin
     alter table public.connections_puzzles rename column puzzle_week to puzzle_date;
   end if;
 end $$;
+
+-- Crossword grid grew from 4–8 to 4–13. On pre-existing databases the old
+-- size check constraint still caps at 8; drop it and re-add the wider bound.
+-- Idempotent: the constraint name is Postgres's auto-generated default.
+alter table public.crossword_puzzles
+  drop constraint if exists crossword_puzzles_size_check;
+alter table public.crossword_puzzles
+  add constraint crossword_puzzles_size_check check (size between 4 and 13);
 
 -- Community submitter credit. When set, the player UI renders a "GUEST · NAME"
 -- corner banner on the puzzle. Optional on every game.

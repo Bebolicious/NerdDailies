@@ -155,7 +155,7 @@ export const ARCHIVE_COSTS = {
 // auto-assigned number.
 
 export const CROSSWORD_MIN_SIZE = 4
-export const CROSSWORD_MAX_SIZE = 8
+export const CROSSWORD_MAX_SIZE = 13
 export const CROSSWORD_MIN_WORD_LENGTH = 2
 
 export type CrosswordClue = {
