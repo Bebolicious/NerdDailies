@@ -5,7 +5,9 @@ import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
 import { TagPill } from '../../components/ui/TagPill'
-import { SubmitterField } from '../../components/ui/SubmitterField'
+import { PuzzleDecorFields } from '../../components/ui/PuzzleDecorFields'
+import { rowToDecor, decorToRow } from '../../lib/decor'
+import type { PuzzleDecor } from '../../lib/types'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import { compressImage, IMG_PRESETS } from '../../lib/imageCompress'
@@ -58,7 +60,7 @@ export function HigherLowerEditor() {
   const week = date ? weekStartISO(date) : null
 
   const [theme, setTheme] = useState('')
-  const [submitter, setSubmitter] = useState('')
+  const [decor, setDecor] = useState<PuzzleDecor>({})
   const [pairs, setPairs] = useState<PairForm[]>(() =>
     defaultPairs(HIGHERLOWER_PAIR_COUNT),
   )
@@ -86,7 +88,7 @@ export function HigherLowerEditor() {
         return
       }
       setTheme(puzzleRow.theme ?? '')
-      setSubmitter((puzzleRow.submitter as string | null) ?? '')
+      setDecor(rowToDecor(puzzleRow))
       const { data: pairRows } = await sb
         .from('higherlower_pairs')
         .select('*')
@@ -193,7 +195,7 @@ export function HigherLowerEditor() {
         {
           puzzle_week: week,
           theme: theme.trim() || null,
-          submitter: submitter.trim() || null,
+          ...decorToRow(decor),
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'puzzle_week' },
@@ -287,7 +289,7 @@ export function HigherLowerEditor() {
       return
     }
     setTheme('')
-    setSubmitter('')
+    setDecor({})
     setPairs(defaultPairs(HIGHERLOWER_PAIR_COUNT))
     setMsg('Cleared.')
     setClearing(false)
@@ -337,9 +339,9 @@ export function HigherLowerEditor() {
               />
             </label>
             <div className="mt-4">
-              <SubmitterField
-                value={submitter}
-                onChange={setSubmitter}
+              <PuzzleDecorFields
+                value={decor}
+                onChange={setDecor}
                 gameType="higherlower"
               />
             </div>

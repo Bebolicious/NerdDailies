@@ -4,6 +4,7 @@ import { NeoCard } from '../components/ui/NeoCard'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
 import { GuestBanner } from '../components/ui/GuestBanner'
+import { ScreenEffects } from '../components/ui/ScreenEffects'
 import { InfoButton } from '../components/ui/InfoButton'
 import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
@@ -62,6 +63,12 @@ function TrophyInner({
 
   return (
     <div className="flex flex-col md:flex-row gap-4 md:items-start">
+      <ScreenEffects
+        type={puzzle.effectType}
+        emoji={puzzle.effectEmoji}
+        color={puzzle.effectColor}
+        active={finished}
+      />
       <div className="md:flex-1 md:min-w-0 flex flex-col gap-4">
         <NeoCard
           tone="ink"
@@ -71,13 +78,20 @@ function TrophyInner({
             animateOnMount && 'animate-achievement-pop',
           )}
         >
-          {puzzle.submitter && finished && (
-            <GuestBanner name={puzzle.submitter} gameType="trophy" />
+          {(puzzle.bannerText || puzzle.submitter) && finished && (
+            <GuestBanner
+              gameType="trophy"
+              submitter={puzzle.submitter}
+              text={puzzle.bannerText}
+              color={puzzle.bannerColor}
+            />
           )}
           <InfoButton
             className={cn(
               'absolute right-3 z-20',
-              puzzle.submitter && finished ? 'top-20' : 'top-3',
+              (puzzle.bannerText || puzzle.submitter) && finished
+                ? 'top-20'
+                : 'top-3',
             )}
             title="Trophy game"
             text="Guess today's game from one of its trophies. Your first wrong guess reveals the trophy's description; each guess after that unlocks an extra clue."

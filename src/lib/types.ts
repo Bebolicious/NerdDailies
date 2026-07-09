@@ -17,14 +17,32 @@ export type Game = {
   cover_url?: string
 }
 
+// ── Per-puzzle decoration (banner + page-wide screen effect) ─────────────────
+//
+// Every puzzle can carry an optional community-credit banner and, on finish, a
+// full-viewport celebration effect. Stored per-puzzle (columns mirror the
+// original `submitter` column on every `*_puzzles` table) and set in each
+// admin editor. See `lib/decor.ts` for the row <-> object mapping and
+// `components/ui/ScreenEffects.tsx` for rendering.
+
+export type ScreenEffectType = 'falling' | 'rising' | 'confetti' | 'vignette'
+
+export type PuzzleDecor = {
+  submitter?: string // community contributor — surfaces a "Submitted by" banner
+  bannerText?: string // custom banner label — OVERRIDES the submitter banner
+  bannerColor?: string // hex; custom banner background (falls back to game tone)
+  effectType?: ScreenEffectType
+  effectEmoji?: string // e.g. "❤️" — the particle glyph
+  effectColor?: string // hex; vignette / overlay color
+}
+
 export type ScreenshotPuzzle = {
   id: string
   puzzle_date: string
   game: Game
   image_urls: string[] // ordered, easiest last
   cover_url?: string
-  submitter?: string // community contributor — surfaces a GUEST banner
-}
+} & PuzzleDecor
 
 export type TrophyPuzzle = {
   id: string
@@ -37,16 +55,14 @@ export type TrophyPuzzle = {
   platform?: string
   gamerscore?: number
   cover_url?: string // optional official cover, shown on the answer-reveal card
-  submitter?: string
-}
+} & PuzzleDecor
 
 export type BlurPuzzle = {
   id: string
   puzzle_date: string
   game: Game
   cover_url: string // official game cover (portrait 3:4)
-  submitter?: string
-}
+} & PuzzleDecor
 
 // How blurred the image is per wrong-guess step. Index 0 = before any wrong
 // guess, last = after the final wrong guess (image fully clear). 6 steps.
@@ -60,8 +76,7 @@ export type SoundtrackPuzzle = {
   track_title?: string
   reveal_start_seconds: number // start of the unlock window
   cover_url?: string // optional official cover, shown on the answer-reveal card
-  submitter?: string
-}
+} & PuzzleDecor
 
 // Fixed schedule of how many seconds become playable per wrong-guess step.
 // index 0 = before any guess, index 5 = after 5 wrong guesses.
@@ -123,9 +138,7 @@ export type ArchivePuzzle = {
   mystery_a: ArchiveMysteryBox
   mystery_b: ArchiveMysteryBox
   trash_crossed_out: string // a plausible but wrong title
-
-  submitter?: string
-}
+} & PuzzleDecor
 
 // Visual blur level for the two wall frames, indexed by how many wrong guesses
 // have happened (0..3). 5 conceptual blur levels collapse to 4 reveal steps
@@ -170,8 +183,7 @@ export type CrosswordPuzzle = {
   solution: (string | null)[] // length = size * size
   clues_across: CrosswordClue[]
   clues_down: CrosswordClue[]
-  submitter?: string
-}
+} & PuzzleDecor
 
 // ── HIGHER / LOWER (weekly gauntlet) ────────────────────────────────────────
 //
@@ -327,8 +339,7 @@ export type HigherLowerPuzzle = {
   puzzle_week: string
   theme?: string
   pairs: HigherLowerPair[]
-  submitter?: string
-}
+} & PuzzleDecor
 
 // ── CONNECTIONS (daily) ─────────────────────────────────────────────────────
 //
@@ -376,8 +387,7 @@ export type ConnectionsPuzzle = {
   // The 16 words in their fixed on-screen order (shuffled once at save time so
   // every player sees the same board). Each entry is a word in `groups`.
   layout: string[]
-  submitter?: string
-}
+} & PuzzleDecor
 
 export type PuzzleResult = {
   date: string

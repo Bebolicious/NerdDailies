@@ -3,6 +3,7 @@ import { NeoCard } from '../components/ui/NeoCard'
 import { TagPill } from '../components/ui/TagPill'
 import { GuessSlots } from '../components/ui/GuessSlots'
 import { GuestBanner } from '../components/ui/GuestBanner'
+import { ScreenEffects } from '../components/ui/ScreenEffects'
 import { InfoButton } from '../components/ui/InfoButton'
 import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
@@ -80,6 +81,12 @@ function BlurInner({
 
   return (
     <div className="flex flex-col gap-4 md:flex-1 md:min-h-0">
+      <ScreenEffects
+        type={puzzle.effectType}
+        emoji={puzzle.effectEmoji}
+        color={puzzle.effectColor}
+        active={finished}
+      />
       <div className="flex flex-col md:flex-row gap-4 md:flex-1 md:min-h-0">
         <div className="md:flex-1 md:min-h-0 min-w-0 flex md:items-center md:justify-center md:py-2">
           <NeoCard
@@ -103,8 +110,13 @@ function BlurInner({
                 title="Blur Reveal"
                 text="Guess today's game from its blurred cover. Each wrong guess sharpens the image — fewer guesses, fewer pixels of mercy."
               />
-              {puzzle.submitter && finished && (
-                <GuestBanner name={puzzle.submitter} gameType="blur" />
+              {(puzzle.bannerText || puzzle.submitter) && finished && (
+                <GuestBanner
+                  gameType="blur"
+                  submitter={puzzle.submitter}
+                  text={puzzle.bannerText}
+                  color={puzzle.bannerColor}
+                />
               )}
               <div className="absolute bottom-3 left-3 z-20">
                 <TagPill tone="paper">

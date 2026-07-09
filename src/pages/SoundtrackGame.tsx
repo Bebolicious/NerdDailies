@@ -1,5 +1,6 @@
 import { GuessSlots } from '../components/ui/GuessSlots'
 import { GuestBanner } from '../components/ui/GuestBanner'
+import { ScreenEffects } from '../components/ui/ScreenEffects'
 import { InfoButton } from '../components/ui/InfoButton'
 import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
@@ -48,6 +49,12 @@ function SoundtrackInner({
 
   return (
     <div className="flex flex-col gap-4">
+      <ScreenEffects
+        type={puzzle.effectType}
+        emoji={puzzle.effectEmoji}
+        color={puzzle.effectColor}
+        active={finished}
+      />
       <div className="flex items-center justify-between">
         <h1 className="font-display text-xl uppercase tracking-wider font-bold">
           Soundtrack
@@ -61,8 +68,13 @@ function SoundtrackInner({
       <div className="flex flex-col md:flex-row gap-4 md:items-start">
         <div className="md:flex-1 md:min-w-0 flex flex-col gap-4">
           <div className="relative overflow-hidden">
-            {puzzle.submitter && finished && (
-              <GuestBanner name={puzzle.submitter} gameType="soundtrack" />
+            {(puzzle.bannerText || puzzle.submitter) && finished && (
+              <GuestBanner
+                gameType="soundtrack"
+                submitter={puzzle.submitter}
+                text={puzzle.bannerText}
+                color={puzzle.bannerColor}
+              />
             )}
             <SoundtrackPlayer
               audioUrl={puzzle.audio_url}

@@ -4,6 +4,7 @@ import { NeoCard } from '../components/ui/NeoCard'
 import { NeoButton } from '../components/ui/NeoButton'
 import { InfoButton } from '../components/ui/InfoButton'
 import { GuestBanner } from '../components/ui/GuestBanner'
+import { ScreenEffects } from '../components/ui/ScreenEffects'
 import { useCrosswordPuzzle } from '../hooks/usePuzzle'
 import { useCrosswordState } from '../hooks/useCrosswordState'
 import type { CheckScope } from '../hooks/useCrosswordState'
@@ -78,6 +79,12 @@ function CrosswordInner({
 
   return (
     <div>
+      <ScreenEffects
+        type={puzzle.effectType}
+        emoji={puzzle.effectEmoji}
+        color={puzzle.effectColor}
+        active={status !== 'playing'}
+      />
       <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
         <div className="flex items-center gap-4 flex-wrap">
           <div>
@@ -88,10 +95,12 @@ function CrosswordInner({
               Fill the grid. Use the sidebar to switch clues.
             </div>
           </div>
-          {puzzle.submitter && status !== 'playing' && (
+          {(puzzle.bannerText || puzzle.submitter) && status !== 'playing' && (
             <GuestBanner
-              name={puzzle.submitter}
               gameType="crossword"
+              submitter={puzzle.submitter}
+              text={puzzle.bannerText}
+              color={puzzle.bannerColor}
               variant="inline"
             />
           )}

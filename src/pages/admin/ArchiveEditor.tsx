@@ -4,7 +4,9 @@ import { Upload, X } from 'lucide-react'
 import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
-import { SubmitterField } from '../../components/ui/SubmitterField'
+import { PuzzleDecorFields } from '../../components/ui/PuzzleDecorFields'
+import { rowToDecor, decorToRow } from '../../lib/decor'
+import type { PuzzleDecor } from '../../lib/types'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import { compressImage, IMG_PRESETS } from '../../lib/imageCompress'
@@ -56,7 +58,7 @@ export function ArchiveEditor() {
     game: '',
   })
   const [trashCrossed, setTrashCrossed] = useState('')
-  const [submitter, setSubmitter] = useState('')
+  const [decor, setDecor] = useState<PuzzleDecor>({})
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -99,7 +101,7 @@ export function ArchiveEditor() {
         setMysteryA(data.mystery_a as ArchiveMysteryBox)
         setMysteryB(data.mystery_b as ArchiveMysteryBox)
         setTrashCrossed(data.trash_crossed_out ?? '')
-        setSubmitter((data.submitter as string | null) ?? '')
+        setDecor(rowToDecor(data))
       }
       setLoading(false)
     }
@@ -191,7 +193,7 @@ export function ArchiveEditor() {
         mystery_a: mysteryA,
         mystery_b: mysteryB,
         trash_crossed_out: trashCrossed,
-        submitter: submitter.trim() || null,
+        ...decorToRow(decor),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'puzzle_week' },
@@ -246,7 +248,7 @@ export function ArchiveEditor() {
     setMysteryA({ type: 'lore', text: '' })
     setMysteryB({ type: 'redHerring', text: '', game: '' })
     setTrashCrossed('')
-    setSubmitter('')
+    setDecor({})
     setMsg('Cleared.')
     setClearing(false)
   }
@@ -276,9 +278,9 @@ export function ArchiveEditor() {
           <NeoCard tone="paper" shadow="md" className="p-5">
             <GamePicker value={game} onChange={setGame} />
             <div className="mt-4">
-              <SubmitterField
-                value={submitter}
-                onChange={setSubmitter}
+              <PuzzleDecorFields
+                value={decor}
+                onChange={setDecor}
                 gameType="archive"
               />
             </div>

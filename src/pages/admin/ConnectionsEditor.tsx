@@ -4,7 +4,9 @@ import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
 import { TagPill } from '../../components/ui/TagPill'
-import { SubmitterField } from '../../components/ui/SubmitterField'
+import { PuzzleDecorFields } from '../../components/ui/PuzzleDecorFields'
+import { rowToDecor, decorToRow } from '../../lib/decor'
+import type { PuzzleDecor } from '../../lib/types'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import { formatLong } from '../../lib/dates'
 import {
@@ -38,7 +40,7 @@ export function ConnectionsEditor() {
   const { date } = useParams<{ date: string }>()
 
   const [theme, setTheme] = useState('')
-  const [submitter, setSubmitter] = useState('')
+  const [decor, setDecor] = useState<PuzzleDecor>({})
   const [groups, setGroups] = useState<GroupForm[]>(() => emptyGroups())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -61,7 +63,7 @@ export function ConnectionsEditor() {
       if (cancelled) return
       if (data) {
         setTheme(data.theme ?? '')
-        setSubmitter((data.submitter as string | null) ?? '')
+        setDecor(rowToDecor(data))
         const loaded = emptyGroups()
         for (const g of (data.groups as ConnectionsGroup[]) ?? []) {
           const i = g.difficulty
@@ -124,7 +126,7 @@ export function ConnectionsEditor() {
         theme: theme.trim() || null,
         groups: cleanGroups,
         layout,
-        submitter: submitter.trim() || null,
+        ...decorToRow(decor),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'puzzle_date' },
@@ -152,7 +154,7 @@ export function ConnectionsEditor() {
     setClearing(false)
     if (error) return setMsg(`Could not delete: ${error.message}`)
     setTheme('')
-    setSubmitter('')
+    setDecor({})
     setGroups(emptyGroups())
     setMsg('Cleared.')
   }
@@ -191,9 +193,9 @@ export function ConnectionsEditor() {
               />
             </label>
             <div className="mt-4">
-              <SubmitterField
-                value={submitter}
-                onChange={setSubmitter}
+              <PuzzleDecorFields
+                value={decor}
+                onChange={setDecor}
                 gameType="connections"
               />
             </div>

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Moon, Sun, X } from 'lucide-react'
 import { useTheme } from '../../hooks/useTheme'
 import { useReadability } from '../../hooks/useReadability'
+import { useScreenEffects } from '../../hooks/useScreenEffects'
 import { cn } from '../../lib/cn'
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
 export function SettingsModal({ open, onClose }: Props) {
   const { theme, toggle: toggleTheme } = useTheme()
   const { readable, toggle: toggleReadable } = useReadability()
+  const { enabled: effectsOn, toggle: toggleEffects } = useScreenEffects()
 
   useEffect(() => {
     if (!open) return
@@ -75,6 +77,17 @@ export function SettingsModal({ open, onClose }: Props) {
               active={readable}
               onClick={toggleReadable}
               ariaLabel="Toggle increased readability"
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Screen effects"
+            description="Celebration animations on solve (banners still show)"
+          >
+            <ToggleSwitch
+              active={effectsOn}
+              onClick={toggleEffects}
+              ariaLabel="Toggle screen effects"
             />
           </SettingRow>
         </div>

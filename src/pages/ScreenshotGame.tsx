@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { NeoCard } from '../components/ui/NeoCard'
 import { GuessSlots } from '../components/ui/GuessSlots'
 import { GuestBanner } from '../components/ui/GuestBanner'
+import { ScreenEffects } from '../components/ui/ScreenEffects'
 import { InfoButton } from '../components/ui/InfoButton'
 import { PuzzleSkeleton } from '../components/ui/PuzzleSkeleton'
 import { GameSearch } from '../components/game/GameSearch'
@@ -69,6 +70,12 @@ function ScreenshotInner({
 
   return (
     <div className="flex flex-col gap-4 md:flex-1 md:min-h-0">
+      <ScreenEffects
+        type={puzzle.effectType}
+        emoji={puzzle.effectEmoji}
+        color={puzzle.effectColor}
+        active={finished}
+      />
       <div className="flex flex-col md:flex-row gap-4 md:flex-1 md:min-h-0">
         <NeoCard
           tone="ink"
@@ -86,8 +93,13 @@ function ScreenshotInner({
               title="Screenshot game"
               text="Guess today's game from six screenshots. Each wrong guess reveals a clearer, easier-to-identify image — see how few hints you need."
             />
-            {puzzle.submitter && finished && (
-              <GuestBanner name={puzzle.submitter} gameType="screenshot" />
+            {(puzzle.bannerText || puzzle.submitter) && finished && (
+              <GuestBanner
+                gameType="screenshot"
+                submitter={puzzle.submitter}
+                text={puzzle.bannerText}
+                color={puzzle.bannerColor}
+              />
             )}
             <button
               onClick={() => setGalleryIndex((i) => Math.max(0, Math.min(i, maxIndex) - 1))}

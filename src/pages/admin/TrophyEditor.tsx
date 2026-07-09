@@ -4,7 +4,9 @@ import { Upload, X } from 'lucide-react'
 import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
-import { SubmitterField } from '../../components/ui/SubmitterField'
+import { PuzzleDecorFields } from '../../components/ui/PuzzleDecorFields'
+import { rowToDecor, decorToRow } from '../../lib/decor'
+import type { PuzzleDecor } from '../../lib/types'
 import { PlatformMultiSelect } from '../../components/ui/PlatformMultiSelect'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
@@ -22,7 +24,7 @@ export function TrophyEditor() {
   const [platforms, setPlatforms] = useState<string[]>([])
   const [gamerscore, setGamerscore] = useState('')
   const [coverPath, setCoverPath] = useState<string | null>(null)
-  const [submitter, setSubmitter] = useState('')
+  const [decor, setDecor] = useState<PuzzleDecor>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -62,7 +64,7 @@ export function TrophyEditor() {
         )
         setGamerscore(data.gamerscore?.toString() ?? '')
         setCoverPath((data.cover_path as string | null) ?? null)
-        setSubmitter((data.submitter as string | null) ?? '')
+        setDecor(rowToDecor(data))
       }
       setLoading(false)
     }
@@ -130,7 +132,7 @@ export function TrophyEditor() {
     setPlatforms([])
     setGamerscore('')
     setCoverPath(null)
-    setSubmitter('')
+    setDecor({})
     setMsg('Cleared.')
     setClearing(false)
   }
@@ -157,7 +159,7 @@ export function TrophyEditor() {
         platform: platforms.join(', ') || null,
         gamerscore: gamerscore ? Number(gamerscore) : null,
         cover_path: coverPath,
-        submitter: submitter.trim() || null,
+        ...decorToRow(decor),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'puzzle_date' },
@@ -182,9 +184,9 @@ export function TrophyEditor() {
         <div className="flex flex-col gap-5">
           <NeoCard tone="paper" shadow="md" className="p-5 flex flex-col gap-4">
             <GamePicker value={game} onChange={setGame} />
-            <SubmitterField
-              value={submitter}
-              onChange={setSubmitter}
+            <PuzzleDecorFields
+              value={decor}
+              onChange={setDecor}
               gameType="trophy"
             />
           </NeoCard>

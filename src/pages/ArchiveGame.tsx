@@ -17,6 +17,7 @@ import { NeoCard } from '../components/ui/NeoCard'
 import { NeoButton } from '../components/ui/NeoButton'
 import { InfoButton } from '../components/ui/InfoButton'
 import { GuestBanner } from '../components/ui/GuestBanner'
+import { ScreenEffects } from '../components/ui/ScreenEffects'
 import { useArchivePuzzle } from '../hooks/usePuzzle'
 import { todayISO, weekNumber, weekStartISO } from '../lib/dates'
 import { cn } from '../lib/cn'
@@ -332,6 +333,12 @@ function ArchiveRoom({
   return (
     <div className="max-w-5xl archive-readable">
       <ArchiveStyles />
+      <ScreenEffects
+        type={puzzle.effectType}
+        emoji={puzzle.effectEmoji}
+        color={puzzle.effectColor}
+        active={finished}
+      />
 
       <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
         <h1 className="font-display text-xl uppercase tracking-wider font-bold flex items-center gap-2">
@@ -355,8 +362,13 @@ function ArchiveRoom({
 
       {/* Room — dark noir surface */}
       <div className="archive-room border-neo shadow-neo-lg relative overflow-hidden">
-        {puzzle.submitter && finished && (
-          <GuestBanner name={puzzle.submitter} gameType="archive" />
+        {(puzzle.bannerText || puzzle.submitter) && finished && (
+          <GuestBanner
+            gameType="archive"
+            submitter={puzzle.submitter}
+            text={puzzle.bannerText}
+            color={puzzle.bannerColor}
+          />
         )}
         <DustLayer />
 

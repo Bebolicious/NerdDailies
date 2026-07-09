@@ -275,6 +275,28 @@ alter table public.crossword_puzzles  add column if not exists submitter text;
 alter table public.higherlower_puzzles add column if not exists submitter text;
 alter table public.connections_puzzles add column if not exists submitter text;
 
+-- Per-puzzle theming. Optional on every game:
+--   banner_text / banner_color → a custom corner banner that OVERRIDES the
+--     "Submitted by" credit (e.g. a pink "Valentine's Day" banner).
+--   effect_type  → 'falling' | 'rising' | 'confetti' | 'vignette' — a
+--     full-viewport celebration shown once the round finishes.
+--   effect_emoji → the particle glyph (e.g. ❤️).
+--   effect_color → hex color for the transparent→color vignette overlay.
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'screenshot_puzzles','trophy_puzzles','blur_puzzles','soundtrack_puzzles',
+    'archive_puzzles','crossword_puzzles','higherlower_puzzles','connections_puzzles'
+  ] loop
+    execute format('alter table public.%I add column if not exists banner_text  text', t);
+    execute format('alter table public.%I add column if not exists banner_color text', t);
+    execute format('alter table public.%I add column if not exists effect_type  text', t);
+    execute format('alter table public.%I add column if not exists effect_emoji text', t);
+    execute format('alter table public.%I add column if not exists effect_color text', t);
+  end loop;
+end $$;
+
 -- ── RLS ─────────────────────────────────────────────────────────────────────
 -- Anyone can READ puzzles for any date (so the public app can fetch them).
 -- Only authenticated users (you, after sign-in) can write.

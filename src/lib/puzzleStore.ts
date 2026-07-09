@@ -1,4 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabase'
+import { rowToDecor } from './decor'
 import {
   getMockArchivePuzzle,
   getMockBlurPuzzle,
@@ -35,7 +36,7 @@ export async function fetchScreenshotPuzzle(
   const { data, error } = await sb
     .from('screenshot_puzzles')
     .select(
-      'id,puzzle_date,game_id,game_name,game_year,game_genre,image_paths,cover_path,submitter',
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,image_paths,cover_path,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_date', date)
     .maybeSingle()
@@ -51,7 +52,7 @@ export async function fetchScreenshotPuzzle(
     },
     image_urls: (data.image_paths as string[]).map(toPublicUrl('screenshots')),
     cover_url: data.cover_path ? toPublicUrl('covers')(data.cover_path) : undefined,
-    submitter: data.submitter ?? undefined,
+    ...rowToDecor(data),
   }
 }
 
@@ -61,7 +62,7 @@ export async function fetchTrophyPuzzle(date: string): Promise<TrophyPuzzle> {
   const { data, error } = await sb
     .from('trophy_puzzles')
     .select(
-      'id,puzzle_date,game_id,game_name,game_year,game_genre,trophy_name,trophy_description,clues,rarity_pct,platform,gamerscore,cover_path,submitter',
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,trophy_name,trophy_description,clues,rarity_pct,platform,gamerscore,cover_path,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_date', date)
     .maybeSingle()
@@ -82,7 +83,7 @@ export async function fetchTrophyPuzzle(date: string): Promise<TrophyPuzzle> {
     platform: data.platform ?? undefined,
     gamerscore: data.gamerscore ?? undefined,
     cover_url: data.cover_path ? toPublicUrl('covers')(data.cover_path) : undefined,
-    submitter: data.submitter ?? undefined,
+    ...rowToDecor(data),
   }
 }
 
@@ -94,7 +95,7 @@ export async function fetchSoundtrackPuzzle(
   const { data, error } = await sb
     .from('soundtrack_puzzles')
     .select(
-      'id,puzzle_date,game_id,game_name,game_year,game_genre,audio_path,track_title,reveal_start_seconds,cover_path,submitter',
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,audio_path,track_title,reveal_start_seconds,cover_path,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_date', date)
     .maybeSingle()
@@ -112,7 +113,7 @@ export async function fetchSoundtrackPuzzle(
     track_title: data.track_title ?? undefined,
     reveal_start_seconds: data.reveal_start_seconds ?? 0,
     cover_url: data.cover_path ? toPublicUrl('covers')(data.cover_path) : undefined,
-    submitter: data.submitter ?? undefined,
+    ...rowToDecor(data),
   }
 }
 
@@ -122,7 +123,7 @@ export async function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
   const { data, error } = await sb
     .from('blur_puzzles')
     .select(
-      'id,puzzle_date,game_id,game_name,game_year,game_genre,cover_path,submitter',
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,cover_path,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_date', date)
     .maybeSingle()
@@ -137,7 +138,7 @@ export async function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
       genre: data.game_genre ?? undefined,
     },
     cover_url: toPublicUrl('covers')(data.cover_path),
-    submitter: data.submitter ?? undefined,
+    ...rowToDecor(data),
   }
 }
 
@@ -147,7 +148,7 @@ export async function fetchArchivePuzzle(week: string): Promise<ArchivePuzzle> {
   const { data, error } = await sb
     .from('archive_puzzles')
     .select(
-      'id,puzzle_week,game_id,game_name,game_year,game_genre,weekly_theme,clue_year,clue_genre,clue_platform,clue_pitch,clue_memo,clue_review,audio_path,frame1_path,frame2_path,chest_logo_path,mystery_a,mystery_b,trash_crossed_out,submitter',
+      'id,puzzle_week,game_id,game_name,game_year,game_genre,weekly_theme,clue_year,clue_genre,clue_platform,clue_pitch,clue_memo,clue_review,audio_path,frame1_path,frame2_path,chest_logo_path,mystery_a,mystery_b,trash_crossed_out,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_week', week)
     .maybeSingle()
@@ -176,7 +177,7 @@ export async function fetchArchivePuzzle(week: string): Promise<ArchivePuzzle> {
     mystery_a: data.mystery_a as ArchiveMysteryBox,
     mystery_b: data.mystery_b as ArchiveMysteryBox,
     trash_crossed_out: data.trash_crossed_out,
-    submitter: data.submitter ?? undefined,
+    ...rowToDecor(data),
   }
 }
 
@@ -187,7 +188,7 @@ export async function fetchCrosswordPuzzle(
   if (!sb) return getMockCrosswordPuzzle(week)
   const { data, error } = await sb
     .from('crossword_puzzles')
-    .select('id,puzzle_week,size,solution,clues_across,clues_down,submitter')
+    .select('id,puzzle_week,size,solution,clues_across,clues_down,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color')
     .eq('puzzle_week', week)
     .maybeSingle()
   if (error || !data) return getMockCrosswordPuzzle(week)
@@ -201,7 +202,7 @@ export async function fetchCrosswordPuzzle(
     solution: data.solution as (string | null)[],
     clues_across: (data.clues_across as CrosswordClue[]) ?? [],
     clues_down: (data.clues_down as CrosswordClue[]) ?? [],
-    submitter: data.submitter ?? undefined,
+    ...rowToDecor(data),
   }
 }
 
@@ -212,7 +213,7 @@ export async function fetchHigherLowerPuzzle(
   if (!sb) return getMockHigherLowerPuzzle(week)
   const { data, error } = await sb
     .from('higherlower_puzzles')
-    .select('id,puzzle_week,theme,submitter')
+    .select('id,puzzle_week,theme,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color')
     .eq('puzzle_week', week)
     .maybeSingle()
   if (error || !data) return getMockHigherLowerPuzzle(week)
@@ -249,7 +250,7 @@ export async function fetchHigherLowerPuzzle(
     id: data.id,
     puzzle_week: data.puzzle_week,
     theme: data.theme ?? undefined,
-    submitter: data.submitter ?? undefined,
+    ...rowToDecor(data),
     pairs,
   }
 }
@@ -261,7 +262,7 @@ export async function fetchConnectionsPuzzle(
   if (!sb) return getMockConnectionsPuzzle(date)
   const { data, error } = await sb
     .from('connections_puzzles')
-    .select('id,puzzle_date,theme,groups,layout,submitter')
+    .select('id,puzzle_date,theme,groups,layout,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color')
     .eq('puzzle_date', date)
     .maybeSingle()
   if (error || !data) return getMockConnectionsPuzzle(date)
@@ -271,7 +272,7 @@ export async function fetchConnectionsPuzzle(
     theme: data.theme ?? undefined,
     groups: data.groups as ConnectionsGroup[],
     layout: (data.layout as string[]) ?? [],
-    submitter: data.submitter ?? undefined,
+    ...rowToDecor(data),
   }
 }
 

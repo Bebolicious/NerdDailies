@@ -108,7 +108,8 @@ src/
   components/
     layout/   NavBar, TodaySidebar (with Weekly box), ShellLayout
     ui/       NeoCard, NeoButton, TagPill, GuessSlots, GuestBanner,
-              InfoButton, SubmitterField, PixelLogo, SettingsModal
+              InfoButton, PuzzleDecorFields, ScreenEffects, PixelLogo,
+              SettingsModal
     game/     GameSearch, GamePicker, GuessRow, GameHeader, SoundtrackPlayer
   pages/
     ScreenshotGame, TrophyGame, BlurGame, SoundtrackGame,

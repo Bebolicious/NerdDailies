@@ -4,7 +4,9 @@ import { Upload, X, Play, Pause } from 'lucide-react'
 import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
-import { SubmitterField } from '../../components/ui/SubmitterField'
+import { PuzzleDecorFields } from '../../components/ui/PuzzleDecorFields'
+import { rowToDecor, decorToRow } from '../../lib/decor'
+import type { PuzzleDecor } from '../../lib/types'
 import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import { compressImage, IMG_PRESETS } from '../../lib/imageCompress'
@@ -22,7 +24,7 @@ export function SoundtrackEditor() {
   const [trackTitle, setTrackTitle] = useState('')
   const [revealStart, setRevealStart] = useState('0')
   const [coverPath, setCoverPath] = useState<string | null>(null)
-  const [submitter, setSubmitter] = useState('')
+  const [decor, setDecor] = useState<PuzzleDecor>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -57,7 +59,7 @@ export function SoundtrackEditor() {
         setTrackTitle(data.track_title ?? '')
         setRevealStart(String(data.reveal_start_seconds ?? 0))
         setCoverPath((data.cover_path as string | null) ?? null)
-        setSubmitter((data.submitter as string | null) ?? '')
+        setDecor(rowToDecor(data))
       }
       setLoading(false)
     }
@@ -180,7 +182,7 @@ export function SoundtrackEditor() {
     setTrackTitle('')
     setRevealStart('0')
     setCoverPath(null)
-    setSubmitter('')
+    setDecor({})
     setMsg('Cleared.')
     setClearing(false)
   }
@@ -203,7 +205,7 @@ export function SoundtrackEditor() {
         track_title: trackTitle || null,
         reveal_start_seconds: Number(revealStart) || 0,
         cover_path: coverPath,
-        submitter: submitter.trim() || null,
+        ...decorToRow(decor),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'puzzle_date' },
@@ -234,9 +236,9 @@ export function SoundtrackEditor() {
         <div className="flex flex-col gap-5">
           <NeoCard tone="paper" shadow="md" className="p-5 flex flex-col gap-4">
             <GamePicker value={game} onChange={setGame} />
-            <SubmitterField
-              value={submitter}
-              onChange={setSubmitter}
+            <PuzzleDecorFields
+              value={decor}
+              onChange={setDecor}
               gameType="soundtrack"
             />
           </NeoCard>

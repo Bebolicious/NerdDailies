@@ -6,6 +6,7 @@ import { NeoButton } from '../components/ui/NeoButton'
 import { TagPill } from '../components/ui/TagPill'
 import { InfoButton } from '../components/ui/InfoButton'
 import { GuestBanner } from '../components/ui/GuestBanner'
+import { ScreenEffects } from '../components/ui/ScreenEffects'
 import { useConnectionsPuzzle } from '../hooks/usePuzzle'
 import { dayNumber, todayISO } from '../lib/dates'
 import { cn } from '../lib/cn'
@@ -238,6 +239,12 @@ function Board({ puzzle, date }: { puzzle: ConnectionsPuzzle; date: string }) {
 
   return (
     <div className="flex-1 min-h-0 w-full overflow-y-auto flex justify-center items-start">
+      <ScreenEffects
+        type={puzzle.effectType}
+        emoji={puzzle.effectEmoji}
+        color={puzzle.effectColor}
+        active={finished}
+      />
       <div className="w-full max-w-3xl px-1 py-4">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
         <h1 className="font-display text-xl uppercase tracking-wider font-bold flex items-center gap-2">
@@ -260,8 +267,13 @@ function Board({ puzzle, date }: { puzzle: ConnectionsPuzzle; date: string }) {
       )}
 
       <NeoCard tone="paper" shadow="md" className="p-4 sm:p-5 relative">
-        {puzzle.submitter && (
-          <GuestBanner name={puzzle.submitter} gameType="connections" />
+        {(puzzle.bannerText || puzzle.submitter) && (
+          <GuestBanner
+            gameType="connections"
+            submitter={puzzle.submitter}
+            text={puzzle.bannerText}
+            color={puzzle.bannerColor}
+          />
         )}
 
         {/* Solved / revealed group bands */}

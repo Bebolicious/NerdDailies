@@ -18,6 +18,7 @@ import { NeoButton } from "../components/ui/NeoButton";
 import { TagPill } from "../components/ui/TagPill";
 import { InfoButton } from "../components/ui/InfoButton";
 import { GuestBanner } from "../components/ui/GuestBanner";
+import { ScreenEffects } from "../components/ui/ScreenEffects";
 import { useHigherLowerPuzzle } from "../hooks/usePuzzle";
 import { todayISO, weekNumber, weekStartISO } from "../lib/dates";
 import { cn } from "../lib/cn";
@@ -1594,8 +1595,19 @@ function FinaleCard({
   );
   return (
     <NeoCard tone="paper" shadow="md" className="p-5 mt-2 relative">
-      {puzzle.submitter && (
-        <GuestBanner name={puzzle.submitter} gameType="higherlower" />
+      <ScreenEffects
+        type={puzzle.effectType}
+        emoji={puzzle.effectEmoji}
+        color={puzzle.effectColor}
+        active
+      />
+      {(puzzle.bannerText || puzzle.submitter) && (
+        <GuestBanner
+          gameType="higherlower"
+          submitter={puzzle.submitter}
+          text={puzzle.bannerText}
+          color={puzzle.bannerColor}
+        />
       )}
       <div className="flex flex-col gap-4">
         <NeoCard tone="teal" shadow="md" className="p-5">

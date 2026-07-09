@@ -326,13 +326,96 @@ html[data-readable='true'] {
   animation: connections-shake 380ms ease-in-out both;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Page-wide screen effects (ScreenEffects.tsx) — per-puzzle celebration shown
+   on finish. Particles read per-instance CSS vars: --drift (horizontal px),
+   --rise (confetti vertical vh), --spin (final rotation).
+   ──────────────────────────────────────────────────────────────────────────── */
+@keyframes effect-fall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift), 120vh, 0) rotate(var(--spin));
+    opacity: 0;
+  }
+}
+
+@keyframes effect-rise {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift), -120vh, 0) rotate(var(--spin));
+    opacity: 0;
+  }
+}
+
+@keyframes effect-burst {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.5) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift), var(--rise), 0) scale(1)
+      rotate(var(--spin));
+    opacity: 0;
+  }
+}
+
+/* Vignette: fade in, then a slow breathing pulse at the edges. */
+@keyframes effect-vignette-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes effect-vignette-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@utility animate-effect-vignette {
+  animation:
+    effect-vignette-in 600ms ease-out both,
+    effect-vignette-pulse 2600ms ease-in-out 600ms infinite alternate;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-guest-banner-corner,
   .animate-guest-banner-inline,
   .animate-buzz,
   .animate-connections-solve,
-  .animate-connections-shake {
+  .animate-connections-shake,
+  .screen-effect-particle,
+  .screen-effect-vignette {
     animation: none;
+  }
+  /* Keep a static vignette so the color intent still reads. */
+  .screen-effect-vignette {
+    opacity: 0.85;
   }
 }
 
