@@ -254,10 +254,21 @@ function Board({ puzzle, date }: { puzzle: ConnectionsPuzzle; date: string }) {
             · Day #{dayNumber(date)}
           </span>
         </h1>
-        <InfoButton
-          title="Connections"
-          text="Find four groups of four. Tap four words you think share a connection, then Submit. Four mistakes ends the run — or flip on Unlimited to play without a life limit. A new puzzle drops every day."
-        />
+        <div className="flex items-center gap-3">
+          {(puzzle.bannerText || puzzle.submitter) && finished && (
+            <GuestBanner
+              gameType="connections"
+              submitter={puzzle.submitter}
+              text={puzzle.bannerText}
+              color={puzzle.bannerColor}
+              variant="inline"
+            />
+          )}
+          <InfoButton
+            title="Connections"
+            text="Find four groups of four. Tap four words you think share a connection, then Submit. Four mistakes ends the run — or flip on Unlimited to play without a life limit. A new puzzle drops every day."
+          />
+        </div>
       </div>
 
       {puzzle.theme && (
@@ -267,14 +278,6 @@ function Board({ puzzle, date }: { puzzle: ConnectionsPuzzle; date: string }) {
       )}
 
       <NeoCard tone="paper" shadow="md" className="p-4 sm:p-5 relative">
-        {(puzzle.bannerText || puzzle.submitter) && (
-          <GuestBanner
-            gameType="connections"
-            submitter={puzzle.submitter}
-            text={puzzle.bannerText}
-            color={puzzle.bannerColor}
-          />
-        )}
 
         {/* Solved / revealed group bands */}
         {bandIndices.length > 0 && (
