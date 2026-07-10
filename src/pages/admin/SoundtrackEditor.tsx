@@ -4,6 +4,7 @@ import { Upload, X, Play, Pause } from 'lucide-react'
 import { AdminLayout } from './AdminLayout'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
+import { UploadZone } from '../../components/ui/UploadZone'
 import { PuzzleDecorFields } from '../../components/ui/PuzzleDecorFields'
 import { rowToDecor, decorToRow } from '../../lib/decor'
 import type { PuzzleDecor } from '../../lib/types'
@@ -398,7 +399,6 @@ function CoverSlot({
   onUpload: (f: File) => void
   onClear: () => void
 }) {
-  const ref = useRef<HTMLInputElement>(null)
   const sb = getSupabase()
   const preview =
     path && sb ? sb.storage.from('covers').getPublicUrl(path).data.publicUrl : null
@@ -415,27 +415,8 @@ function CoverSlot({
           </button>
         </>
       ) : (
-        <button
-          onClick={() => ref.current?.click()}
-          className="flex flex-col items-center gap-1 text-ink-soft px-2 text-center"
-        >
-          <Upload className="h-5 w-5 stroke-[2.5]" />
-          <span className="font-display text-[10px] uppercase tracking-wider font-bold">
-            Cover
-          </span>
-        </button>
+        <UploadZone onUpload={onUpload} label="Cover" />
       )}
-      <input
-        ref={ref}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (f) onUpload(f)
-          e.target.value = ''
-        }}
-      />
     </div>
   )
 }

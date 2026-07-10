@@ -65,8 +65,9 @@ export type BlurPuzzle = {
 } & PuzzleDecor
 
 // How blurred the image is per wrong-guess step. Index 0 = before any wrong
-// guess, last = after the final wrong guess (image fully clear). 6 steps.
-export const BLUR_LEVELS_PX: number[] = [40, 28, 18, 10, 4, 0]
+// guess, last = at the final (5th) guess — still lightly blurred; the image
+// only goes fully clear once the round finishes. 5 steps = 5 guesses.
+export const BLUR_LEVELS_PX: number[] = [40, 28, 20, 14, 4]
 
 export type SoundtrackPuzzle = {
   id: string

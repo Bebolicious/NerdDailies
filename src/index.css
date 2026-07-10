@@ -212,6 +212,33 @@ html[data-readable='true'] {
   animation: achievement-pop 850ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Flashy "Share da shi!" confirmation that pops out of the share button.
+   Zero lead-in, punchy overshoot, tiny wiggle, hard hold — neo-brutalist. */
+@keyframes share-pop {
+  0% {
+    transform: translateY(6px) scale(0.6) rotate(-6deg);
+    opacity: 0;
+  }
+  40% {
+    transform: translateY(-8px) scale(1.15) rotate(4deg);
+    opacity: 1;
+  }
+  60% {
+    transform: translateY(-6px) scale(0.98) rotate(-3deg);
+  }
+  78% {
+    transform: translateY(-7px) scale(1.04) rotate(2deg);
+  }
+  100% {
+    transform: translateY(-7px) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@utility animate-share-pop {
+  animation: share-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* Guest-banner entrance animations.
    Use individual `translate`/`scale` properties (NOT the shorthand `transform`)
    so they stack cleanly with the static `rotate-*` Tailwind class on the
@@ -409,6 +436,7 @@ html[data-readable='true'] {
   .animate-buzz,
   .animate-connections-solve,
   .animate-connections-shake,
+  .animate-share-pop,
   .screen-effect-particle,
   .screen-effect-vignette {
     animation: none;

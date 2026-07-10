@@ -110,6 +110,7 @@ function SoundtrackInner({
               status={game.status === 'solved' ? 'solved' : 'lost'}
               guessCount={game.guesses.length}
               shareTone="mustard"
+              shareLabel="soundtrack"
             />
           )}
 

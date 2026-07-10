@@ -15,7 +15,7 @@ import { todayISO } from '../lib/dates'
 import { BLUR_LEVELS_PX } from '../lib/types'
 import { sharesFranchise } from '../lib/franchise'
 
-const TOTAL_GUESSES = 6
+const TOTAL_GUESSES = 5
 const BASE_COVER_WIDTH_PX = 520
 
 // Browser zoom shrinks every CSS pixel uniformly, so a fixed-width
@@ -137,6 +137,7 @@ function BlurInner({
               status={game.status === 'solved' ? 'solved' : 'lost'}
               guessCount={game.guesses.length}
               shareTone="blue"
+              shareLabel="blur"
             />
           )}
 

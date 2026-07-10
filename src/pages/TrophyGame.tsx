@@ -187,6 +187,7 @@ function TrophyInner({
             status={game.status === 'solved' ? 'solved' : 'lost'}
             guessCount={game.guesses.length}
             shareTone="blue"
+            shareLabel="trophy"
           />
         )}
 

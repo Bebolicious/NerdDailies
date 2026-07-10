@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Upload, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { AdminLayout } from './AdminLayout'
+import { UploadZone } from '../../components/ui/UploadZone'
 import { NeoCard } from '../../components/ui/NeoCard'
 import { NeoButton } from '../../components/ui/NeoButton'
 import { PuzzleDecorFields } from '../../components/ui/PuzzleDecorFields'
@@ -256,7 +257,6 @@ function CoverSlot({
   onUpload: (f: File) => void
   onClear: () => void
 }) {
-  const ref = useRef<HTMLInputElement>(null)
   return (
     <div className="border-neo bg-cream-soft aspect-[3/4] relative flex items-center justify-center overflow-hidden">
       {url ? (
@@ -270,27 +270,8 @@ function CoverSlot({
           </button>
         </>
       ) : (
-        <button
-          onClick={() => ref.current?.click()}
-          className="flex flex-col items-center gap-1 text-ink-soft px-2 text-center"
-        >
-          <Upload className="h-5 w-5 stroke-[2.5]" />
-          <span className="font-display text-[10px] uppercase tracking-wider font-bold">
-            Upload cover
-          </span>
-        </button>
+        <UploadZone onUpload={onUpload} label="Upload cover" />
       )}
-      <input
-        ref={ref}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (f) onUpload(f)
-          e.target.value = ''
-        }}
-      />
     </div>
   )
 }

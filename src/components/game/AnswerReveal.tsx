@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Share2 } from 'lucide-react'
 import { NeoCard } from '../ui/NeoCard'
 import { NeoButton } from '../ui/NeoButton'
@@ -15,6 +16,9 @@ type Props = {
   guessCount: number
   /** When set, render a Share button in the given tone. */
   shareTone?: ShareTone
+  /** Game noun used in the copied share text, e.g. "soundtrack" → "the daily
+   *  soundtrack mini-game". Required for the Share button to do anything. */
+  shareLabel?: string
   className?: string
 }
 
@@ -30,8 +34,31 @@ export function AnswerReveal({
   status,
   guessCount,
   shareTone,
+  shareLabel,
   className,
 }: Props) {
+  // `nonce` bumps per click so the pop animation re-fires on repeat shares
+  // without restarting on unrelated re-renders.
+  const [nonce, setNonce] = useState(0)
+  const [shared, setShared] = useState(false)
+  const resetRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  useEffect(() => () => clearTimeout(resetRef.current), [])
+
+  async function handleShare() {
+    const text = `Completed the daily ${shareLabel} mini-game in: ${guessCount} guesses`
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // Clipboard can reject (permissions / insecure context) — still flash the
+      // confirmation so the click feels responsive; nothing else to fall back to.
+    }
+    setNonce((n) => n + 1)
+    setShared(true)
+    clearTimeout(resetRef.current)
+    resetRef.current = setTimeout(() => setShared(false), 1600)
+  }
+
   return (
     <NeoCard tone="paper" shadow="sm" className={cn('p-3', className)}>
       <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
@@ -60,9 +87,20 @@ export function AnswerReveal({
           {status === 'solved' ? `Solved in ${guessCount}` : 'Streak broken'}
         </TagPill>
         {shareTone && (
-          <NeoButton tone={shareTone} size="sm">
-            <Share2 className="inline h-3 w-3 mr-1" /> Share
-          </NeoButton>
+          <div className="relative">
+            <NeoButton tone={shareTone} size="sm" onClick={handleShare}>
+              <Share2 className="inline h-3 w-3 mr-1" /> Share
+            </NeoButton>
+            {shared && (
+              <div
+                key={nonce}
+                className="animate-share-pop pointer-events-none absolute -top-1 left-1/2 z-20 -translate-x-1/2 -translate-y-full whitespace-nowrap border-neo bg-lime px-2.5 py-1 font-display text-[11px] font-bold uppercase tracking-wider text-ink-static shadow-neo"
+              >
+                Share da shi! 🎉
+                <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-stroke bg-lime" />
+              </div>
+            )}
+          </div>
         )}
       </div>
 
