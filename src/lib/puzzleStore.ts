@@ -21,6 +21,7 @@ import type {
   HigherLowerCategory,
   HigherLowerPair,
   HigherLowerPuzzle,
+  HighLowPairType,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
   TrophyPuzzle,
@@ -220,7 +221,7 @@ export async function fetchHigherLowerPuzzle(
   const { data: pairRows } = await sb
     .from('higherlower_pairs')
     .select(
-      'id,position,category,game_a_id,game_a_name,game_a_year,game_a_cover_path,game_a_value,game_a_display,game_b_id,game_b_name,game_b_year,game_b_cover_path,game_b_value,game_b_display',
+      'id,position,pair_type,category,game_a_id,game_a_name,game_a_year,game_a_cover_path,game_a_value,game_a_display,game_b_id,game_b_name,game_b_year,game_b_cover_path,game_b_value,game_b_display',
     )
     .eq('puzzle_id', data.id)
     .order('position', { ascending: true })
@@ -228,6 +229,7 @@ export async function fetchHigherLowerPuzzle(
   const pairs: HigherLowerPair[] = (pairRows ?? []).map((r) => ({
     id: r.id,
     position: r.position,
+    pairType: (r.pair_type as HighLowPairType) ?? 'vs',
     category: r.category as HigherLowerCategory,
     a: {
       game_id: r.game_a_id,
@@ -237,14 +239,20 @@ export async function fetchHigherLowerPuzzle(
       value: Number(r.game_a_value),
       display: r.game_a_display ?? undefined,
     },
-    b: {
-      game_id: r.game_b_id,
-      game_name: r.game_b_name,
-      game_year: r.game_b_year ?? undefined,
-      cover_url: r.game_b_cover_path ? url(r.game_b_cover_path) : undefined,
-      value: Number(r.game_b_value),
-      display: r.game_b_display ?? undefined,
-    },
+    // Side B only exists for vs pairs.
+    b:
+      r.game_b_id != null
+        ? {
+            game_id: r.game_b_id,
+            game_name: r.game_b_name,
+            game_year: r.game_b_year ?? undefined,
+            cover_url: r.game_b_cover_path
+              ? url(r.game_b_cover_path)
+              : undefined,
+            value: Number(r.game_b_value),
+            display: r.game_b_display ?? undefined,
+          }
+        : undefined,
   }))
   return {
     id: data.id,

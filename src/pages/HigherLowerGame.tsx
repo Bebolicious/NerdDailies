@@ -8,6 +8,8 @@ import {
   Plus,
   Scale,
   Share2,
+  SlidersHorizontal,
+  Sparkles,
   Trophy,
   Users,
   X,
@@ -28,7 +30,16 @@ import {
   HIGHERLOWER_PAIR_COUNT,
   type HigherLowerPair,
   type HigherLowerPuzzle,
+  type HighLowPairType,
+  type SliderConfig,
 } from "../lib/types";
+import {
+  isSliderCorrect,
+  scorePiggyback,
+  scoreSliderGuess,
+  tagLabel,
+  type PiggybackPlayerResult,
+} from "../lib/higherlowerScoring";
 import {
   CHARACTER_IDS,
   characterStyle,
@@ -44,7 +55,14 @@ type Pick = {
   choice: Choice;
   correct: boolean;
   at: number;
+  // For slider/piggyback pairs — the host's (or solo player's) guessed value.
+  value?: number;
 };
+
+// A pair's play mode, defaulting to 'vs' for legacy rows with no pairType.
+function pairKind(pair: HigherLowerPair | undefined): HighLowPairType {
+  return pair?.pairType ?? "vs";
+}
 
 type Player = {
   id: string;
@@ -74,9 +92,12 @@ type Session = {
   // ─── multiplayer only ────────────────────────────────────────────────────
   players?: Player[]; // the roster; host at [0]. Display order in the HUD.
   scores?: Record<string, number>; // playerId → cumulative score (×100 increments)
-  // playerId → choice for the CURRENT pair only. Cleared when advancing pairs.
-  // Order of keys is insertion order, so size tells us whose turn is next.
+  // playerId → choice for the CURRENT pair only (vs pairs). Cleared when
+  // advancing pairs. Order of keys is insertion order.
   currentPairPicks?: Record<string, Choice>;
+  // playerId → guessed value for the CURRENT pair only (slider/piggyback
+  // pairs). Cleared when advancing pairs. Insertion order = turn order taken.
+  currentPairValues?: Record<string, number>;
   // Turn order for the CURRENT pair — player ids, fully reshuffled (host
   // included) at the start of every round so nobody can piggyback off the
   // previous picker. Regenerated on each advance; persisted so a reload keeps
@@ -248,6 +269,14 @@ function Gauntlet({
   const finished = state.status === "finished";
   const revealed = state.revealedForIndex === state.index;
   const isMultiplayer = state.mode === "multiplayer";
+  const kind = pairKind(currentPair);
+
+  // Unified "how many players have committed this round" — vs pairs live in
+  // currentPairPicks, slider/piggyback pairs in currentPairValues.
+  const pickedCount =
+    kind === "vs"
+      ? Object.keys(state.currentPairPicks ?? {}).length
+      : Object.keys(state.currentPairValues ?? {}).length;
 
   const correctCount = state.picks.filter((p) => p.correct).length;
   const longestStreak = useMemo(() => longestRun(state.picks), [state.picks]);
@@ -257,16 +286,52 @@ function Gauntlet({
   const activePlayer: Player | null = useMemo(() => {
     if (!isMultiplayer || !state.players || !state.pickOrder) return null;
     if (revealed) return null;
-    const picked = Object.keys(state.currentPairPicks ?? {}).length;
-    const id = state.pickOrder[picked];
+    const id = state.pickOrder[pickedCount];
     return state.players.find((p) => p.id === id) ?? null;
-  }, [
-    isMultiplayer,
-    state.players,
-    state.pickOrder,
-    state.currentPairPicks,
-    revealed,
-  ]);
+  }, [isMultiplayer, state.players, state.pickOrder, pickedCount, revealed]);
+
+  // Per-player slider/piggyback results for the revealed round (display only —
+  // the scores were already committed in the reducer with the same functions).
+  const roundResults: Record<string, PiggybackPlayerResult> | null =
+    useMemo(() => {
+      if (!isMultiplayer || !revealed || !currentPair || kind === "vs")
+        return null;
+      const cfg = HIGHERLOWER_CATEGORIES[currentPair.category];
+      if (!cfg.slider || !state.pickOrder || !state.currentPairValues)
+        return null;
+      if (kind === "piggyback") {
+        return scorePiggyback(
+          cfg.slider,
+          currentPair.a.value,
+          state.pickOrder,
+          state.currentPairValues,
+        );
+      }
+      // slider — reuse the piggyback shape without split/bluff (all splits 1)
+      const out: Record<string, PiggybackPlayerResult> = {};
+      for (const id of state.pickOrder) {
+        const v = state.currentPairValues[id];
+        if (v === undefined) continue;
+        const s = scoreSliderGuess(cfg.slider, currentPair.a.value, v);
+        out[id] = {
+          value: v,
+          base: s.points,
+          split: 1,
+          points: s.points,
+          tag: s.tag,
+          diff: s.diff,
+          isBar: false,
+        };
+      }
+      return out;
+    }, [
+      isMultiplayer,
+      revealed,
+      currentPair,
+      kind,
+      state.pickOrder,
+      state.currentPairValues,
+    ]);
 
   // The player who leads off the current round (pickOrder[0]). Drives the
   // round-intro popup.
@@ -284,18 +349,14 @@ function Gauntlet({
     !revealed &&
     !state.hideRoundIntros &&
     !!startingPlayer &&
-    Object.keys(state.currentPairPicks ?? {}).length === 0 &&
+    pickedCount === 0 &&
     introDismissedIndex !== state.index;
 
   // The index of the round that just became playable (intro popup gone, nobody
   // has picked yet) — or null. Flips to a number the instant a fresh round
   // opens up, which is the cue to buzz the starting player's HUD card.
   const playReadyIndex =
-    isMultiplayer &&
-    !finished &&
-    !revealed &&
-    !showRoundIntro &&
-    Object.keys(state.currentPairPicks ?? {}).length === 0
+    isMultiplayer && !finished && !revealed && !showRoundIntro && pickedCount === 0
       ? state.index
       : null;
 
@@ -350,6 +411,47 @@ function Gauntlet({
     [currentPair, revealed, finished],
   );
 
+  // Slider / piggyback: a player locks in a numeric guess.
+  const onSubmitValue = useCallback(
+    (value: number) => {
+      if (!currentPair || revealed || finished) return;
+      setState((prev) => {
+        if (prev.mode === "multiplayer") {
+          return applyMultiplayerValue(prev, currentPair, value);
+        }
+        // Solo slider — score the single guess. (Solo piggyback never reaches
+        // here; it's auto-resolved by onSoloPiggyback below.)
+        const cfg = HIGHERLOWER_CATEGORIES[currentPair.category];
+        const correct = cfg.slider
+          ? isSliderCorrect(scoreSliderGuess(cfg.slider, currentPair.a.value, value))
+          : true;
+        return {
+          ...prev,
+          revealedForIndex: prev.index,
+          picks: [
+            ...prev.picks,
+            { pairId: currentPair.id, choice: "a", value, correct, at: Date.now() },
+          ],
+        };
+      });
+    },
+    [currentPair, revealed, finished],
+  );
+
+  // Solo + piggyback: the bluff game is hot-seat only, so in solo we bank it as
+  // correct and reveal (the player just clicks through). No score interaction.
+  const onSoloPiggyback = useCallback(() => {
+    if (!currentPair || revealed || finished) return;
+    setState((prev) => ({
+      ...prev,
+      revealedForIndex: prev.index,
+      picks: [
+        ...prev.picks,
+        { pairId: currentPair.id, choice: "a", correct: true, at: Date.now() },
+      ],
+    }));
+  }, [currentPair, revealed, finished]);
+
   const onNext = useCallback(() => {
     setState((prev) => {
       const nextIndex = prev.index + 1;
@@ -389,6 +491,8 @@ function Gauntlet({
         revealedForIndex: null,
         currentPairPicks:
           prev.mode === "multiplayer" ? {} : prev.currentPairPicks,
+        currentPairValues:
+          prev.mode === "multiplayer" ? {} : prev.currentPairValues,
         // Reshuffle the turn order for the new round (hot-seat only).
         pickOrder:
           prev.mode === "multiplayer" && prev.players
@@ -443,7 +547,7 @@ function Gauntlet({
         </h1>
         <InfoButton
           title="Higher / Lower"
-          text={`Weekly gauntlet. ${total} pairs of games — for each, pick the side with the larger value for the listed stat. Wrong picks don't end the run; you always play all ${total}. Final score = number correct.`}
+          text={`Weekly gauntlet of ${total} rounds. Most are VS — pick the side with the bigger stat. Some are SLIDER — drag to guess the exact value (Bang on = 150, Bullseye = 100, then it decays with distance). In hot-seat, PIGGYBACK rounds let the lead-off player bluff: copy someone and you split points; fool the table and the bluffer banks a bonus. Wrong picks never end the run — you always play all ${total}.`}
         />
       </div>
 
@@ -464,7 +568,7 @@ function Gauntlet({
         <TurnBanner player={activePlayer} pair={currentPair} />
       )}
 
-      {!finished && currentPair && (
+      {!finished && currentPair && kind === "vs" && (
         <PairScreen
           pair={currentPair}
           revealed={revealed}
@@ -480,6 +584,29 @@ function Gauntlet({
               : null
           }
           mode={state.mode ?? "solo"}
+        />
+      )}
+
+      {!finished && currentPair && (kind === "slider" || kind === "piggyback") && (
+        <SliderPairScreen
+          pair={currentPair}
+          kind={kind}
+          revealed={revealed}
+          isMultiplayer={isMultiplayer}
+          isLast={state.index === total - 1}
+          activePlayer={activePlayer}
+          players={state.players ?? null}
+          pickOrder={state.pickOrder ?? null}
+          currentPairValues={state.currentPairValues ?? {}}
+          roundResults={roundResults}
+          soloValue={
+            !isMultiplayer && revealed
+              ? (state.picks[state.picks.length - 1]?.value ?? null)
+              : null
+          }
+          onSubmitValue={onSubmitValue}
+          onSoloPiggyback={onSoloPiggyback}
+          onNext={onNext}
         />
       )}
 
@@ -504,6 +631,9 @@ function Gauntlet({
           scores={state.scores}
           activePlayerId={activePlayer?.id ?? null}
           currentPairPicks={state.currentPairPicks ?? {}}
+          currentPairValues={state.currentPairValues ?? {}}
+          kind={kind}
+          roundResults={roundResults}
           revealed={revealed}
           currentPair={currentPair}
           playReadyIndex={playReadyIndex}
@@ -603,6 +733,70 @@ function applyMultiplayerPick(
     picks: nextPicks,
     currentPairPicks: nextPairPicks,
     scores: nextScores,
+    revealedForIndex: prev.index,
+  };
+}
+
+// Hot-seat slider / piggyback: record the active player's numeric guess. On the
+// last guess, score the whole round (slider curve, plus piggyback split + bluff
+// bonuses) and reveal.
+function applyMultiplayerValue(
+  prev: Session,
+  pair: HigherLowerPair,
+  value: number,
+): Session {
+  if (!prev.players || !prev.scores || !prev.pickOrder) return prev;
+  const cfg = HIGHERLOWER_CATEGORIES[pair.category];
+  if (!cfg.slider) return prev; // safety — should never author a non-slider single
+  const vals = prev.currentPairValues ?? {};
+  const count = Object.keys(vals).length;
+  const playerId = prev.pickOrder[count];
+  if (!playerId || vals[playerId] !== undefined) return prev;
+
+  const nextVals: Record<string, number> = { ...vals, [playerId]: value };
+  const isLast = count + 1 === prev.players.length;
+  if (!isLast) {
+    return { ...prev, currentPairValues: nextVals };
+  }
+
+  // Everyone has guessed — compute points and reveal.
+  const kind = pairKind(pair);
+  const perPlayerPoints: Record<string, number> = {};
+  if (kind === "piggyback") {
+    const res = scorePiggyback(cfg.slider, pair.a.value, prev.pickOrder, nextVals);
+    for (const id of Object.keys(res)) perPlayerPoints[id] = res[id].points;
+  } else {
+    for (const p of prev.players) {
+      const v = nextVals[p.id];
+      if (v === undefined) continue;
+      perPlayerPoints[p.id] = scoreSliderGuess(cfg.slider, pair.a.value, v).points;
+    }
+  }
+
+  const nextScores: Record<string, number> = { ...prev.scores };
+  for (const id of Object.keys(perPlayerPoints)) {
+    nextScores[id] = (nextScores[id] ?? 0) + perPlayerPoints[id];
+  }
+
+  // Mirror the host's guess into the solo-style picks array for the daily
+  // streak. A bullseye-or-better counts as "correct".
+  const host = prev.players.find((p) => p.isHost);
+  let nextPicks = prev.picks;
+  if (host) {
+    const hv = nextVals[host.id];
+    const correct =
+      hv !== undefined && isSliderCorrect(scoreSliderGuess(cfg.slider, pair.a.value, hv));
+    nextPicks = [
+      ...prev.picks,
+      { pairId: pair.id, choice: "a", value: hv, correct, at: Date.now() },
+    ];
+  }
+
+  return {
+    ...prev,
+    currentPairValues: nextVals,
+    scores: nextScores,
+    picks: nextPicks,
     revealedForIndex: prev.index,
   };
 }
@@ -1007,6 +1201,12 @@ function TurnBanner({
   pair: HigherLowerPair | undefined;
 }) {
   const cfg = pair ? HIGHERLOWER_CATEGORIES[pair.category] : null;
+  // Single-game rounds ask for an exact value, not a side.
+  const prompt = cfg
+    ? pairKind(pair) === "vs"
+      ? cfg.question
+      : (cfg.sliderQuestion ?? `Guess the ${cfg.valueLabel}`)
+    : null;
   return (
     <div
       className="border-neo-2 shadow-neo-sm px-3 py-2 mb-2 flex items-center justify-between gap-3 flex-wrap"
@@ -1023,9 +1223,9 @@ function TurnBanner({
           <span className="opacity-70 ml-1">· your turn</span>
         </div>
       </div>
-      {cfg && (
+      {prompt && (
         <div className="font-display text-[10px] sm:text-xs uppercase tracking-wider font-bold text-right opacity-90 min-w-0">
-          {cfg.question}
+          {prompt}
         </div>
       )}
     </div>
@@ -1083,16 +1283,19 @@ function PairScreen({
   mode: Mode;
 }) {
   const cfg = HIGHERLOWER_CATEGORIES[pair.category];
+  // vs pairs always carry a side B; bail defensively if a bad row lacks one.
+  const sideB = pair.b;
+  if (!sideB) return null;
   // Most categories award the larger value; "lowerWins" ones (fastest run,
   // earliest movie) award the smaller.
   const lowerWins = cfg?.lowerWins ?? false;
   const aBeatsB = lowerWins
-    ? pair.a.value <= pair.b.value
-    : pair.a.value >= pair.b.value;
+    ? pair.a.value <= sideB.value
+    : pair.a.value >= sideB.value;
   const correctSide: Choice = aBeatsB ? "a" : "b";
   // Tie-breaker visual: a true tie isn't really winnable, but if the admin sets
   // identical values we award whichever the player picked.
-  const tied = pair.a.value === pair.b.value;
+  const tied = pair.a.value === sideB.value;
   const playerWasCorrect = pickedChoice === correctSide || tied;
 
   return (
@@ -1121,7 +1324,7 @@ function PairScreen({
           vs
         </div>
         <SideCard
-          side={pair.b}
+          side={sideB}
           revealed={revealed}
           valueLabel={cfg?.valueLabel ?? "value"}
           isCorrect={correctSide === "b" || tied}
@@ -1264,6 +1467,482 @@ function CoverArt({ side }: { side: HigherLowerPair["a"] }) {
   );
 }
 
+// ─── slider / piggyback pairs ────────────────────────────────────────────────
+
+function formatSliderValue(v: number, slider: SliderConfig): string {
+  if (!Number.isInteger(v)) return `${v.toFixed(1)}${slider.unit ?? ""}`;
+  // Only large counts get thousands separators — years/scores stay bare.
+  const num = Math.abs(v) >= 10000 ? v.toLocaleString() : String(v);
+  return `${num}${slider.unit ?? ""}`;
+}
+
+function midpointValue(slider: SliderConfig): number {
+  const mid = (slider.min + slider.max) / 2;
+  const snapped =
+    Math.round((mid - slider.min) / slider.step) * slider.step + slider.min;
+  return Number(snapped.toFixed(2));
+}
+
+// The fancy value slider. A floating value bubble tracks the thumb over a
+// brutalist filled track.
+function GuessSlider({
+  slider,
+  value,
+  onChange,
+  tone = "teal",
+}: {
+  slider: SliderConfig;
+  value: number;
+  onChange: (v: number) => void;
+  tone?: "teal" | "mustard";
+}) {
+  const pct = ((value - slider.min) / (slider.max - slider.min)) * 100;
+  return (
+    <div className="mt-4 select-none">
+      <div className="relative h-14">
+        <div
+          className="absolute -translate-x-1/2 transition-[left] duration-75"
+          style={{ left: `${pct}%` }}
+        >
+          <div className="border-neo-2 bg-paper shadow-neo-sm px-3 py-1.5 font-display text-2xl font-bold tabular-nums leading-none whitespace-nowrap">
+            {formatSliderValue(value, slider)}
+          </div>
+          <div className="w-2.5 h-2.5 border-r-[2px] border-b-[2px] border-stroke bg-paper rotate-45 mx-auto -mt-[6px]" />
+        </div>
+      </div>
+      <div className="relative">
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-3 border-neo-2 bg-cream-soft overflow-hidden pointer-events-none">
+          <div
+            className={cn(
+              "absolute inset-y-0 left-0",
+              tone === "mustard" ? "bg-mustard" : "bg-teal",
+            )}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <input
+          type="range"
+          min={slider.min}
+          max={slider.max}
+          step={slider.step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className={cn(
+            "relative w-full h-6 cursor-pointer bg-transparent",
+            tone === "mustard" ? "accent-mustard" : "accent-teal",
+          )}
+          aria-label="Your guess"
+        />
+      </div>
+      <div className="flex justify-between mt-1 font-display text-[10px] uppercase tracking-wider text-ink-soft tabular-nums">
+        <span>{formatSliderValue(slider.min, slider)}</span>
+        <span>{formatSliderValue(slider.max, slider)}</span>
+      </div>
+    </div>
+  );
+}
+
+// One player's (or the solo player's) turn to set a value. Keyed by player id
+// at the call site so it remounts fresh — resetting the slider — each turn.
+function SliderInput({
+  slider,
+  tone,
+  submitLabel,
+  onSubmit,
+}: {
+  slider: SliderConfig;
+  tone: "teal" | "mustard";
+  submitLabel: string;
+  onSubmit: (v: number) => void;
+}) {
+  const [value, setValue] = useState(() => midpointValue(slider));
+  return (
+    <div>
+      <GuessSlider slider={slider} value={value} onChange={setValue} tone={tone} />
+      <div className="mt-4 flex justify-end">
+        <NeoButton tone={tone} onClick={() => onSubmit(value)}>
+          {submitLabel}
+        </NeoButton>
+      </div>
+    </div>
+  );
+}
+
+function SingleGameCard({
+  side,
+  valueLabel,
+  revealed,
+  actualDisplay,
+}: {
+  side: HigherLowerPair["a"];
+  valueLabel: string;
+  revealed: boolean;
+  actualDisplay: string;
+}) {
+  // Compact card: a small square cover to the left of the centered title +
+  // value block, so the round stays tight and the slider + player HUD all fit
+  // on one screen. The art is incidental here; the value is the star.
+  const initial = side.game_name.charAt(0).toUpperCase();
+  return (
+    <div className="border-neo shadow-neo p-4 flex items-center justify-center gap-4">
+      <div className="w-24 h-24 border-neo-2 bg-cream-soft overflow-hidden flex items-center justify-center shrink-0">
+        {side.cover_url ? (
+          <img
+            src={side.cover_url}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className="font-display text-4xl font-bold text-ink-soft">
+            {initial}
+          </span>
+        )}
+      </div>
+      <div className="text-center min-w-0">
+        <div className="font-display text-base sm:text-lg uppercase tracking-wider font-bold leading-tight">
+          {side.game_name}
+        </div>
+        <div className="mt-2 font-display text-[10px] uppercase tracking-wider opacity-70">
+          {valueLabel}
+        </div>
+        <div
+          className={cn(
+            "font-display text-3xl font-bold leading-none tabular-nums mt-1",
+            revealed ? "text-ink" : "text-ink-soft",
+          )}
+        >
+          {revealed ? actualDisplay : "???"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Piggyback only: the guesses already on the table, so followers can see (and
+// decide to trust or fade) the bar.
+function LockedGuessList({
+  players,
+  pickOrder,
+  values,
+  slider,
+}: {
+  players: Player[];
+  pickOrder: string[];
+  values: Record<string, number>;
+  slider: SliderConfig;
+}) {
+  const locked = pickOrder.filter((id) => values[id] !== undefined);
+  if (locked.length === 0) return null;
+  return (
+    <div className="mt-4 border-neo-2 bg-cream-soft p-3">
+      <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-2 flex items-center gap-1">
+        <Sparkles className="h-3 w-3 stroke-[3]" /> On the table
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {locked.map((id) => {
+          const p = players.find((x) => x.id === id);
+          if (!p) return null;
+          const isBar = pickOrder[0] === id;
+          return (
+            <div
+              key={id}
+              className={cn(
+                "border-neo-2 px-2 py-1 flex items-center gap-2",
+                isBar ? "bg-mustard text-ink-static" : "bg-paper",
+              )}
+            >
+              <CharacterAvatar
+                characterId={p.character}
+                isHost={p.isHost}
+                size={20}
+              />
+              <span className="font-display text-[11px] uppercase tracking-wider font-bold">
+                {p.name}
+              </span>
+              <span className="font-display text-sm font-bold tabular-nums">
+                {formatSliderValue(values[id], slider)}
+              </span>
+              {isBar && (
+                <span className="font-display text-[9px] uppercase tracking-wider opacity-80">
+                  the bar
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SliderResultRow({
+  player,
+  result,
+  slider,
+  piggyback,
+}: {
+  player: Player;
+  result: PiggybackPlayerResult;
+  slider: SliderConfig;
+  piggyback: boolean;
+}) {
+  const good = result.tag !== "off";
+  return (
+    <div
+      className={cn(
+        "border-neo-2 px-3 py-2 flex items-center gap-3",
+        good
+          ? "bg-lime text-ink-static"
+          : result.points > 0
+            ? "bg-mustard text-ink-static"
+            : "bg-coral text-ink-static",
+      )}
+    >
+      <CharacterAvatar
+        characterId={player.character}
+        isHost={player.isHost}
+        size={28}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="font-display text-xs uppercase tracking-wider font-bold truncate flex items-center gap-2">
+          {player.name}
+          {result.isBar && (
+            <span className="border-neo-2 bg-paper text-ink px-1.5 py-0.5 text-[9px] leading-none">
+              Bar
+            </span>
+          )}
+        </div>
+        <div className="font-display text-[10px] uppercase tracking-wider opacity-80">
+          Guessed {formatSliderValue(result.value, slider)} · {tagLabel(result.tag)}
+          {result.tag === "off" && ` · ${result.diff} off`}
+        </div>
+        {piggyback && (result.split > 1 || !!result.bluffBonus) && (
+          <div className="font-display text-[10px] uppercase tracking-wider font-bold mt-0.5 flex flex-wrap gap-x-3">
+            {result.split > 1 && <span>Piggybacked ÷{result.split}</span>}
+            {result.bluffBonus ? (
+              <span>
+                Bluff fooled {result.fooled} · +{result.bluffBonus}
+              </span>
+            ) : null}
+          </div>
+        )}
+      </div>
+      <div className="font-display text-xl font-bold tabular-nums shrink-0">
+        +{result.points}
+      </div>
+    </div>
+  );
+}
+
+function SoloSliderResult({
+  slider,
+  actual,
+  guess,
+}: {
+  slider: SliderConfig;
+  actual: number;
+  guess: number;
+}) {
+  const s = scoreSliderGuess(slider, actual, guess);
+  const good = s.tag !== "off";
+  return (
+    <div
+      className={cn(
+        "border-neo-2 px-3 py-2 font-display text-xs uppercase tracking-wider font-bold flex items-center justify-between gap-2",
+        good ? "bg-lime text-ink-static" : "bg-cream-soft",
+      )}
+    >
+      <span className="flex items-center gap-2">
+        {good ? (
+          <Check className="h-4 w-4 stroke-[3]" />
+        ) : (
+          <X className="h-4 w-4 stroke-[3]" />
+        )}
+        You guessed {formatSliderValue(guess, slider)} · {tagLabel(s.tag)}
+        {s.tag === "off" && ` · ${s.diff} off`}
+      </span>
+      <span className="text-lg tabular-nums">+{s.points}</span>
+    </div>
+  );
+}
+
+function SliderPairScreen({
+  pair,
+  kind,
+  revealed,
+  isMultiplayer,
+  isLast,
+  activePlayer,
+  players,
+  pickOrder,
+  currentPairValues,
+  roundResults,
+  soloValue,
+  onSubmitValue,
+  onSoloPiggyback,
+  onNext,
+}: {
+  pair: HigherLowerPair;
+  kind: HighLowPairType;
+  revealed: boolean;
+  isMultiplayer: boolean;
+  isLast: boolean;
+  activePlayer: Player | null;
+  players: Player[] | null;
+  pickOrder: string[] | null;
+  currentPairValues: Record<string, number>;
+  roundResults: Record<string, PiggybackPlayerResult> | null;
+  soloValue: number | null;
+  onSubmitValue: (v: number) => void;
+  onSoloPiggyback: () => void;
+  onNext: () => void;
+}) {
+  const cfg = HIGHERLOWER_CATEGORIES[pair.category];
+  const slider = cfg.slider;
+  const isPiggyback = kind === "piggyback";
+
+  if (!slider) {
+    // Shouldn't happen (editor restricts single-game pairs to slider cats), but
+    // fail soft so a bad row doesn't wedge the gauntlet.
+    return (
+      <NeoCard tone="paper" shadow="md" className="p-5 mt-2">
+        <div className="text-sm text-ink-soft">
+          This category can't be played as a {kind} pair.
+        </div>
+        <NeoButton tone="teal" className="mt-3" onClick={onNext}>
+          Next pair
+        </NeoButton>
+      </NeoCard>
+    );
+  }
+
+  const actualDisplay = pair.a.display ?? formatSliderValue(pair.a.value, slider);
+  const barIsActive =
+    isPiggyback && pickOrder && activePlayer && pickOrder[0] === activePlayer.id;
+
+  return (
+    <NeoCard tone="paper" shadow="md" className="p-5 mt-2">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <TagPill tone={isPiggyback ? "mustard" : "teal"}>
+          {isPiggyback ? (
+            <>
+              <Sparkles className="inline h-3 w-3 stroke-[3] mr-1" /> Piggyback
+              Bluff
+            </>
+          ) : (
+            <>
+              <SlidersHorizontal className="inline h-3 w-3 stroke-[3] mr-1" />{" "}
+              {cfg.label} slider
+            </>
+          )}
+        </TagPill>
+        <div className="font-display text-sm md:text-base uppercase tracking-wider font-bold text-right">
+          {cfg.sliderQuestion ?? `Guess the ${cfg.valueLabel}`}
+        </div>
+      </div>
+
+      <SingleGameCard
+        side={pair.a}
+        valueLabel={cfg.valueLabel}
+        revealed={revealed}
+        actualDisplay={actualDisplay}
+      />
+
+      {isPiggyback && isMultiplayer && !revealed && players && pickOrder && (
+        <LockedGuessList
+          players={players}
+          pickOrder={pickOrder}
+          values={currentPairValues}
+          slider={slider}
+        />
+      )}
+
+      {!revealed &&
+        (isMultiplayer ? (
+          activePlayer ? (
+            <div className="mt-2">
+              {barIsActive && (
+                <div className="font-display text-[10px] uppercase tracking-wider text-mustard-deep font-bold mb-1">
+                  ▸ You set the bar — bluff if you dare
+                </div>
+              )}
+              <SliderInput
+                key={activePlayer.id}
+                slider={slider}
+                tone={isPiggyback ? "mustard" : "teal"}
+                submitLabel={`Lock in ${activePlayer.name}'s guess`}
+                onSubmit={onSubmitValue}
+              />
+            </div>
+          ) : null
+        ) : isPiggyback ? (
+          <div className="mt-4 border-neo-2 bg-cream-soft p-4 flex flex-col gap-3">
+            <div className="font-display text-xs uppercase tracking-wider font-bold flex items-center gap-2">
+              <Sparkles className="h-4 w-4 stroke-[3]" /> Hot-seat only
+            </div>
+            <div className="text-xs text-ink-soft leading-snug">
+              Piggyback Bluff needs a table of players. In solo it's banked as
+              correct so your gauntlet keeps flowing.
+            </div>
+            <div className="flex justify-end">
+              <NeoButton tone="lime" onClick={onSoloPiggyback}>
+                Count as correct →
+              </NeoButton>
+            </div>
+          </div>
+        ) : (
+          <SliderInput
+            key="solo"
+            slider={slider}
+            tone="teal"
+            submitLabel="Lock in guess"
+            onSubmit={onSubmitValue}
+          />
+        ))}
+
+      {revealed && (
+        <div className="mt-5 flex flex-col gap-3">
+          {isMultiplayer && roundResults && players && pickOrder ? (
+            <div className="flex flex-col gap-2">
+              {pickOrder.map((id) => {
+                const p = players.find((x) => x.id === id);
+                const r = roundResults[id];
+                if (!p || !r) return null;
+                return (
+                  <SliderResultRow
+                    key={id}
+                    player={p}
+                    result={r}
+                    slider={slider}
+                    piggyback={isPiggyback}
+                  />
+                );
+              })}
+            </div>
+          ) : soloValue !== null ? (
+            <SoloSliderResult
+              slider={slider}
+              actual={pair.a.value}
+              guess={soloValue}
+            />
+          ) : isPiggyback ? (
+            <div className="border-neo-2 bg-lime text-ink-static px-3 py-2 font-display text-xs uppercase tracking-wider font-bold flex items-center gap-2">
+              <Check className="h-4 w-4 stroke-[3]" /> Counted as correct
+              (hot-seat game)
+            </div>
+          ) : null}
+          <div className="flex justify-end">
+            <NeoButton tone="teal" onClick={onNext}>
+              {isLast ? "See results" : "Next pair"}{" "}
+              <ChevronRight className="inline h-4 w-4 ml-1" />
+            </NeoButton>
+          </div>
+        </div>
+      )}
+    </NeoCard>
+  );
+}
+
 // ─── player HUD ────────────────────────────────────────────────────────────
 
 function PlayerHud({
@@ -1271,6 +1950,9 @@ function PlayerHud({
   scores,
   activePlayerId,
   currentPairPicks,
+  currentPairValues,
+  kind,
+  roundResults,
   revealed,
   currentPair,
   playReadyIndex,
@@ -1281,6 +1963,9 @@ function PlayerHud({
   scores: Record<string, number>;
   activePlayerId: string | null;
   currentPairPicks: Record<string, Choice>;
+  currentPairValues: Record<string, number>;
+  kind: HighLowPairType;
+  roundResults: Record<string, PiggybackPlayerResult> | null;
   revealed: boolean;
   currentPair: HigherLowerPair | undefined;
   playReadyIndex: number | null;
@@ -1292,6 +1977,7 @@ function PlayerHud({
   // during the intro popup and once the lead-off pick lands — so it re-applies
   // and the one-shot animation replays at the top of every round.
   const buzzId = playReadyIndex !== null ? startingPlayerId : null;
+  const isVs = kind === "vs";
 
   // Display the cards in this round's turn order (left → right), so the panel
   // mirrors who picks when even though the order is reshuffled each round.
@@ -1305,22 +1991,50 @@ function PlayerHud({
     <div className="sticky bottom-3 mt-6 z-20">
       <NeoCard tone="paper" shadow="lg" className="p-3">
         <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-          <TagPill tone="teal">
-            <Users className="inline h-3 w-3 stroke-[3] mr-1" /> Hot-seat
+          <TagPill tone={kind === "piggyback" ? "mustard" : "teal"}>
+            {kind === "piggyback" ? (
+              <>
+                <Sparkles className="inline h-3 w-3 stroke-[3] mr-1" /> Piggyback
+              </>
+            ) : kind === "slider" ? (
+              <>
+                <SlidersHorizontal className="inline h-3 w-3 stroke-[3] mr-1" />{" "}
+                Slider
+              </>
+            ) : (
+              <>
+                <Users className="inline h-3 w-3 stroke-[3] mr-1" /> Hot-seat
+              </>
+            )}
           </TagPill>
           <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
-            +{POINTS_PER_CORRECT} per correct pick
+            {isVs ? `+${POINTS_PER_CORRECT} per correct pick` : "closest wins"}
           </div>
         </div>
         <div className="flex items-stretch gap-2 overflow-x-auto pt-1 pb-2 px-1">
           {ordered.map((p) => {
-            const pick = currentPairPicks[p.id];
-            const hasPicked = pick !== undefined;
+            const hasPicked = isVs
+              ? currentPairPicks[p.id] !== undefined
+              : currentPairValues[p.id] !== undefined;
             const isActive = p.id === activePlayerId;
-            const isCorrect =
-              revealed && currentPair && pick !== undefined
-                ? isCorrectChoice(currentPair, pick)
-                : null;
+            let revealPoints: number | null = null;
+            let revealGood: boolean | null = null;
+            if (revealed) {
+              if (isVs) {
+                const pick = currentPairPicks[p.id];
+                const ok =
+                  currentPair && pick !== undefined
+                    ? isCorrectChoice(currentPair, pick)
+                    : null;
+                revealGood = ok;
+                revealPoints =
+                  ok === null ? null : ok ? POINTS_PER_CORRECT : 0;
+              } else {
+                const r = roundResults?.[p.id];
+                revealPoints = r ? r.points : null;
+                revealGood = r ? r.tag !== "off" : null;
+              }
+            }
             return (
               <PlayerCard
                 key={p.id}
@@ -1329,7 +2043,8 @@ function PlayerHud({
                 isActive={isActive}
                 hasPicked={hasPicked}
                 revealed={revealed}
-                isCorrect={isCorrect}
+                revealPoints={revealPoints}
+                revealGood={revealGood}
                 buzz={p.id === buzzId}
               />
             );
@@ -1346,7 +2061,8 @@ function PlayerCard({
   isActive,
   hasPicked,
   revealed,
-  isCorrect,
+  revealPoints,
+  revealGood,
   buzz,
 }: {
   player: Player;
@@ -1354,19 +2070,22 @@ function PlayerCard({
   isActive: boolean;
   hasPicked: boolean;
   revealed: boolean;
-  isCorrect: boolean | null;
+  revealPoints: number | null;
+  revealGood: boolean | null;
   buzz: boolean;
 }) {
   const statusBg =
-    revealed && isCorrect === true
+    revealed && revealGood === true
       ? "bg-lime text-ink-static"
-      : revealed && isCorrect === false
-        ? "bg-coral text-ink-static"
-        : isActive
-          ? "bg-paper"
-          : hasPicked
-            ? "bg-cream-soft"
-            : "bg-paper";
+      : revealed && revealGood === false && (revealPoints ?? 0) > 0
+        ? "bg-mustard text-ink-static"
+        : revealed && revealGood === false
+          ? "bg-coral text-ink-static"
+          : isActive
+            ? "bg-paper"
+            : hasPicked
+              ? "bg-cream-soft"
+              : "bg-paper";
   // Border treatment: every card carries a thin 2px stroke so the row reads
   // cleanly against the brutalist backdrop. The active player swaps the
   // stroke for the game's teal accent (same width, so no layout shift) and
@@ -1407,7 +2126,8 @@ function PlayerCard({
           isActive={isActive && !revealed}
           hasPicked={hasPicked}
           revealed={revealed}
-          isCorrect={isCorrect}
+          revealPoints={revealPoints}
+          revealGood={revealGood}
         />
       </div>
     </div>
@@ -1418,23 +2138,24 @@ function PickStatus({
   isActive,
   hasPicked,
   revealed,
-  isCorrect,
+  revealPoints,
+  revealGood,
 }: {
   isActive: boolean;
   hasPicked: boolean;
   revealed: boolean;
-  isCorrect: boolean | null;
+  revealPoints: number | null;
+  revealGood: boolean | null;
 }) {
-  if (revealed && isCorrect === true)
+  if (revealed && revealPoints !== null)
     return (
       <span className="font-display text-[10px] uppercase tracking-wider font-bold flex items-center gap-1">
-        <Check className="h-3 w-3 stroke-[3]" /> +{POINTS_PER_CORRECT}
-      </span>
-    );
-  if (revealed && isCorrect === false)
-    return (
-      <span className="font-display text-[10px] uppercase tracking-wider font-bold flex items-center gap-1">
-        <X className="h-3 w-3 stroke-[3]" /> 0
+        {revealGood ? (
+          <Check className="h-3 w-3 stroke-[3]" />
+        ) : revealPoints > 0 ? null : (
+          <X className="h-3 w-3 stroke-[3]" />
+        )}
+        {revealPoints > 0 ? `+${revealPoints}` : "0"}
       </span>
     );
   if (isActive)
@@ -1709,7 +2430,9 @@ function PairBreakdown({
               <div className="font-display text-xs truncate">
                 {pick === undefined
                   ? "—"
-                  : `${p.a.game_name} vs ${p.b.game_name}`}
+                  : p.b
+                    ? `${p.a.game_name} vs ${p.b.game_name}`
+                    : p.a.game_name}
               </div>
               <span className="font-display text-xs font-bold">
                 {pick === undefined ? "·" : ok ? "✓" : "✗"}
@@ -1725,6 +2448,7 @@ function PairBreakdown({
 // ─── helpers ───────────────────────────────────────────────────────────────
 
 function isCorrect(pair: HigherLowerPair, choice: Choice): boolean {
+  if (!pair.b) return true; // single-game pair — no vs comparison to make
   if (pair.a.value === pair.b.value) return true; // tie counts as correct
   // Default: higher value wins. lowerWins categories (fastest run, earliest
   // movie adaptation) flip it so the smaller value is the right pick.

@@ -169,6 +169,12 @@ create table if not exists public.higherlower_pairs (
   puzzle_id uuid not null references public.higherlower_puzzles(id) on delete cascade,
   position int not null check (position between 0 and 99),
 
+  -- How this pair is played: 'vs' (two games), 'slider' (one game, guess the
+  -- value), or 'piggyback' (one game, bluff-and-trust; hot-seat only). Free
+  -- text so new types can ship without a migration; the player UI defaults
+  -- unknown/missing values to 'vs'.
+  pair_type text not null default 'vs',
+
   -- Stat the player is comparing. Free text so new categories can be added
   -- in the app without a migration; the player UI falls back gracefully.
   category text not null,
@@ -180,10 +186,12 @@ create table if not exists public.higherlower_pairs (
   game_a_display text,
   game_a_cover_path text,
 
-  game_b_id bigint not null,
-  game_b_name text not null,
+  -- Side B is only populated for 'vs' pairs; nullable so slider/piggyback rows
+  -- can store just one game.
+  game_b_id bigint,
+  game_b_name text,
   game_b_year int,
-  game_b_value numeric not null,
+  game_b_value numeric,
   game_b_display text,
   game_b_cover_path text,
 
@@ -193,6 +201,14 @@ create table if not exists public.higherlower_pairs (
 
 create index if not exists higherlower_pairs_puzzle_idx
   on public.higherlower_pairs (puzzle_id, position);
+
+-- Migrate pre-existing databases: add the pair_type column and relax the
+-- (formerly NOT NULL) side-B columns so single-game pairs are allowed.
+alter table public.higherlower_pairs
+  add column if not exists pair_type text not null default 'vs';
+alter table public.higherlower_pairs alter column game_b_id    drop not null;
+alter table public.higherlower_pairs alter column game_b_name  drop not null;
+alter table public.higherlower_pairs alter column game_b_value drop not null;
 
 -- The weekly mini-crossword. Keyed by puzzle_week (Monday of the ISO week).
 -- No IGDB game reference — the puzzle is the answer. `solution` is a flat

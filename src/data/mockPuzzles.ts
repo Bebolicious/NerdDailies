@@ -211,15 +211,27 @@ export function getMockHigherLowerPuzzle(week: string): HigherLowerPuzzle {
     'steam_reviews',
     'twitch_peak',
   ]
+  // Sprinkle a few single-game pair types in so the slider / piggyback flows
+  // are playable with no Supabase configured.
+  const pairType = (i: number): 'vs' | 'slider' | 'piggyback' =>
+    i === 2 || i === 6 ? 'slider' : i === 9 ? 'piggyback' : 'vs'
   const pairs = Array.from({ length: HIGHERLOWER_PAIR_COUNT }, (_, i) => {
+    const type = pairType(i)
     const a = pickGame(seed + i * 5)
     let b = pickGame(seed + i * 5 + 1)
     if (b.id === a.id) b = pickGame(seed + i * 5 + 2)
-    const category = categories[(seed + i) % categories.length]
+    // Single-game types force a slider-capable category.
+    const category: HigherLowerCategory =
+      type === 'vs'
+        ? categories[(seed + i) % categories.length]
+        : i === 6
+          ? 'hltb_main'
+          : 'metacritic'
     const [va, vb] = mockValues(category, seed + i)
     return {
       id: `mock-pair-${seed}-${i}`,
       position: i,
+      pairType: type,
       category,
       a: {
         game_id: a.id,
@@ -228,13 +240,16 @@ export function getMockHigherLowerPuzzle(week: string): HigherLowerPuzzle {
         value: va.value,
         display: va.display,
       },
-      b: {
-        game_id: b.id,
-        game_name: b.name,
-        game_year: b.year,
-        value: vb.value,
-        display: vb.display,
-      },
+      b:
+        type === 'vs'
+          ? {
+              game_id: b.id,
+              game_name: b.name,
+              game_year: b.year,
+              value: vb.value,
+              display: vb.display,
+            }
+          : undefined,
     }
   })
   return {

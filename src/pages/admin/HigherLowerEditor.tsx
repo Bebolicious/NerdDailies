@@ -18,6 +18,7 @@ import {
   HIGHERLOWER_PAIR_COUNT,
   type Game,
   type HigherLowerCategory,
+  type HighLowPairType,
 } from '../../lib/types'
 import { cn } from '../../lib/cn'
 
@@ -32,6 +33,7 @@ type PairForm = {
   // id is server-assigned on first save; we track the local row key separately
   // so React keeps reordering stable.
   key: string
+  pairType: HighLowPairType
   category: HigherLowerCategory
   a: SideForm
   b: SideForm
@@ -44,6 +46,7 @@ function emptySide(): SideForm {
 function emptyPair(seed: number): PairForm {
   return {
     key: `local-${seed}-${Math.random().toString(36).slice(2, 8)}`,
+    pairType: 'vs',
     category: 'metacritic',
     a: emptySide(),
     b: emptySide(),
@@ -55,6 +58,26 @@ function defaultPairs(count: number): PairForm[] {
 }
 
 const CATEGORY_OPTIONS = Object.values(HIGHERLOWER_CATEGORIES)
+// Single-game pair types (slider / piggyback) can only use categories that
+// carry a SliderConfig.
+const SLIDER_CATEGORY_OPTIONS = CATEGORY_OPTIONS.filter((c) => c.slider)
+
+const PAIR_TYPE_LABELS: Record<HighLowPairType, string> = {
+  vs: 'VS',
+  slider: 'Slider',
+  piggyback: 'Piggyback',
+}
+
+const PAIR_TYPE_BLURBS: Record<HighLowPairType, string> = {
+  vs: 'Two games — players pick which side wins the stat.',
+  slider: 'One game — each player slides to guess the exact value.',
+  piggyback: 'One game — hot-seat bluff. Solo play auto-counts it correct.',
+}
+
+// True when a pair only needs a single game (side A).
+function isSingle(t: HighLowPairType): boolean {
+  return t !== 'vs'
+}
 
 export function HigherLowerEditor() {
   const { date } = useParams<{ date: string }>()
@@ -98,6 +121,7 @@ export function HigherLowerEditor() {
       if (cancelled) return
       const loaded: PairForm[] = (pairRows ?? []).map((r) => ({
         key: r.id,
+        pairType: (r.pair_type as HighLowPairType) ?? 'vs',
         category: r.category as HigherLowerCategory,
         a: {
           game: {
@@ -109,16 +133,19 @@ export function HigherLowerEditor() {
           display: r.game_a_display ?? '',
           coverPath: r.game_a_cover_path ?? null,
         },
-        b: {
-          game: {
-            id: r.game_b_id,
-            name: r.game_b_name,
-            year: r.game_b_year ?? undefined,
-          },
-          value: String(r.game_b_value ?? ''),
-          display: r.game_b_display ?? '',
-          coverPath: r.game_b_cover_path ?? null,
-        },
+        b:
+          r.game_b_id != null
+            ? {
+                game: {
+                  id: r.game_b_id,
+                  name: r.game_b_name,
+                  year: r.game_b_year ?? undefined,
+                },
+                value: String(r.game_b_value ?? ''),
+                display: r.game_b_display ?? '',
+                coverPath: r.game_b_cover_path ?? null,
+              }
+            : emptySide(),
       }))
       // Pad with empty rows up to HIGHERLOWER_PAIR_COUNT so the admin always
       // sees a full sheet to fill in.
@@ -136,6 +163,20 @@ export function HigherLowerEditor() {
 
   function patchPair(idx: number, patch: Partial<PairForm>) {
     setPairs((prev) => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)))
+  }
+  function setPairType(idx: number, type: HighLowPairType) {
+    setPairs((prev) =>
+      prev.map((p, i) => {
+        if (i !== idx) return p
+        // Switching to a single-game type: force a slider-capable category if
+        // the current one has no SliderConfig.
+        const cat =
+          isSingle(type) && !HIGHERLOWER_CATEGORIES[p.category].slider
+            ? (SLIDER_CATEGORY_OPTIONS[0].id as HigherLowerCategory)
+            : p.category
+        return { ...p, pairType: type, category: cat }
+      }),
+    )
   }
   function patchSide(idx: number, side: 'a' | 'b', patch: Partial<SideForm>) {
     setPairs((prev) =>
@@ -219,23 +260,28 @@ export function HigherLowerEditor() {
       return setMsg(`Save failed (clearing old pairs): ${delErr.message}`)
     }
 
-    const rows = valid.map((p, i) => ({
-      puzzle_id: puzzleRow.id,
-      position: i,
-      category: p.category,
-      game_a_id: p.a.game!.id,
-      game_a_name: p.a.game!.name,
-      game_a_year: p.a.game!.year ?? null,
-      game_a_value: Number(p.a.value),
-      game_a_display: p.a.display.trim() || null,
-      game_a_cover_path: p.a.coverPath,
-      game_b_id: p.b.game!.id,
-      game_b_name: p.b.game!.name,
-      game_b_year: p.b.game!.year ?? null,
-      game_b_value: Number(p.b.value),
-      game_b_display: p.b.display.trim() || null,
-      game_b_cover_path: p.b.coverPath,
-    }))
+    const rows = valid.map((p, i) => {
+      const single = isSingle(p.pairType)
+      return {
+        puzzle_id: puzzleRow.id,
+        position: i,
+        pair_type: p.pairType,
+        category: p.category,
+        game_a_id: p.a.game!.id,
+        game_a_name: p.a.game!.name,
+        game_a_year: p.a.game!.year ?? null,
+        game_a_value: Number(p.a.value),
+        game_a_display: p.a.display.trim() || null,
+        game_a_cover_path: p.a.coverPath,
+        // Single-game pairs (slider/piggyback) store no side B.
+        game_b_id: single ? null : p.b.game!.id,
+        game_b_name: single ? null : p.b.game!.name,
+        game_b_year: single ? null : (p.b.game!.year ?? null),
+        game_b_value: single ? null : Number(p.b.value),
+        game_b_display: single ? null : p.b.display.trim() || null,
+        game_b_cover_path: single ? null : p.b.coverPath,
+      }
+    })
     const { error: insErr } = await sb
       .from('higherlower_pairs')
       .insert(rows)
@@ -354,6 +400,7 @@ export function HigherLowerEditor() {
               idx={idx}
               pair={pair}
               total={pairs.length}
+              onPairType={(t) => setPairType(idx, t)}
               onCategory={(c) => patchPair(idx, { category: c })}
               onSideGame={(side, g) => patchSide(idx, side, { game: g })}
               onSideValue={(side, v) => patchSide(idx, side, { value: v })}
@@ -397,21 +444,25 @@ export function HigherLowerEditor() {
   )
 }
 
-function isPairComplete(p: PairForm): boolean {
+function sideComplete(s: SideForm): boolean {
   return (
-    p.a.game !== null &&
-    p.b.game !== null &&
-    p.a.value.trim() !== '' &&
-    p.b.value.trim() !== '' &&
-    !Number.isNaN(Number(p.a.value)) &&
-    !Number.isNaN(Number(p.b.value))
+    s.game !== null &&
+    s.value.trim() !== '' &&
+    !Number.isNaN(Number(s.value))
   )
+}
+
+function isPairComplete(p: PairForm): boolean {
+  // Slider / piggyback only need side A (the single game + its true value).
+  if (isSingle(p.pairType)) return sideComplete(p.a)
+  return sideComplete(p.a) && sideComplete(p.b)
 }
 
 function PairEditor({
   idx,
   pair,
   total,
+  onPairType,
   onCategory,
   onSideGame,
   onSideValue,
@@ -426,6 +477,7 @@ function PairEditor({
   idx: number
   pair: PairForm
   total: number
+  onPairType: (t: HighLowPairType) => void
   onCategory: (c: HigherLowerCategory) => void
   onSideGame: (side: 'a' | 'b', g: Game | null) => void
   onSideValue: (side: 'a' | 'b', v: string) => void
@@ -439,10 +491,12 @@ function PairEditor({
 }) {
   const cfg = HIGHERLOWER_CATEGORIES[pair.category]
   const complete = isPairComplete(pair)
+  const single = isSingle(pair.pairType)
+  const categoryOptions = single ? SLIDER_CATEGORY_OPTIONS : CATEGORY_OPTIONS
   return (
     <NeoCard tone="paper" shadow="md" className="p-5">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div
             className={cn(
               'font-display text-xl uppercase tracking-wider font-bold border-neo-2 px-3 py-1 tabular-nums',
@@ -450,6 +504,28 @@ function PairEditor({
             )}
           >
             Pair #{String(idx + 1).padStart(2, '0')}
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="font-display text-[10px] uppercase tracking-wider font-bold">
+              Type
+            </span>
+            <div className="flex border-neo-2 overflow-hidden">
+              {(['vs', 'slider', 'piggyback'] as HighLowPairType[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => onPairType(t)}
+                  className={cn(
+                    'font-display text-[11px] uppercase tracking-wider font-bold px-2.5 py-1.5 border-r-[2px] border-stroke last:border-r-0',
+                    pair.pairType === t
+                      ? 'bg-teal text-ink-static'
+                      : 'bg-paper hover:bg-cream-soft',
+                  )}
+                >
+                  {PAIR_TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
           </div>
           <label className="flex flex-col gap-1">
             <span className="font-display text-[10px] uppercase tracking-wider font-bold">
@@ -462,7 +538,7 @@ function PairEditor({
               }
               className="border-neo-2 bg-cream-soft px-2 py-1.5 text-sm font-bold"
             >
-              {CATEGORY_OPTIONS.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label}
                 </option>
@@ -497,38 +573,71 @@ function PairEditor({
         </div>
       </div>
 
+      <div className="text-[10px] uppercase tracking-wider text-ink-soft font-display mb-1">
+        ▸ {PAIR_TYPE_BLURBS[pair.pairType]}
+      </div>
       <div className="text-[10px] uppercase tracking-wider text-ink-soft font-display mb-3">
-        ▸ Players will see: <em className="not-italic font-bold">{cfg.question}</em>
+        ▸ Players will see:{' '}
+        <em className="not-italic font-bold">
+          {single ? `Guess the ${cfg.valueLabel}` : cfg.question}
+        </em>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SideEditor
-          label="Side A"
-          tone="lime"
-          side={pair.a}
-          coverUrl={coverUrl(pair.a.coverPath)}
-          unitHint={cfg.unitHint}
-          onGame={(g) => onSideGame('a', g)}
-          onValue={(v) => onSideValue('a', v)}
-          onDisplay={(v) => onSideDisplay('a', v)}
-          onUpload={(f) => onUploadCover('a', f)}
-          onClearCover={() => onClearCover('a')}
-        />
-        <SideEditor
-          label="Side B"
-          tone="blue"
-          side={pair.b}
-          coverUrl={coverUrl(pair.b.coverPath)}
-          unitHint={cfg.unitHint}
-          onGame={(g) => onSideGame('b', g)}
-          onValue={(v) => onSideValue('b', v)}
-          onDisplay={(v) => onSideDisplay('b', v)}
-          onUpload={(f) => onUploadCover('b', f)}
-          onClearCover={() => onClearCover('b')}
-        />
-      </div>
+      {single ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SideEditor
+            label="Game"
+            tone="lime"
+            side={pair.a}
+            coverUrl={coverUrl(pair.a.coverPath)}
+            unitHint={cfg.unitHint}
+            valueLabel="Correct answer (players guess this)"
+            onGame={(g) => onSideGame('a', g)}
+            onValue={(v) => onSideValue('a', v)}
+            onDisplay={(v) => onSideDisplay('a', v)}
+            onUpload={(f) => onUploadCover('a', f)}
+            onClearCover={() => onClearCover('a')}
+          />
+          <div className="border-neo-2 bg-cream-soft/60 p-3 flex items-center justify-center text-center">
+            <span className="font-display text-[11px] uppercase tracking-wider text-ink-soft leading-relaxed">
+              {pair.pairType === 'piggyback' ? 'Piggyback Bluff' : 'Slider'} ·
+              single game
+              <br />
+              Slider range {cfg.slider?.min}–{cfg.slider?.max}
+              {cfg.slider?.unit ? ` ${cfg.slider.unit}` : ''}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SideEditor
+            label="Side A"
+            tone="lime"
+            side={pair.a}
+            coverUrl={coverUrl(pair.a.coverPath)}
+            unitHint={cfg.unitHint}
+            onGame={(g) => onSideGame('a', g)}
+            onValue={(v) => onSideValue('a', v)}
+            onDisplay={(v) => onSideDisplay('a', v)}
+            onUpload={(f) => onUploadCover('a', f)}
+            onClearCover={() => onClearCover('a')}
+          />
+          <SideEditor
+            label="Side B"
+            tone="blue"
+            side={pair.b}
+            coverUrl={coverUrl(pair.b.coverPath)}
+            unitHint={cfg.unitHint}
+            onGame={(g) => onSideGame('b', g)}
+            onValue={(v) => onSideValue('b', v)}
+            onDisplay={(v) => onSideDisplay('b', v)}
+            onUpload={(f) => onUploadCover('b', f)}
+            onClearCover={() => onClearCover('b')}
+          />
+        </div>
+      )}
 
-      {pair.a.value && pair.b.value && complete && (
+      {!single && pair.a.value && pair.b.value && complete && (
         <div className="mt-4 border-neo-2 bg-cream-soft px-3 py-2 text-xs flex items-center justify-between flex-wrap gap-2">
           <span className="font-display uppercase tracking-wider text-ink-soft">
             {cfg.lowerWins ? 'Lower value wins:' : 'Higher value wins:'}
@@ -554,6 +663,7 @@ function SideEditor({
   side,
   coverUrl,
   unitHint,
+  valueLabel = 'Value (numeric — compared as a number)',
   onGame,
   onValue,
   onDisplay,
@@ -565,6 +675,7 @@ function SideEditor({
   side: SideForm
   coverUrl: string | null
   unitHint: string
+  valueLabel?: string
   onGame: (g: Game | null) => void
   onValue: (v: string) => void
   onDisplay: (v: string) => void
@@ -579,7 +690,7 @@ function SideEditor({
       <GamePicker value={side.game} onChange={onGame} label="Game" />
       <label className="flex flex-col gap-1">
         <span className="font-display text-[10px] uppercase tracking-wider font-bold">
-          Value (numeric — compared as a number)
+          {valueLabel}
         </span>
         <input
           inputMode="decimal"

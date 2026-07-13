@@ -209,6 +209,30 @@ export type HigherLowerCategory =
   | 'steam_reviews'
   | 'twitch_peak'
 
+// ── Pair types ───────────────────────────────────────────────────────────────
+//
+// Each pair in the gauntlet plays one of three ways:
+//   'vs'        — the classic: two games, pick which side wins the stat.
+//   'slider'    — one game; every player drags a slider to guess the exact
+//                 value. Scored by how close they land (see higherlowerScoring).
+//   'piggyback' — one game; hot-seat only. The lead-off player sets "the bar"
+//                 (and can bluff); followers see it and choose to trust or
+//                 diverge. Solo play skips it and banks it as correct.
+export type HighLowPairType = 'vs' | 'slider' | 'piggyback'
+
+// Slider/piggyback tuning for a single-value category. `bullseye` is the abs
+// diff (>0) that still counts as a full-points "Bullseye!". `spread` is the
+// raw-unit distance at which an off-guess decays to zero points — so the same
+// scoring curve works whether the value is a 0–100 score, a year, or hours.
+export type SliderConfig = {
+  min: number
+  max: number
+  step: number
+  bullseye: number
+  spread: number
+  unit?: string // small suffix on the slider bubble, e.g. 'h', '%', 'M'
+}
+
 export type HigherLowerCategoryConfig = {
   id: HigherLowerCategory
   label: string // short badge shown above the pair
@@ -220,6 +244,13 @@ export type HigherLowerCategoryConfig = {
   // where a lower number is the better answer. The admin still stores the real
   // number (seconds, year); only the win direction flips.
   lowerWins?: boolean
+  // Present only on categories that can also be played as 'slider' /
+  // 'piggyback' pairs. Absent ⇒ the category is vs-only (the editor hides it
+  // from the type dropdown for single-value pairs).
+  slider?: SliderConfig
+  // Full-sentence prompt for slider/piggyback rounds (e.g. "Guess how long it
+  // takes to beat the main story"). Falls back to `Guess the <valueLabel>`.
+  sliderQuestion?: string
 }
 
 // Default direction is "pick the side with the larger value". Categories that
@@ -235,6 +266,8 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which has the higher Metacritic score?',
     unitHint: '0–100 — e.g. 92',
     valueLabel: 'Metacritic',
+    slider: { min: 0, max: 100, step: 1, bullseye: 1, spread: 100 },
+    sliderQuestion: 'Guess the Metacritic score',
   },
   steam_rating: {
     id: 'steam_rating',
@@ -242,6 +275,8 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which has the higher Steam rating?',
     unitHint: '0–100 (%) — e.g. 96',
     valueLabel: 'Steam %',
+    slider: { min: 0, max: 100, step: 1, bullseye: 1, spread: 100, unit: '%' },
+    sliderQuestion: 'Guess the Steam rating (%)',
   },
   copies_sold: {
     id: 'copies_sold',
@@ -249,6 +284,8 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which has sold more copies?',
     unitHint: 'in millions — e.g. 25.4',
     valueLabel: 'Copies sold',
+    slider: { min: 0, max: 60, step: 0.5, bullseye: 1, spread: 30, unit: 'M' },
+    sliderQuestion: 'Guess how many copies it sold (millions)',
   },
   release_year: {
     id: 'release_year',
@@ -256,6 +293,8 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which came out later?',
     unitHint: 'year — e.g. 2017',
     valueLabel: 'Released',
+    slider: { min: 1972, max: 2026, step: 1, bullseye: 1, spread: 20 },
+    sliderQuestion: 'Guess the release year',
   },
   speedrun_wr: {
     id: 'speedrun_wr',
@@ -271,6 +310,8 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which had the bigger development budget?',
     unitHint: 'in millions USD — e.g. 220',
     valueLabel: 'Budget',
+    slider: { min: 0, max: 400, step: 5, bullseye: 5, spread: 200, unit: 'M' },
+    sliderQuestion: 'Guess the development budget ($M)',
   },
   hltb_main: {
     id: 'hltb_main',
@@ -278,6 +319,8 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which takes longer to beat (main story)?',
     unitHint: 'hours — e.g. 18.5',
     valueLabel: 'Main story',
+    slider: { min: 0, max: 100, step: 0.5, bullseye: 1, spread: 40, unit: 'h' },
+    sliderQuestion: 'Guess how long it takes to beat the main story',
   },
   hltb_completionist: {
     id: 'hltb_completionist',
@@ -285,6 +328,8 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which takes longer to 100% complete?',
     unitHint: 'hours — e.g. 72',
     valueLabel: '100%',
+    slider: { min: 0, max: 200, step: 1, bullseye: 2, spread: 90, unit: 'h' },
+    sliderQuestion: 'Guess how long it takes to 100% complete',
   },
   steam_peak: {
     id: 'steam_peak',
@@ -331,8 +376,14 @@ export type HigherLowerPair = {
   id: string
   position: number
   category: HigherLowerCategory
+  // How this pair is played. Defaults to 'vs' for legacy rows (missing column).
+  pairType: HighLowPairType
+  // Side A is always present. For 'vs' it's one of the two contenders; for
+  // 'slider'/'piggyback' it's the single game and `a.value` is the correct
+  // answer players are guessing.
   a: HigherLowerSide
-  b: HigherLowerSide
+  // Only present for 'vs' pairs — the second contender.
+  b?: HigherLowerSide
 }
 
 export type HigherLowerPuzzle = {
