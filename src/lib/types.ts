@@ -27,13 +27,22 @@ export type Game = {
 
 export type ScreenEffectType = 'falling' | 'rising' | 'confetti' | 'vignette'
 
+// Custom colors (bannerColor, bannerTextColor, effectColor) are stored as a
+// comma-separated list of hex values. One value = solid; 2+ = a gradient. The
+// banner background honors `bannerStyle` (hard flag-like stripes vs a smooth
+// blend); text and vignette always render as a smooth gradient. See
+// `lib/decor.ts` for the parse + CSS builders.
+export type BannerStyle = 'stripes' | 'gradient'
+
 export type PuzzleDecor = {
   submitter?: string // community contributor — surfaces a "Submitted by" banner
   bannerText?: string // custom banner label — OVERRIDES the submitter banner
-  bannerColor?: string // hex; custom banner background (falls back to game tone)
+  bannerColor?: string // hex list; custom banner background (falls back to game tone)
+  bannerTextColor?: string // hex list; overrides the auto-contrast banner text color
+  bannerStyle?: BannerStyle // how a multi-color bannerColor renders (default 'stripes')
   effectType?: ScreenEffectType
   effectEmoji?: string // e.g. "❤️" — the particle glyph
-  effectColor?: string // hex; vignette / overlay color
+  effectColor?: string // hex list; vignette / overlay color
 }
 
 export type ScreenshotPuzzle = {

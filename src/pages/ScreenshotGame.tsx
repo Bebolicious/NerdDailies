@@ -99,6 +99,8 @@ function ScreenshotInner({
                 submitter={puzzle.submitter}
                 text={puzzle.bannerText}
                 color={puzzle.bannerColor}
+                textColor={puzzle.bannerTextColor}
+                style={puzzle.bannerStyle}
               />
             )}
             <button

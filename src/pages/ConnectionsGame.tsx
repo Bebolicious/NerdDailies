@@ -11,6 +11,7 @@ import { useConnectionsPuzzle } from '../hooks/usePuzzle'
 import { dayNumber, todayISO } from '../lib/dates'
 import { cn } from '../lib/cn'
 import { saveResult } from '../lib/scoreStore'
+import { markGuessedToday } from '../lib/dailyActivity'
 import {
   CONNECTIONS_GROUP_SIZE,
   CONNECTIONS_MAX_MISTAKES,
@@ -175,6 +176,7 @@ function Board({ puzzle, date }: { puzzle: ConnectionsPuzzle; date: string }) {
         setToast('Already guessed')
         return prev
       }
+      markGuessedToday(date)
       const diffs = sel.map(
         (w) => puzzle.groups[wordGroup.get(w)!].difficulty,
       )
@@ -210,7 +212,7 @@ function Board({ puzzle, date }: { puzzle: ConnectionsPuzzle; date: string }) {
         finishedAt: lost ? Date.now() : prev.finishedAt,
       }
     })
-  }, [puzzle, wordGroup])
+  }, [puzzle, wordGroup, date])
 
   const onToggleUnlimited = useCallback(
     (next: boolean) =>
@@ -261,6 +263,8 @@ function Board({ puzzle, date }: { puzzle: ConnectionsPuzzle; date: string }) {
               submitter={puzzle.submitter}
               text={puzzle.bannerText}
               color={puzzle.bannerColor}
+              textColor={puzzle.bannerTextColor}
+              style={puzzle.bannerStyle}
               variant="inline"
             />
           )}

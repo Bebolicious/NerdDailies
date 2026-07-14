@@ -116,6 +116,8 @@ function BlurInner({
                   submitter={puzzle.submitter}
                   text={puzzle.bannerText}
                   color={puzzle.bannerColor}
+                  textColor={puzzle.bannerTextColor}
+                  style={puzzle.bannerStyle}
                 />
               )}
               <div className="absolute bottom-3 left-3 z-20">

@@ -293,11 +293,17 @@ alter table public.connections_puzzles add column if not exists submitter text;
 
 -- Per-puzzle theming. Optional on every game:
 --   banner_text / banner_color → a custom corner banner that OVERRIDES the
---     "Submitted by" credit (e.g. a pink "Valentine's Day" banner).
+--     "Submitted by" credit (e.g. a pink "Valentine's Day" banner). banner_color
+--     is a comma-separated hex list: one value = solid, 2+ = stripes/gradient.
+--   banner_text_color → optional hex list overriding the auto-contrast text
+--     color (2+ values = a gradient text fill).
+--   banner_style → 'stripes' | 'gradient' — how a multi-color banner_color
+--     renders (hard flag bands vs a smooth blend). Defaults to stripes.
 --   effect_type  → 'falling' | 'rising' | 'confetti' | 'vignette' — a
 --     full-viewport celebration shown once the round finishes.
 --   effect_emoji → the particle glyph (e.g. ❤️).
---   effect_color → hex color for the transparent→color vignette overlay.
+--   effect_color → hex list for the transparent→color vignette overlay (2+ = a
+--     multi-hue radial glow).
 do $$
 declare t text;
 begin
@@ -305,11 +311,13 @@ begin
     'screenshot_puzzles','trophy_puzzles','blur_puzzles','soundtrack_puzzles',
     'archive_puzzles','crossword_puzzles','higherlower_puzzles','connections_puzzles'
   ] loop
-    execute format('alter table public.%I add column if not exists banner_text  text', t);
-    execute format('alter table public.%I add column if not exists banner_color text', t);
-    execute format('alter table public.%I add column if not exists effect_type  text', t);
-    execute format('alter table public.%I add column if not exists effect_emoji text', t);
-    execute format('alter table public.%I add column if not exists effect_color text', t);
+    execute format('alter table public.%I add column if not exists banner_text       text', t);
+    execute format('alter table public.%I add column if not exists banner_color      text', t);
+    execute format('alter table public.%I add column if not exists banner_text_color text', t);
+    execute format('alter table public.%I add column if not exists banner_style      text', t);
+    execute format('alter table public.%I add column if not exists effect_type       text', t);
+    execute format('alter table public.%I add column if not exists effect_emoji      text', t);
+    execute format('alter table public.%I add column if not exists effect_color      text', t);
   end loop;
 end $$;
 

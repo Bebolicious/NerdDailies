@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
-import { Archive, Camera, Eye, Grid3x3, LayoutGrid, Music, Scale, Trophy, X } from 'lucide-react'
+import { Archive, Camera, Eye, Flag, Grid3x3, LayoutGrid, Music, Scale, Trophy, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { NeoCard } from '../ui/NeoCard'
 import { TagPill } from '../ui/TagPill'
 import { dayNumber, todayISO, weekNumber, weekStartISO } from '../../lib/dates'
 import { getResult } from '../../lib/scoreStore'
+import { TOUR_REQUEST_EVENT } from '../../lib/tourState'
 import type { GameType } from '../../lib/types'
 import { cn } from '../../lib/cn'
 
@@ -136,6 +137,8 @@ function SidebarContent() {
       )}
 
       <div className="px-6 flex flex-col gap-3">
+        <TourStartButton />
+
         {DAILY_GAMES.map((g) => {
           const result = getResult(today, g.type)
           const active = location.pathname.startsWith(g.path)
@@ -185,6 +188,24 @@ function SidebarContent() {
 
       <div className="pb-4" />
     </>
+  )
+}
+
+// Full-width, short-height CTA with an animated gradient border. Opens the tour
+// invite modal (its Accept then navigates to the first game).
+function TourStartButton() {
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new Event(TOUR_REQUEST_EVENT))}
+      aria-label="Start The Tour"
+      className="tour-cta-border block w-full p-[3px] shadow-neo transition-all hover:-translate-y-0.5 hover:-translate-x-0.5 hover:shadow-neo-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+    >
+      <span className="flex items-center justify-center gap-2 bg-paper text-ink px-3 py-1.5 font-display text-xs uppercase tracking-wider font-bold">
+        <Flag className="h-3.5 w-3.5 stroke-[3]" />
+        Start The Tour
+      </span>
+    </button>
   )
 }
 

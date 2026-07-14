@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { NavBar } from './NavBar'
 import { TodaySidebar } from './TodaySidebar'
 import { DevDateBanner } from './DevDateBanner'
+import { TourController } from '../tour/TourController'
 
 export function ShellLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -18,6 +19,7 @@ export function ShellLayout({ children }: { children: ReactNode }) {
         />
       </div>
       <DevDateBanner />
+      <TourController />
     </div>
   )
 }

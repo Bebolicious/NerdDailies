@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { getResult, saveResult } from '../lib/scoreStore'
+import { markGuessedToday } from '../lib/dailyActivity'
 import type { Game, GameType, Guess, PuzzleResult } from '../lib/types'
 
 type Args = {
@@ -49,6 +50,7 @@ export function useGameState({
   const submitGuess = useCallback(
     (game: Game) => {
       if (status !== 'playing') return
+      markGuessedToday(date)
       const correct = game.id === answerGameId
       const guess: Guess = correct
         ? { kind: 'correct', game, at: Date.now() }
@@ -63,18 +65,19 @@ export function useGameState({
         finalize(next, 'lost')
       }
     },
-    [answerGameId, finalize, guesses, status, totalGuesses],
+    [answerGameId, date, finalize, guesses, status, totalGuesses],
   )
 
   const submitSkip = useCallback(() => {
     if (status !== 'playing') return
+    markGuessedToday(date)
     const next: Guess[] = [...guesses, { kind: 'skip', at: Date.now() }]
     setGuesses(next)
     if (next.length >= totalGuesses) {
       setStatus('lost')
       finalize(next, 'lost')
     }
-  }, [finalize, guesses, status, totalGuesses])
+  }, [date, finalize, guesses, status, totalGuesses])
 
   const wrongCount = guesses.filter(
     (g) => g.kind === 'wrong' || g.kind === 'skip',

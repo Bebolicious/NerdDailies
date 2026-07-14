@@ -2328,6 +2328,8 @@ function FinaleCard({
           submitter={puzzle.submitter}
           text={puzzle.bannerText}
           color={puzzle.bannerColor}
+          textColor={puzzle.bannerTextColor}
+          style={puzzle.bannerStyle}
         />
       )}
       <div className="flex flex-col gap-4">

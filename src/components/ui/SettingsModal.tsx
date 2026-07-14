@@ -3,6 +3,7 @@ import { Moon, Sun, X } from 'lucide-react'
 import { useTheme } from '../../hooks/useTheme'
 import { useReadability } from '../../hooks/useReadability'
 import { useScreenEffects } from '../../hooks/useScreenEffects'
+import { useTourPrompt } from '../../hooks/useTourPrompt'
 import { cn } from '../../lib/cn'
 
 type Props = {
@@ -14,6 +15,7 @@ export function SettingsModal({ open, onClose }: Props) {
   const { theme, toggle: toggleTheme } = useTheme()
   const { readable, toggle: toggleReadable } = useReadability()
   const { enabled: effectsOn, toggle: toggleEffects } = useScreenEffects()
+  const { enabled: tourPromptOn, toggle: toggleTourPrompt } = useTourPrompt()
 
   useEffect(() => {
     if (!open) return
@@ -88,6 +90,17 @@ export function SettingsModal({ open, onClose }: Props) {
               active={effectsOn}
               onClick={toggleEffects}
               ariaLabel="Toggle screen effects"
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Daily Tour prompt"
+            description="Ask to play The Tour on your first visit each day"
+          >
+            <ToggleSwitch
+              active={tourPromptOn}
+              onClick={toggleTourPrompt}
+              ariaLabel="Toggle daily tour prompt"
             />
           </SettingRow>
         </div>

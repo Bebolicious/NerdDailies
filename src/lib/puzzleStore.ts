@@ -37,7 +37,7 @@ export async function fetchScreenshotPuzzle(
   const { data, error } = await sb
     .from('screenshot_puzzles')
     .select(
-      'id,puzzle_date,game_id,game_name,game_year,game_genre,image_paths,cover_path,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color',
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,image_paths,cover_path,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_date', date)
     .maybeSingle()
@@ -63,7 +63,7 @@ export async function fetchTrophyPuzzle(date: string): Promise<TrophyPuzzle> {
   const { data, error } = await sb
     .from('trophy_puzzles')
     .select(
-      'id,puzzle_date,game_id,game_name,game_year,game_genre,trophy_name,trophy_description,clues,rarity_pct,platform,gamerscore,cover_path,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color',
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,trophy_name,trophy_description,clues,rarity_pct,platform,gamerscore,cover_path,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_date', date)
     .maybeSingle()
@@ -96,7 +96,7 @@ export async function fetchSoundtrackPuzzle(
   const { data, error } = await sb
     .from('soundtrack_puzzles')
     .select(
-      'id,puzzle_date,game_id,game_name,game_year,game_genre,audio_path,track_title,reveal_start_seconds,cover_path,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color',
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,audio_path,track_title,reveal_start_seconds,cover_path,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_date', date)
     .maybeSingle()
@@ -124,7 +124,7 @@ export async function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
   const { data, error } = await sb
     .from('blur_puzzles')
     .select(
-      'id,puzzle_date,game_id,game_name,game_year,game_genre,cover_path,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color',
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,cover_path,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_date', date)
     .maybeSingle()
@@ -149,7 +149,7 @@ export async function fetchArchivePuzzle(week: string): Promise<ArchivePuzzle> {
   const { data, error } = await sb
     .from('archive_puzzles')
     .select(
-      'id,puzzle_week,game_id,game_name,game_year,game_genre,weekly_theme,clue_year,clue_genre,clue_platform,clue_pitch,clue_memo,clue_review,audio_path,frame1_path,frame2_path,chest_logo_path,mystery_a,mystery_b,trash_crossed_out,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color',
+      'id,puzzle_week,game_id,game_name,game_year,game_genre,weekly_theme,clue_year,clue_genre,clue_platform,clue_pitch,clue_memo,clue_review,audio_path,frame1_path,frame2_path,chest_logo_path,mystery_a,mystery_b,trash_crossed_out,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_week', week)
     .maybeSingle()
@@ -189,7 +189,7 @@ export async function fetchCrosswordPuzzle(
   if (!sb) return getMockCrosswordPuzzle(week)
   const { data, error } = await sb
     .from('crossword_puzzles')
-    .select('id,puzzle_week,size,solution,clues_across,clues_down,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color')
+    .select('id,puzzle_week,size,solution,clues_across,clues_down,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color')
     .eq('puzzle_week', week)
     .maybeSingle()
   if (error || !data) return getMockCrosswordPuzzle(week)
@@ -214,7 +214,7 @@ export async function fetchHigherLowerPuzzle(
   if (!sb) return getMockHigherLowerPuzzle(week)
   const { data, error } = await sb
     .from('higherlower_puzzles')
-    .select('id,puzzle_week,theme,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color')
+    .select('id,puzzle_week,theme,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color')
     .eq('puzzle_week', week)
     .maybeSingle()
   if (error || !data) return getMockHigherLowerPuzzle(week)
@@ -270,7 +270,7 @@ export async function fetchConnectionsPuzzle(
   if (!sb) return getMockConnectionsPuzzle(date)
   const { data, error } = await sb
     .from('connections_puzzles')
-    .select('id,puzzle_date,theme,groups,layout,submitter,banner_text,banner_color,effect_type,effect_emoji,effect_color')
+    .select('id,puzzle_date,theme,groups,layout,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color')
     .eq('puzzle_date', date)
     .maybeSingle()
   if (error || !data) return getMockConnectionsPuzzle(date)

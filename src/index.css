@@ -407,7 +407,10 @@ html[data-readable='true'] {
   }
 }
 
-/* Vignette: fade in, then a slow breathing pulse at the edges. */
+/* Vignette: slowly fade in, then a slow breathing pulse at the edges. The pulse
+   starts at the SAME peak opacity (1) the fade-in lands on, and its delay
+   matches the fade duration — otherwise opacity would snap down the instant the
+   pulse takes over (a visible "blink"). Alternate then breathes 1 → 0.6 → 1. */
 @keyframes effect-vignette-in {
   0% {
     opacity: 0;
@@ -418,16 +421,79 @@ html[data-readable='true'] {
 }
 @keyframes effect-vignette-pulse {
   from {
-    opacity: 0.55;
+    opacity: 1;
   }
   to {
-    opacity: 1;
+    opacity: 0.6;
   }
 }
 @utility animate-effect-vignette {
   animation:
-    effect-vignette-in 600ms ease-out both,
-    effect-vignette-pulse 2600ms ease-in-out 600ms infinite alternate;
+    effect-vignette-in 1400ms ease-out both,
+    effect-vignette-pulse 2600ms ease-in-out 1400ms infinite alternate;
+}
+
+/* Tour popups — a punchy neo-brutalist slam-in for the ask / continue / score
+   modals, plus a little wave on the flag icon in the invite. */
+@keyframes tour-pop {
+  0% {
+    transform: translateY(26px) scale(0.94);
+    opacity: 0;
+  }
+  55% {
+    transform: translateY(-6px) scale(1.02);
+    opacity: 1;
+  }
+  78% {
+    transform: translateY(2px) scale(0.99);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+@utility animate-tour-pop {
+  animation: tour-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes tour-flag {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+@utility animate-tour-flag {
+  animation: tour-flag 1400ms ease-in-out infinite;
+}
+
+/* Animated gradient border for the sidebar "Start The Tour" CTA. The element
+   carries a spinning conic gradient as its background; a solid-bg inner span
+   masks the center so only a ~3px ring of moving colour shows. Registering
+   --tour-angle lets the angle animate smoothly (falls back to a static
+   multi-colour ring where @property is unsupported). */
+@property --tour-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes tour-cta-spin {
+  to {
+    --tour-angle: 360deg;
+  }
+}
+@utility tour-cta-border {
+  background: conic-gradient(
+    from var(--tour-angle),
+    var(--color-coral),
+    var(--color-mustard),
+    var(--color-lime),
+    var(--color-blue),
+    var(--color-coral)
+  );
+  animation: tour-cta-spin 4s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -437,6 +503,9 @@ html[data-readable='true'] {
   .animate-connections-solve,
   .animate-connections-shake,
   .animate-share-pop,
+  .animate-tour-pop,
+  .animate-tour-flag,
+  .tour-cta-border,
   .screen-effect-particle,
   .screen-effect-vignette {
     animation: none;

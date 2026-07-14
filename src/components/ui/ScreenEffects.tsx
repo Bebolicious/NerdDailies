@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useScreenEffects } from '../../hooks/useScreenEffects'
+import { parseColors, vignetteBackground } from '../../lib/decor'
 import type { ScreenEffectType } from '../../lib/types'
 
 // Full-viewport celebration overlay shown when a round finishes. Position:fixed
@@ -82,7 +83,7 @@ export function ScreenEffects({ type, emoji, color, active }: Props) {
   // color/emoji columns rendering after the effect was reset to None.
   const isParticleType =
     type === 'falling' || type === 'rising' || type === 'confetti'
-  const hasVignette = !!type && !!color?.trim()
+  const hasVignette = !!type && parseColors(color).length > 0
   const hasParticles = isParticleType && !!emoji?.trim()
 
   if (!active || !enabled) return null
@@ -145,9 +146,7 @@ function EffectsOverlay({
       {hasVignette && (
         <div
           className="screen-effect-vignette absolute inset-0 animate-effect-vignette"
-          style={{
-            background: `radial-gradient(ellipse at center, transparent 42%, ${color} 100%)`,
-          }}
+          style={{ background: vignetteBackground(parseColors(color)) }}
         />
       )}
       {hasParticles && (
