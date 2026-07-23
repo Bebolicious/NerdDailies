@@ -21,8 +21,9 @@ export function GamePicker({
 
   useEffect(() => {
     let cancelled = false
-    // Wait for ≥3 chars before hitting the DB — 1–2 char prefixes match a huge
-    // candidate set and fire on nearly every keystroke, which is wasted egress.
+    // Wait for ≥3 chars — 1–2 char prefixes match a huge slice of the catalog
+    // and just produce noisy results. (Search is client-side now, so this is
+    // purely a UX gate, not an egress one.)
     if (query.trim().length < 3) {
       setResults([])
       return

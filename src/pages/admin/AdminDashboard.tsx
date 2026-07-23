@@ -93,8 +93,13 @@ export function AdminDashboard() {
     if (!loading && !email) nav('/admin/login')
   }, [email, loading, nav])
 
-  const monthStart = startOfMonth(cursor)
-  const monthEnd = endOfMonth(cursor)
+  // Memoize on `cursor` (a stable ref that only changes when paging months).
+  // startOfMonth/endOfMonth otherwise return fresh Date objects every render,
+  // which would give `days` a new array identity each render and make the
+  // month-load effect below re-fire on every render — a continuous refetch
+  // loop while the dashboard is open.
+  const monthStart = useMemo(() => startOfMonth(cursor), [cursor])
+  const monthEnd = useMemo(() => endOfMonth(cursor), [cursor])
   const days = useMemo(
     () => eachDayOfInterval({ start: monthStart, end: monthEnd }),
     [monthStart, monthEnd],
