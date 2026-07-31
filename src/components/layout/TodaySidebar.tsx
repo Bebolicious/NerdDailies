@@ -28,10 +28,9 @@ const GAMES: GameEntry[] = [
   { type: 'blur', title: 'Blur Reveal', blurb: 'Guess the game from its blurred cover.', path: '/blur', tone: 'lime', icon: Eye, cadence: 'daily' },
   { type: 'soundtrack', title: 'Soundtrack', blurb: 'Name the game by only listening.', path: '/soundtrack', tone: 'mustard', icon: Music, cadence: 'daily' },
   { type: 'connections', title: 'Connections', blurb: 'Sort 16 words into 4 secret groups of four.', path: '/connections', tone: 'orange', icon: LayoutGrid, cadence: 'daily' },
+  { type: 'archive', title: 'The Archive', blurb: 'Weekly escape room. Spend candles on clues to name two mystery games and the thing they share.', path: '/archive', tone: 'violet', icon: Archive, cadence: 'weekly' },
   { type: 'crossword', title: 'Mini Crossword', blurb: 'Weekly. Fill the mini — Across and Down clues, no timer.', path: '/crossword', tone: 'pink', icon: Grid3x3, cadence: 'weekly' },
   { type: 'higherlower', title: 'Higher / Lower', blurb: 'Weekly gauntlet — pick which game is higher across 15 stat showdowns.', path: '/higherlower', tone: 'teal', icon: Scale, cadence: 'weekly' },
-  // Temporarily disabled while being reworked — keep last so it sits far right.
-  { type: 'archive', title: 'The Archive', blurb: 'Weekly. Spend candles in a dark archive room to identify a mystery game.', path: '/archive', tone: 'violet', icon: Archive, cadence: 'weekly', disabled: true },
 ]
 
 const DAILY_GAMES = GAMES.filter((g) => g.cadence === 'daily')

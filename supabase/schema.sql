@@ -121,34 +121,41 @@ create table if not exists public.soundtrack_puzzles (
 );
 
 -- The weekly Archive game. Keyed by puzzle_week (Monday of the ISO week).
+-- Three answers per week: two mystery games and a freehand "what do they have
+-- in common" link. The room itself is authored as a flat `clues` jsonb list —
+-- see src/lib/types.ts → ArchiveClue. Databases created before the rework get
+-- the same shape via the alter blocks further down.
 create table if not exists public.archive_puzzles (
   id uuid primary key default gen_random_uuid(),
   puzzle_week date not null unique,
+
+  -- Subject A. Kept under the plain game_* names so the admin dashboard and
+  -- Stats queries didn't have to change.
   game_id bigint not null,
   game_name text not null,
   game_year int,
   game_genre text,
 
-  -- Standard text clues (shelf + filing cabinet)
-  clue_year text not null,
-  clue_genre text not null,
-  clue_platform text not null,
-  clue_pitch text not null,
-  clue_memo text not null,
-  clue_review text not null,
+  -- Subject B.
+  game_b_id bigint,
+  game_b_name text,
+  game_b_year int,
+  game_b_genre text,
+
+  -- The link: a category preset, the prompt the player reads, the canonical
+  -- answer, and any alternate spellings that should also be accepted.
+  link_preset text,
+  link_prompt text,
+  link_answer text,
+  link_accept text[],
+
+  -- The whole room. Each entry carries its own container, emoji, name,
+  -- subject, cost, placement and body (text / image path / audio path).
+  clues jsonb not null default '[]'::jsonb,
+  candles int not null default 7,
 
   weekly_theme text,
-
-  -- Asset paths in the 'archive' bucket
-  audio_path text,                           -- optional radio clip
-  frame1_path text not null,                 -- gameplay screenshot
-  frame2_path text not null,                 -- key art
-  chest_logo_path text not null,             -- cropped partial logo
-
-  -- JSONB lets the editor swap shapes (jackpot/clue/redHerring/lore) freely
-  mystery_a jsonb not null,
-  mystery_b jsonb not null,
-  trash_crossed_out text not null,
+  trash_crossed_out text,                    -- optional crumpled wrong title
 
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -318,6 +325,54 @@ begin
     execute format('alter table public.%I add column if not exists effect_type       text', t);
     execute format('alter table public.%I add column if not exists effect_emoji      text', t);
     execute format('alter table public.%I add column if not exists effect_color      text', t);
+  end loop;
+end $$;
+
+-- ── Archive rework: two games + a freehand link, and an authored clue list ──
+--
+-- The Archive used to have exactly one answer and a fixed room (3 shelf boxes,
+-- 3 drawers, 2 frames, 1 chest — each its own column). One lucky clue ended the
+-- week in seconds, and no week could deviate from that shape.
+--
+-- Now: THREE answers (game A, game B, and a freehand "what do they have in
+-- common"), and the whole room lives in `clues` jsonb — a flat list where each
+-- entry carries its own container, emoji, name, subject, cost and body. See
+-- src/lib/types.ts → ArchiveClue.
+--
+-- game_id / game_name / game_year / game_genre stay as subject A so the admin
+-- dashboard and stats keep working unchanged.
+alter table public.archive_puzzles
+  add column if not exists game_b_id    bigint,
+  add column if not exists game_b_name  text,
+  add column if not exists game_b_year  int,
+  add column if not exists game_b_genre text,
+  add column if not exists link_preset  text,
+  add column if not exists link_prompt  text,
+  add column if not exists link_answer  text,
+  add column if not exists link_accept  text[],
+  add column if not exists clues        jsonb not null default '[]'::jsonb,
+  add column if not exists candles      int not null default 7;
+
+-- The old fixed-room columns become optional. They're no longer written or
+-- read by the app; dropping NOT NULL is what lets the new editor save a row
+-- without inventing values for a shape that no longer exists.
+do $$
+declare c text;
+begin
+  foreach c in array array[
+    'clue_year','clue_genre','clue_platform','clue_pitch','clue_memo',
+    'clue_review','frame1_path','frame2_path','chest_logo_path',
+    'mystery_a','mystery_b','trash_crossed_out'
+  ] loop
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name   = 'archive_puzzles'
+        and column_name  = c
+        and is_nullable  = 'NO'
+    ) then
+      execute format('alter table public.archive_puzzles alter column %I drop not null', c);
+    end if;
   end loop;
 end $$;
 

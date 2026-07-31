@@ -11,7 +11,8 @@ import {
   getMockTrophyPuzzle,
 } from '../data/mockPuzzles'
 import type {
-  ArchiveMysteryBox,
+  ArchiveClue,
+  ArchiveLink,
   ArchivePuzzle,
   BlurPuzzle,
   ConnectionsGroup,
@@ -26,6 +27,7 @@ import type {
   SoundtrackPuzzle,
   TrophyPuzzle,
 } from './types'
+import { ARCHIVE_DEFAULT_CANDLES } from './types'
 
 // ── READS ────────────────────────────────────────────────────────────────────
 
@@ -149,37 +151,58 @@ export async function fetchArchivePuzzle(week: string): Promise<ArchivePuzzle> {
   const { data, error } = await sb
     .from('archive_puzzles')
     .select(
-      'id,puzzle_week,game_id,game_name,game_year,game_genre,weekly_theme,clue_year,clue_genre,clue_platform,clue_pitch,clue_memo,clue_review,audio_path,frame1_path,frame2_path,chest_logo_path,mystery_a,mystery_b,trash_crossed_out,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
+      'id,puzzle_week,game_id,game_name,game_year,game_genre,game_b_id,game_b_name,game_b_year,game_b_genre,link_preset,link_prompt,link_answer,link_accept,weekly_theme,candles,clues,trash_crossed_out,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_week', week)
     .maybeSingle()
   if (error || !data) return getMockArchivePuzzle(week)
+  // A row that predates the rework (or one saved half-finished) has no second
+  // game — it can't be played under the three-answer rules, so fall back to the
+  // mock room rather than rendering a broken week.
+  if (!data.game_b_id || !data.link_answer) return getMockArchivePuzzle(week)
   const url = toPublicUrl('archive')
+  const link: ArchiveLink = {
+    preset: data.link_preset ?? 'custom',
+    prompt: data.link_prompt ?? 'What do these two games have in common?',
+    answer: data.link_answer,
+    accept: data.link_accept ?? [],
+  }
   return {
     id: data.id,
     puzzle_week: data.puzzle_week,
-    game: {
+    game_a: {
       id: data.game_id,
       name: data.game_name,
       year: data.game_year ?? undefined,
       genre: data.game_genre ?? undefined,
     },
+    game_b: {
+      id: data.game_b_id,
+      name: data.game_b_name,
+      year: data.game_b_year ?? undefined,
+      genre: data.game_b_genre ?? undefined,
+    },
+    link,
     weekly_theme: data.weekly_theme ?? undefined,
-    clue_year: data.clue_year,
-    clue_genre: data.clue_genre,
-    clue_platform: data.clue_platform,
-    clue_pitch: data.clue_pitch,
-    clue_memo: data.clue_memo,
-    clue_review: data.clue_review,
-    audio_url: data.audio_path ? url(data.audio_path) : undefined,
-    frame1_url: url(data.frame1_path),
-    frame2_url: url(data.frame2_path),
-    chest_logo_url: url(data.chest_logo_path),
-    mystery_a: data.mystery_a as ArchiveMysteryBox,
-    mystery_b: data.mystery_b as ArchiveMysteryBox,
-    trash_crossed_out: data.trash_crossed_out,
+    candles: data.candles ?? ARCHIVE_DEFAULT_CANDLES,
+    clues: resolveArchiveClues(data.clues, url),
+    trash_crossed_out: data.trash_crossed_out ?? undefined,
     ...rowToDecor(data),
   }
+}
+
+// Clue bodies store a bucket PATH in the DB; the player wants a public URL.
+// Swap them here so nothing downstream has to know about storage.
+function resolveArchiveClues(
+  raw: unknown,
+  url: (path: string) => string,
+): ArchiveClue[] {
+  if (!Array.isArray(raw)) return []
+  return (raw as ArchiveClue[]).map((clue) =>
+    clue.body.kind === 'text' || !clue.body.src
+      ? clue
+      : { ...clue, body: { ...clue.body, src: url(clue.body.src) } },
+  )
 }
 
 export async function fetchCrosswordPuzzle(

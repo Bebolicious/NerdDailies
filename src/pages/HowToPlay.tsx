@@ -56,12 +56,20 @@ export function HowToPlay() {
         <NeoCard tone="paper" shadow="md" className="p-5">
           <TagPill tone="violet" className="mb-2">The Archive · weekly</TagPill>
           <p className="text-sm mt-2">
-            Drops once a week, on Monday. You start with 5 candles (🕯️) and 3
-            wrong guesses. Spend candles to open shelves, drawers, the radio,
-            wall frames, mystery boxes, and a sealed chest — each yields a
-            different kind of clue. Rummaging the trash is free. Each wrong
-            guess locks a clue and sharpens the wall frames. Solve it with as
-            many candles unspent as possible to earn a higher rank.
+            An escape room that drops once a week, on Monday, with{' '}
+            <strong>three answers</strong>: two mystery games, and the one thing
+            they have in common. Name either game first — order doesn't matter —
+            and the final question unlocks once you've got both.
+          </p>
+          <p className="text-sm mt-2">
+            You get a candle budget (🕯️) and <strong>4 wrong guesses</strong>{' '}
+            for the whole case. Spend candles on shelves, drawers, the radio,
+            framed things and a sealed chest. A clue never tells you which
+            answer it serves until you've <em>paid</em> for it, so you can't
+            cherry-pick your way to the one you're stuck on. Some clues are
+            stashed around the room — behind the bookshelf, under the rug, in
+            the trash — and hunting for those is free. Every wrong guess locks a
+            sealed clue for good. Finish with candles to spare for a higher rank.
           </p>
         </NeoCard>
         <NeoCard tone="paper" shadow="md" className="p-5">

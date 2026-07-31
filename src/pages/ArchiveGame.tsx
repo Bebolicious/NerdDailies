@@ -3,9 +3,9 @@ import {
   Archive,
   BookOpen,
   Flame,
-  KeyRound,
   Lock,
   Music,
+  Pause,
   Radio,
   Scroll,
   Search,
@@ -22,133 +22,39 @@ import { useArchivePuzzle } from '../hooks/usePuzzle'
 import { todayISO, weekNumber, weekStartISO } from '../lib/dates'
 import { cn } from '../lib/cn'
 import { saveResult } from '../lib/scoreStore'
+import { ARCHIVE_HIDING_SPOTS, subjectChip } from '../lib/archivePresets'
 import {
-  ARCHIVE_COSTS,
-  ARCHIVE_FRAME_BLUR_PX,
+  blurPx,
+  buildShareString,
+  claimSpareCandle,
+  clueCost,
+  computeRank,
+  emptySession,
+  isFound,
+  guessGame,
+  guessLink,
+  jackpotSealed,
+  loadSession,
+  openClue as open,
+  persistSession,
+  searchSpot,
+  type ArchiveSession,
+  type ArchiveWrong,
+} from '../lib/archiveSession'
+import {
   ARCHIVE_MAX_WRONG,
-  ARCHIVE_TOTAL_CANDLES,
-  type ArchiveMysteryBox,
+  type ArchiveClue,
+  type ArchiveClueSubject,
+  type ArchiveHidingSpot,
   type ArchivePuzzle,
   type Game,
 } from '../lib/types'
 
-// ─── persisted in-progress state ────────────────────────────────────────────
-
-type WrongStamp = { name: string; at: number }
-
-type StandardBoxId =
-  | 'shelfA'
-  | 'shelfB'
-  | 'shelfC'
-  | 'drawerTop'
-  | 'drawerMid'
-  | 'drawerBot'
-
-const STANDARD_BOX_IDS: StandardBoxId[] = [
-  'shelfA',
-  'shelfB',
-  'shelfC',
-  'drawerTop',
-  'drawerMid',
-  'drawerBot',
-]
-
-type ArchiveSession = {
-  version: 1
-  candles: number
-  wrongs: WrongStamp[]
-  solvedWith: string | null
-  status: 'playing' | 'solved' | 'lost'
-  opened: Record<StandardBoxId, boolean>
-  locked: Record<StandardBoxId, boolean>
-  radio: boolean
-  frames: [boolean, boolean]
-  mysteryAFound: boolean
-  mysteryAOpened: boolean
-  mysteryBFound: boolean
-  mysteryBOpened: boolean
-  chestOpened: boolean
-  trashRummaged: boolean
-  trashOutcome: 'crossed' | 'mysteryB' | 'nothing' | null
-  spareCandleClaimed: boolean
-  jackpotUntil: number | null
-  startedAt: number
-  finishedAt: number | null
-  stampToast: number | null
-}
-
-function emptySession(now: number): ArchiveSession {
-  return {
-    version: 1,
-    candles: ARCHIVE_TOTAL_CANDLES,
-    wrongs: [],
-    solvedWith: null,
-    status: 'playing',
-    opened: {
-      shelfA: false,
-      shelfB: false,
-      shelfC: false,
-      drawerTop: false,
-      drawerMid: false,
-      drawerBot: false,
-    },
-    locked: {
-      shelfA: false,
-      shelfB: false,
-      shelfC: false,
-      drawerTop: false,
-      drawerMid: false,
-      drawerBot: false,
-    },
-    radio: false,
-    frames: [false, false],
-    mysteryAFound: false,
-    mysteryAOpened: false,
-    mysteryBFound: false,
-    mysteryBOpened: false,
-    chestOpened: false,
-    trashRummaged: false,
-    trashOutcome: null,
-    spareCandleClaimed: false,
-    jackpotUntil: null,
-    startedAt: now,
-    finishedAt: null,
-    stampToast: null,
-  }
-}
-
-const SESSION_PREFIX = 'dailies/archive-session/v1/'
-
-function loadSession(week: string): ArchiveSession | null {
-  try {
-    const raw = localStorage.getItem(SESSION_PREFIX + week)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as ArchiveSession
-    if (parsed.version !== 1) return null
-    return parsed
-  } catch {
-    return null
-  }
-}
-
-function persistSession(week: string, state: ArchiveSession) {
-  try {
-    localStorage.setItem(SESSION_PREFIX + week, JSON.stringify(state))
-  } catch {
-    /* noop */
-  }
-}
-
-// Deterministic 0..1 hash from a string, used for trash outcome & jitter so
-// the room looks the same shape every time the same week is played.
-function seedHash(s: string): number {
-  let h = 2166136261
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return (h >>> 0) / 0xffffffff
-}
+// The Archive — the weekly escape-room. Three answers per week (two mystery
+// games plus a freehand "what do they have in common"), and a room whose
+// contents are entirely authored: `puzzle.clues` is a flat list and every entry
+// carries its own container, emoji, name, subject, cost and body. Nothing in
+// this file hardcodes what a clue *is*; see `lib/archivePresets.ts`.
 
 // ─── page ───────────────────────────────────────────────────────────────────
 
@@ -161,7 +67,9 @@ export function ArchiveGame() {
   return <ArchiveRoom key={puzzle.id} puzzle={puzzle} week={week} />
 }
 
-function ArchiveRoom({
+// Exported so the room can be rendered against a known puzzle + week without
+// going through the async fetch.
+export function ArchiveRoom({
   puzzle,
   week,
 }: {
@@ -169,19 +77,36 @@ function ArchiveRoom({
   week: string
 }) {
   const [state, setState] = useState<ArchiveSession>(
-    () => loadSession(week) ?? emptySession(Date.now()),
+    () => loadSession(week) ?? emptySession(Date.now(), puzzle.candles),
   )
 
   useEffect(() => {
     persistSession(week, state)
   }, [week, state])
 
+  const wrongCount = state.wrongs.length
+  const finished = state.status !== 'playing'
+  const clues = puzzle.clues
+
+  // Mirror a finished run to the global score store (streak / stats / sidebar).
+  // Done in an effect rather than inside a reducer so the write happens after
+  // the state that caused it has committed. The guard is a ref, not state —
+  // "have I told the external system" isn't something the UI renders. Re-
+  // reporting on a later visit would be harmless anyway: every field it writes
+  // comes from the persisted session, so the write is idempotent.
+  const reported = useRef(false)
+  useEffect(() => {
+    if (state.status === 'playing' || reported.current) return
+    reported.current = true
+    recordResult(week, state, state.linkSolved ? puzzle.game_a : null)
+  }, [state, week, puzzle.game_a])
+
   // jackpot timer — auto-clear when expired
   useEffect(() => {
     if (!state.jackpotUntil) return
     const ms = Math.max(0, state.jackpotUntil - Date.now())
     const t = window.setTimeout(
-      () => setState((s) => ({ ...s, jackpotUntil: null })),
+      () => setState((s) => ({ ...s, jackpotUntil: null, jackpotSrc: null })),
       ms,
     )
     return () => window.clearTimeout(t)
@@ -197,141 +122,73 @@ function ArchiveRoom({
     return () => window.clearTimeout(t)
   }, [state.stampToast])
 
-  const wrongCount = state.wrongs.length
-  const finished = state.status !== 'playing'
+  const byContainer = useMemo(() => {
+    const out: Record<string, ArchiveClue[]> = {}
+    for (const c of clues) (out[c.container] ??= []).push(c)
+    return out
+  }, [clues])
 
-  const spend = useCallback(
-    (cost: number, updater: (prev: ArchiveSession) => ArchiveSession) => {
-      setState((prev) => {
-        if (prev.status !== 'playing') return prev
-        if (prev.candles < cost) return prev
-        const next = updater(prev)
-        return { ...next, candles: next.candles - cost }
-      })
-    },
+  // Only render a prop for a hiding spot this week actually uses, so an empty
+  // corner is never a false lead. The trash is the exception: a crossed-out
+  // title is content in its own right, so it keeps the bin searchable even when
+  // nothing is stashed in it.
+  const spotsInUse = useMemo(() => {
+    const set = new Set<ArchiveHidingSpot>()
+    for (const c of clues) if (c.hiddenSpot) set.add(c.hiddenSpot)
+    if (puzzle.trash_crossed_out) set.add('trash')
+    return ARCHIVE_HIDING_SPOTS.filter((s) => set.has(s.id))
+  }, [clues, puzzle.trash_crossed_out])
+
+  const stillHidden = spotsInUse.filter((s) => !state.foundSpots[s.id]).length
+  const blur = blurPx(state)
+  const sealed = jackpotSealed(state)
+
+  const openClue = useCallback(
+    (clue: ArchiveClue) => setState((prev) => open(prev, clue)),
     [],
   )
-
-  const onGuess = useCallback(
-    (g: Game) => {
-      setState((prev) => {
-        if (prev.status !== 'playing') return prev
-        if (g.id === puzzle.game.id) {
-          const finished: ArchiveSession = {
-            ...prev,
-            status: 'solved',
-            solvedWith: g.name,
-            finishedAt: Date.now(),
-            jackpotUntil: null,
-          }
-          // mirror to global score store so streak/stats pick it up
-          saveResult({
-            date: week,
-            gameType: 'archive',
-            status: 'solved',
-            guessCount: prev.wrongs.length + 1,
-            guesses: [
-              ...prev.wrongs.map((w) => ({
-                kind: 'wrong' as const,
-                game: { id: -1, name: w.name },
-                at: w.at,
-              })),
-              { kind: 'correct', game: g, at: Date.now() },
-            ],
-            startedAt: prev.startedAt,
-            finishedAt: finished.finishedAt!,
-          })
-          window.dispatchEvent(new Event('dailies:result-saved'))
-          return finished
-        }
-        // wrong — lock a random unlocked standard box, bump wall blur, stamp
-        const candidates = STANDARD_BOX_IDS.filter(
-          (id) => !prev.locked[id] && !prev.opened[id],
-        )
-        const pick =
-          candidates.length > 0
-            ? candidates[
-                Math.floor(
-                  seedHash(week + g.name + prev.wrongs.length) *
-                    candidates.length,
-                )
-              ]
-            : null
-        const wrongs = [...prev.wrongs, { name: g.name, at: Date.now() }]
-        const status: ArchiveSession['status'] =
-          wrongs.length >= ARCHIVE_MAX_WRONG ? 'lost' : 'playing'
-        const result: ArchiveSession = {
-          ...prev,
-          wrongs,
-          locked: pick ? { ...prev.locked, [pick]: true } : prev.locked,
-          status,
-          finishedAt: status === 'lost' ? Date.now() : prev.finishedAt,
-          stampToast: Date.now(),
-        }
-        if (status === 'lost') {
-          saveResult({
-            date: week,
-            gameType: 'archive',
-            status: 'lost',
-            guessCount: wrongs.length,
-            guesses: wrongs.map((w) => ({
-              kind: 'wrong' as const,
-              game: { id: -1, name: w.name },
-              at: w.at,
-            })),
-            startedAt: prev.startedAt,
-            finishedAt: result.finishedAt!,
-          })
-          window.dispatchEvent(new Event('dailies:result-saved'))
-        }
-        return result
-      })
-    },
-    [puzzle.game.id, week],
+  const findSpot = useCallback(
+    (spot: ArchiveHidingSpot) => setState((prev) => searchSpot(prev, spot)),
+    [],
+  )
+  const onGuessGame = useCallback(
+    (g: Game) => setState((prev) => guessGame(prev, g, puzzle, week)),
+    [puzzle, week],
+  )
+  const onGuessLink = useCallback(
+    (text: string) => setState((prev) => guessLink(prev, text, puzzle, week)),
+    [puzzle, week],
   )
 
-  // Trash outcome is deterministic — same week always rummages the same.
-  const trashOutcome: 'crossed' | 'mysteryB' | 'nothing' = useMemo(() => {
-    const r = seedHash(week + 'trash')
-    if (r < 0.4) return 'crossed'
-    if (r < 0.7) return 'mysteryB'
-    return 'nothing'
-  }, [week])
-
-  const rummageTrash = useCallback(() => {
-    setState((prev) => {
-      if (prev.status !== 'playing' || prev.trashRummaged) return prev
-      const next: ArchiveSession = {
-        ...prev,
-        trashRummaged: true,
-        trashOutcome,
-      }
-      if (trashOutcome === 'mysteryB') next.mysteryBFound = true
-      return next
-    })
-  }, [trashOutcome])
-
-  const frameBlurPx =
-    ARCHIVE_FRAME_BLUR_PX[Math.min(wrongCount, ARCHIVE_FRAME_BLUR_PX.length - 1)]
-
-  // Always derive: clue cards for opened items (rendered in the desk pane).
   const openedClues = useMemo(
-    () => buildOpenedClues(state, puzzle, trashOutcome),
-    [state, puzzle, trashOutcome],
+    () => clues.filter((c) => state.opened[c.id]),
+    [clues, state.opened],
   )
 
   const rank = useMemo(
-    () => (state.status === 'solved' ? computeRank(state) : null),
-    [state],
+    () =>
+      state.status === 'solved'
+        ? computeRank(state.candles, puzzle.candles, state.wrongs.length)
+        : null,
+    [state.status, state.candles, state.wrongs.length, puzzle.candles],
   )
 
   const shareString = useMemo(
-    () => (finished ? buildShareString(state, puzzle, week) : null),
+    () => (finished ? buildShareString(state, puzzle, weekNumber(week)) : null),
     [finished, state, puzzle, week],
   )
 
+  const tileProps = {
+    state,
+    finished,
+    blurPx: blur,
+    jackpotSealed: sealed,
+    onOpen: openClue,
+    isFound: (clue: ArchiveClue) => isFound(state, clue),
+  }
+
   return (
-    <div className="max-w-5xl archive-readable">
+    <div className="archive-readable @container">
       <ArchiveStyles />
       <ScreenEffects
         type={puzzle.effectType}
@@ -350,7 +207,7 @@ function ArchiveRoom({
         </h1>
         <InfoButton
           title="The Archive"
-          text="Weekly puzzle. You have 5 candles. Spend them on objects in the room — boxes, drawers, the radio, framed photos. Each clue costs 1 candle, the sealed chest costs 2. Identify the game in 3 wrong guesses or fewer. Each wrong guess locks a clue and sharpens the walls."
+          text={`Weekly. Three answers: two mystery games and the one thing they have in common. You get ${puzzle.candles} candles and ${ARCHIVE_MAX_WRONG} wrong guesses for the whole case. Spend candles to open clues — what a clue points at is only revealed once you've paid for it. Some clues are hidden around the room; hunt for them, finding them is free. Every wrong guess locks a sealed clue.`}
         />
       </div>
 
@@ -360,311 +217,805 @@ function ArchiveRoom({
         </div>
       )}
 
-      {/* Room — dark noir surface */}
-      <div className="archive-room border-neo shadow-neo-lg relative overflow-hidden">
-        {(puzzle.bannerText || puzzle.submitter) && finished && (
-          <GuestBanner
-            gameType="archive"
-            submitter={puzzle.submitter}
-            text={puzzle.bannerText}
-            color={puzzle.bannerColor}
-            textColor={puzzle.bannerTextColor}
-            style={puzzle.bannerStyle}
-          />
-        )}
-        <DustLayer />
-
-        {/* Header band — candles, stamps */}
-        <div className="relative z-10 px-5 py-4 flex items-center justify-between gap-4 border-b-[3px] border-stroke bg-paper">
-          <CandleCounter candles={state.candles} />
-          <WrongStamps wrongs={state.wrongs} max={ARCHIVE_MAX_WRONG} />
-        </div>
-
-        {/* Wall — frames + chest */}
-        <div className="relative z-10 px-5 pt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <WallFrame
-            title="Frame · Gameplay"
-            imageUrl={puzzle.frame1_url}
-            blurPx={frameBlurPx}
-            opened={state.frames[0]}
-            disabled={finished || state.candles < ARCHIVE_COSTS.frame}
-            onOpen={() =>
-              spend(ARCHIVE_COSTS.frame, (p) => ({
-                ...p,
-                frames: [true, p.frames[1]],
-              }))
-            }
-            cost={ARCHIVE_COSTS.frame}
-          />
-          <WallFrame
-            title="Frame · Key Art"
-            imageUrl={puzzle.frame2_url}
-            blurPx={frameBlurPx}
-            opened={state.frames[1]}
-            disabled={finished || state.candles < ARCHIVE_COSTS.frame}
-            onOpen={() =>
-              spend(ARCHIVE_COSTS.frame, (p) => ({
-                ...p,
-                frames: [p.frames[0], true],
-              }))
-            }
-            cost={ARCHIVE_COSTS.frame}
-          />
-          <ChestPanel
-            opened={state.chestOpened}
-            disabled={finished || state.candles < ARCHIVE_COSTS.chest}
-            onOpen={() =>
-              spend(ARCHIVE_COSTS.chest, (p) => ({
-                ...p,
-                chestOpened: true,
-              }))
-            }
-            chestLogoUrl={puzzle.chest_logo_url}
-            jackpotUntil={state.jackpotUntil}
-          />
-        </div>
-
-        {/* Furniture row — shelf | cabinet | radio */}
-        <div className="relative z-10 px-5 pt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Shelf
-            opened={[state.opened.shelfA, state.opened.shelfB, state.opened.shelfC]}
-            locked={[state.locked.shelfA, state.locked.shelfB, state.locked.shelfC]}
-            disabled={finished || state.candles < ARCHIVE_COSTS.shelfBox}
-            onOpen={(idx) =>
-              spend(ARCHIVE_COSTS.shelfBox, (p) => ({
-                ...p,
-                opened: {
-                  ...p.opened,
-                  [idx === 0 ? 'shelfA' : idx === 1 ? 'shelfB' : 'shelfC']: true,
-                },
-              }))
-            }
-            cost={ARCHIVE_COSTS.shelfBox}
-            mysteryAFound={state.mysteryAFound}
-            onDiscoverMysteryA={() =>
-              setState((p) =>
-                p.status !== 'playing' ? p : { ...p, mysteryAFound: true },
-              )
-            }
-          />
-          <FilingCabinet
-            opened={[
-              state.opened.drawerTop,
-              state.opened.drawerMid,
-              state.opened.drawerBot,
-            ]}
-            locked={[
-              state.locked.drawerTop,
-              state.locked.drawerMid,
-              state.locked.drawerBot,
-            ]}
-            disabled={finished || state.candles < ARCHIVE_COSTS.cabinetDrawer}
-            onOpen={(idx) =>
-              spend(ARCHIVE_COSTS.cabinetDrawer, (p) => ({
-                ...p,
-                opened: {
-                  ...p.opened,
-                  [idx === 0
-                    ? 'drawerTop'
-                    : idx === 1
-                      ? 'drawerMid'
-                      : 'drawerBot']: true,
-                },
-              }))
-            }
-            cost={ARCHIVE_COSTS.cabinetDrawer}
-            spareCandleClaimed={state.spareCandleClaimed}
-            spareCandleVisible={state.candles < 4}
-            spareCandleDisabled={finished}
-            onClaimSpareCandle={() =>
-              setState((p) =>
-                p.status !== 'playing' || p.spareCandleClaimed
-                  ? p
-                  : {
-                      ...p,
-                      spareCandleClaimed: true,
-                      candles: Math.min(
-                        ARCHIVE_TOTAL_CANDLES,
-                        p.candles + 1,
-                      ),
-                    },
-              )
-            }
-          />
-          <RadioPanel
-            opened={state.radio}
-            disabled={finished || state.candles < ARCHIVE_COSTS.radio}
-            audioUrl={puzzle.audio_url}
-            onOpen={() =>
-              spend(ARCHIVE_COSTS.radio, (p) => ({ ...p, radio: true }))
-            }
-            cost={ARCHIVE_COSTS.radio}
-          />
-        </div>
-
-        {/* Bottom row — trash + mystery boxes */}
-        <div className="relative z-10 px-5 pt-6 pb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <TrashCan
-            rummaged={state.trashRummaged}
-            outcome={state.trashOutcome}
-            disabled={finished}
-            onRummage={rummageTrash}
-            crossedOut={puzzle.trash_crossed_out}
-          />
-          <MysteryBoxPanel
-            label="Mystery box · behind shelf"
-            found={state.mysteryAFound}
-            opened={state.mysteryAOpened}
-            box={puzzle.mystery_a}
-            disabled={finished || state.candles < ARCHIVE_COSTS.mysteryBox}
-            finished={finished}
-            cost={ARCHIVE_COSTS.mysteryBox}
-            wrongCount={wrongCount}
-            maxWrong={ARCHIVE_MAX_WRONG}
-            onOpen={() =>
-              spend(
-                puzzle.mystery_a.type === 'jackpot' ? 0 : ARCHIVE_COSTS.mysteryBox,
-                (p) => ({
-                  ...p,
-                  mysteryAOpened: true,
-                  jackpotUntil:
-                    puzzle.mystery_a.type === 'jackpot'
-                      ? Date.now() + 3000
-                      : p.jackpotUntil,
-                }),
-              )
-            }
-          />
-          <MysteryBoxPanel
-            label="Mystery box · trash"
-            found={state.mysteryBFound}
-            opened={state.mysteryBOpened}
-            box={puzzle.mystery_b}
-            disabled={finished || state.candles < ARCHIVE_COSTS.mysteryBox}
-            finished={finished}
-            cost={ARCHIVE_COSTS.mysteryBox}
-            wrongCount={wrongCount}
-            maxWrong={ARCHIVE_MAX_WRONG}
-            onOpen={() =>
-              spend(
-                puzzle.mystery_b.type === 'jackpot' ? 0 : ARCHIVE_COSTS.mysteryBox,
-                (p) => ({
-                  ...p,
-                  mysteryBOpened: true,
-                  jackpotUntil:
-                    puzzle.mystery_b.type === 'jackpot'
-                      ? Date.now() + 3000
-                      : p.jackpotUntil,
-                }),
-              )
-            }
-          />
-        </div>
-
-        {/* WRONG stamp toast */}
-        {state.stampToast && (
-          <div
-            className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
-            aria-hidden
-          >
-            <div className="archive-stamp font-display text-4xl md:text-6xl uppercase tracking-widest font-bold">
-              ✗ Wrong Case File
-            </div>
-          </div>
-        )}
-
-        {/* Jackpot full-cover flash */}
-        {state.jackpotUntil && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 bg-black/80 backdrop-blur-sm">
-            <div className="border-neo shadow-neo-lg p-3 bg-paper">
-              <img
-                src={puzzle.frame2_url}
-                alt=""
-                className="w-72 max-w-[60vw] aspect-[4/5] object-cover"
+      {/*
+        Room left, desk right. A CONTAINER query, not a viewport one, because
+        what matters is the width this page actually got — the 340px sidebar
+        takes a big bite out of it. Above the threshold the desk is a fixed
+        column and the room absorbs every remaining pixel (the room is the
+        game; the case file is just the notepad). Below it the desk drops to
+        its own full-width row underneath, which is the phone layout.
+      */}
+      <div className="flex flex-col @min-[1100px]:flex-row gap-5 @min-[1100px]:items-start">
+        {/* `flex-1` is row-only on purpose: its 0% basis would apply to HEIGHT
+            in the stacked column layout and collapse the room. */}
+        <div className="w-full min-w-0 @min-[1100px]:flex-1 @container">
+          <div className="archive-room border-neo shadow-neo-lg relative overflow-hidden">
+            {(puzzle.bannerText || puzzle.submitter) && finished && (
+              <GuestBanner
+                gameType="archive"
+                submitter={puzzle.submitter}
+                text={puzzle.bannerText}
+                color={puzzle.bannerColor}
+                textColor={puzzle.bannerTextColor}
+                style={puzzle.bannerStyle}
               />
-              <div className="font-display text-xs uppercase tracking-wider font-bold mt-2 text-center">
-                ★ Jackpot · full art
+            )}
+            <DustLayer />
+
+            {/* Header band — candles, stamps, hunt counter */}
+            <div className="relative z-10 px-5 py-4 flex items-center justify-between gap-4 flex-wrap border-b-[3px] border-stroke bg-paper">
+              <CandleCounter candles={state.candles} total={puzzle.candles} />
+              <WrongStamps wrongs={state.wrongs} max={ARCHIVE_MAX_WRONG} />
+            </div>
+            {stillHidden > 0 && !finished && (
+              <div className="relative z-10 px-5 pt-3 font-display text-[10px] uppercase tracking-wider text-ink-soft">
+                🔍 {stillHidden} thing{stillHidden === 1 ? '' : 's'} still hidden
+                somewhere in this room
+              </div>
+            )}
+
+            {/* Wall — framed things + the chest */}
+            {(byContainer.wall || byContainer.chest) && (
+              <div className="relative z-10 px-5 pt-5 grid grid-cols-1 @min-[440px]:grid-cols-2 @min-[640px]:grid-cols-3 gap-3">
+                {(byContainer.wall ?? []).map((c) => (
+                  <ClueTile key={c.id} clue={c} {...tileProps} />
+                ))}
+                {(byContainer.chest ?? []).map((c) => (
+                  <ClueTile key={c.id} clue={c} chest {...tileProps} />
+                ))}
+              </div>
+            )}
+
+            {/* Furniture — bookshelf | filing cabinet | radio */}
+            <div className="relative z-10 px-5 pt-5 grid grid-cols-1 @min-[660px]:grid-cols-2 gap-3">
+              {byContainer.shelf && (
+                <Furniture icon={<BookOpen className="h-3 w-3 stroke-[3]" />} label="Bookshelf">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {byContainer.shelf.map((c) => (
+                      <ClueTile key={c.id} clue={c} {...tileProps} />
+                    ))}
+                  </div>
+                </Furniture>
+              )}
+              {byContainer.cabinet && (
+                <Furniture icon={<Scroll className="h-3 w-3 stroke-[3]" />} label="Filing cabinet">
+                  <div className="flex flex-col gap-2">
+                    {byContainer.cabinet.map((c) => (
+                      <ClueTile key={c.id} clue={c} drawer {...tileProps} />
+                    ))}
+                  </div>
+                  <SpareCandle
+                    claimed={state.spareCandleClaimed}
+                    visible={state.candles < Math.ceil(puzzle.candles / 2)}
+                    disabled={finished}
+                    onClaim={() =>
+                      setState((p) => claimSpareCandle(p, puzzle.candles))
+                    }
+                  />
+                </Furniture>
+              )}
+              {byContainer.radio && (
+                <Furniture icon={<Radio className="h-3 w-3 stroke-[3]" />} label="Radio">
+                  <div className="flex flex-col gap-2">
+                    {byContainer.radio.map((c) => (
+                      <ClueTile key={c.id} clue={c} {...tileProps} />
+                    ))}
+                  </div>
+                </Furniture>
+              )}
+              {byContainer.mystery && (
+                <Furniture icon={<span className="text-[11px] leading-none">📦</span>} label="Unmarked parcels">
+                  <div className="grid grid-cols-2 gap-2">
+                    {byContainer.mystery.map((c) => (
+                      <ClueTile key={c.id} clue={c} {...tileProps} />
+                    ))}
+                  </div>
+                </Furniture>
+              )}
+            </div>
+
+            {/* Hiding spots — scattered around the room, free to search */}
+            <div className="relative z-10 px-5 pt-5 pb-6">
+              <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink-soft mb-2 flex items-center gap-2">
+                <Search className="h-3 w-3 stroke-[3]" /> Search the room · free
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {spotsInUse.length === 0 && (
+                  <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft opacity-70">
+                    Nothing hidden this week.
+                  </div>
+                )}
+                {spotsInUse.map((spot) => (
+                  <HidingSpot
+                    key={spot.id}
+                    spot={spot}
+                    found={!!state.foundSpots[spot.id]}
+                    disabled={finished}
+                    crossedOut={
+                      spot.id === 'trash' ? puzzle.trash_crossed_out : undefined
+                    }
+                    onFind={() => findSpot(spot.id)}
+                  />
+                ))}
               </div>
             </div>
-          </div>
-        )}
-      </div>
 
-      {/* Desk — input + opened clues + (after end) reveal */}
-      <NeoCard tone="paper" shadow="md" className="mt-5 p-5">
-        <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-2 flex items-center gap-2">
-          <Search className="h-3 w-3 stroke-[3]" /> Desk · case file
-        </div>
-        {!finished && (
-          <CaseDossier
-            wrongs={state.wrongs}
-            maxWrong={ARCHIVE_MAX_WRONG}
-            weeklyTheme={puzzle.weekly_theme}
-          />
-        )}
-        <div className="mt-3">
-          {!finished ? (
-            <GameSearch placeholder="Name the game…" onGuess={onGuess} />
-          ) : (
-            <FinaleCard
-              status={state.status}
-              answer={puzzle.game}
-              rank={rank}
-              shareString={shareString}
-              wrongCount={wrongCount}
-              candlesLeft={state.candles}
-              clues={openedClues}
-            />
-          )}
-        </div>
-        {!finished && openedClues.length > 0 && (
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {openedClues.map((c, i) => (
-              <ClueCard key={i} clue={c} />
-            ))}
+            {/* WRONG stamp toast */}
+            {state.stampToast && (
+              <div
+                className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
+                aria-hidden
+              >
+                <div className="archive-stamp font-display text-3xl md:text-5xl uppercase tracking-widest font-bold">
+                  ✗ Wrong Case File
+                </div>
+              </div>
+            )}
+
+            {/* Jackpot full-art flash */}
+            {state.jackpotUntil && state.jackpotSrc && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 bg-black/80 backdrop-blur-sm">
+                <div className="border-neo shadow-neo-lg p-3 bg-paper">
+                  <img
+                    src={state.jackpotSrc}
+                    alt=""
+                    className="w-64 max-w-[60vw] aspect-[4/5] object-cover"
+                  />
+                  <div className="font-display text-xs uppercase tracking-wider font-bold mt-2 text-center">
+                    ★ Jackpot · full art
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-        <div className="mt-4 text-[10px] uppercase tracking-wider text-ink-soft font-display">
-          Wrong guesses · {wrongCount} / {ARCHIVE_MAX_WRONG} · Candles · {state.candles} /{' '}
-          {ARCHIVE_TOTAL_CANDLES}
         </div>
-      </NeoCard>
+
+        {/* Desk — the case file: three answers + everything you've opened */}
+        <div className="w-full shrink-0 @min-[1100px]:w-[400px] @min-[1500px]:w-[440px]">
+          <NeoCard tone="paper" shadow="md" className="p-5">
+            <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-3 flex items-center gap-2">
+              <Search className="h-3 w-3 stroke-[3]" /> Desk · case file
+            </div>
+
+            <AnswerSlots
+              puzzle={puzzle}
+              state={state}
+              finished={finished}
+              onGuessGame={onGuessGame}
+              onGuessLink={onGuessLink}
+            />
+
+            {finished && (
+              <div className="mt-4">
+                <FinaleCard
+                  status={state.status}
+                  puzzle={puzzle}
+                  rank={rank}
+                  shareString={shareString}
+                  wrongCount={wrongCount}
+                  candlesLeft={state.candles}
+                />
+              </div>
+            )}
+
+            <DossierClues
+              clues={openedClues}
+              blurPx={blur}
+              wrongs={state.wrongs}
+            />
+
+            <div className="mt-4 text-[10px] uppercase tracking-wider text-ink-soft font-display">
+              Wrong · {wrongCount} / {ARCHIVE_MAX_WRONG} · Candles ·{' '}
+              {state.candles} / {puzzle.candles} · Clues opened ·{' '}
+              {openedClues.length} / {clues.length}
+            </div>
+          </NeoCard>
+        </div>
+      </div>
     </div>
   )
 }
 
-// ─── small composable bits ───────────────────────────────────────────────────
+// ─── result mirroring ───────────────────────────────────────────────────────
 
-function CandleCounter({ candles }: { candles: number }) {
+// Mirror to the global score store so streak / stats / sidebar pick the week
+// up. The Archive has three answers but `PuzzleResult` is single-answer, so we
+// report subject A as "the" game and the wrong stamps as the guess trail.
+function recordResult(
+  week: string,
+  s: ArchiveSession,
+  solvedGame: Game | null,
+) {
+  const wrongGuesses = s.wrongs.map((w) => ({
+    kind: 'wrong' as const,
+    game: { id: -1, name: w.label },
+    at: w.at,
+  }))
+  saveResult({
+    date: week,
+    gameType: 'archive',
+    status: s.status === 'solved' ? 'solved' : 'lost',
+    guessCount: s.wrongs.length + (solvedGame ? 1 : 0),
+    guesses: solvedGame
+      ? [...wrongGuesses, { kind: 'correct', game: solvedGame, at: Date.now() }]
+      : wrongGuesses,
+    startedAt: s.startedAt,
+    finishedAt: s.finishedAt ?? Date.now(),
+  })
+  window.dispatchEvent(new Event('dailies:result-saved'))
+}
+
+// ─── answer slots ───────────────────────────────────────────────────────────
+
+function AnswerSlots({
+  puzzle,
+  state,
+  finished,
+  onGuessGame,
+  onGuessLink,
+}: {
+  puzzle: ArchivePuzzle
+  state: ArchiveSession
+  finished: boolean
+  onGuessGame: (g: Game) => void
+  onGuessLink: (text: string) => void
+}) {
+  const bothGames = !!state.solvedA && !!state.solvedB
   return (
-    <div className="flex items-center gap-1.5">
-      {Array.from({ length: ARCHIVE_TOTAL_CANDLES }).map((_, i) => {
+    <div className="flex flex-col gap-2">
+      <Slot
+        label="Subject A"
+        value={state.solvedA?.name ?? null}
+        revealed={finished ? puzzle.game_a.name : null}
+      />
+      <Slot
+        label="Subject B"
+        value={state.solvedB?.name ?? null}
+        revealed={finished ? puzzle.game_b.name : null}
+      />
+      <Slot
+        label="The link"
+        value={state.linkSolved ? puzzle.link.answer : null}
+        revealed={finished ? puzzle.link.answer : null}
+        locked={!bothGames && !finished}
+        lockedHint="Name both games first"
+      />
+
+      {!finished && !bothGames && (
+        <div className="mt-2">
+          <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft mb-1">
+            Name a subject — either one, any order
+          </div>
+          <GameSearch placeholder="Name the game…" onGuess={onGuessGame} direction="down" />
+        </div>
+      )}
+
+      {!finished && bothGames && !state.linkSolved && (
+        <LinkInput prompt={puzzle.link.prompt} onSubmit={onGuessLink} />
+      )}
+    </div>
+  )
+}
+
+function Slot({
+  label,
+  value,
+  revealed,
+  locked,
+  lockedHint,
+}: {
+  label: string
+  value: string | null
+  revealed: string | null
+  locked?: boolean
+  lockedHint?: string
+}) {
+  const solved = !!value
+  return (
+    <div
+      className={cn(
+        'border-neo-2 px-3 py-2 flex items-center gap-3',
+        solved ? 'bg-lime text-ink-static' : 'bg-cream-soft text-ink',
+      )}
+    >
+      <span className="font-display text-[10px] uppercase tracking-wider font-bold w-[74px] shrink-0">
+        {label}
+      </span>
+      <span className="flex-1 min-w-0 text-sm font-bold truncate">
+        {solved ? (
+          <>✓ {value}</>
+        ) : locked ? (
+          <span className="opacity-60 font-normal italic">🔒 {lockedHint}</span>
+        ) : revealed ? (
+          <span className="text-coral">✗ {revealed}</span>
+        ) : (
+          <span className="opacity-50">???</span>
+        )}
+      </span>
+    </div>
+  )
+}
+
+// The third answer: freehand text, matched loosely (case / accents /
+// punctuation / leading articles are all ignored — see `matchesLink`).
+function LinkInput({
+  prompt,
+  onSubmit,
+}: {
+  prompt: string
+  onSubmit: (text: string) => void
+}) {
+  const [text, setText] = useState('')
+  function go() {
+    const t = text.trim()
+    if (!t) return
+    setText('')
+    onSubmit(t)
+  }
+  return (
+    <div className="mt-2 border-neo-2 bg-cream-soft p-3">
+      <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-2 text-ink">
+        Both subjects identified — last call
+      </div>
+      <div className="text-sm font-serif italic text-ink mb-2">{prompt}</div>
+      <div className="flex gap-2">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') go()
+          }}
+          placeholder="Type your answer…"
+          aria-label="What the two games have in common"
+          className="border-neo bg-paper px-3 py-2 text-sm font-bold outline-none flex-1 min-w-0"
+        />
+        <NeoButton tone="lime" size="sm" onClick={go} disabled={!text.trim()}>
+          Submit
+        </NeoButton>
+      </div>
+    </div>
+  )
+}
+
+// ─── clue tiles ─────────────────────────────────────────────────────────────
+
+type TileProps = {
+  clue: ArchiveClue
+  state: ArchiveSession
+  finished: boolean
+  blurPx: number
+  jackpotSealed: boolean
+  onOpen: (clue: ArchiveClue) => void
+  isFound: (clue: ArchiveClue) => boolean
+  // chrome variants
+  drawer?: boolean
+  chest?: boolean
+}
+
+function ClueTile(props: TileProps) {
+  const { clue, state, finished, blurPx, jackpotSealed, onOpen, isFound } = props
+  const opened = !!state.opened[clue.id]
+  const locked = !!state.locked[clue.id]
+  const found = isFound(clue)
+  const isJackpot = clue.outcome === 'jackpot'
+  const cost = clueCost(clue)
+  const sealed = isJackpot && jackpotSealed && !opened
+  const affordable = state.candles >= cost
+  const disabled = finished || sealed || (!affordable && !opened)
+
+  // Still stashed somewhere — the container shows a gap, not the clue.
+  if (!found && !opened) {
+    return (
+      <div className="border-[3px] border-dashed border-stroke bg-cream-soft/50 p-3 min-h-[76px] flex items-center justify-center text-ink-soft">
+        <span className="font-display text-[10px] uppercase tracking-wider opacity-60">
+          ? ? ?
+        </span>
+      </div>
+    )
+  }
+
+  if (locked && !opened) {
+    return (
+      <div className="archive-locked p-3 flex flex-col items-center justify-center gap-1 min-h-[76px] text-ink-soft">
+        <Lock className="h-4 w-4 stroke-[2.5]" />
+        <div className="font-display text-[10px] uppercase tracking-wider font-bold">
+          Locked
+        </div>
+        <div className="text-[10px] font-display uppercase opacity-60 text-center leading-tight">
+          {clue.name}
+        </div>
+      </div>
+    )
+  }
+
+  if (opened) return <OpenedTile clue={clue} blurPx={blurPx} chest={props.chest} />
+
+  if (props.drawer)
+    return (
+      <DrawerFace
+        cost={cost}
+        disabled={disabled}
+        onOpen={() => onOpen(clue)}
+      />
+    )
+
+  return (
+    <button
+      onClick={() => onOpen(clue)}
+      disabled={disabled}
+      title={sealed ? 'Sealed until your last guess' : clue.name}
+      className={cn(
+        'archive-tile archive-tile-closed p-3 flex flex-col items-center justify-center gap-1 min-h-[76px] text-ink w-full',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        isJackpot && 'archive-jackpot-tile relative overflow-hidden',
+        props.chest && 'archive-chest-closed',
+        !disabled && !isJackpot && 'archive-glow',
+      )}
+    >
+      <span className="text-2xl leading-none">
+        {sealed ? '🔒' : clue.emoji || '📦'}
+      </span>
+      <div className="font-display text-[10px] uppercase tracking-wider font-bold text-center leading-tight">
+        {clue.name}
+      </div>
+      {isJackpot ? (
+        <div className="font-display text-[9px] uppercase tracking-wider font-bold text-center leading-tight text-mustard-deep">
+          {sealed ? '★ Sealed until your last guess' : '★ Jackpot · free — open it!'}
+        </div>
+      ) : (
+        <div className="text-[10px] font-display uppercase opacity-80 flex items-center gap-1">
+          <Flame className="h-3 w-3" /> {cost}
+        </div>
+      )}
+    </button>
+  )
+}
+
+// The filing cabinet, drawn as an actual drawer front: a recessed inner panel
+// inset from the outer face, a pull handle dead centre, and the candle cost
+// directly beneath it.
+//
+// Drawers are deliberately ANONYMOUS — no emoji, no name, no tooltip. Unlike a
+// shelf box (where you're choosing a labelled thing), you just pick a drawer and
+// take what's in it, so putting "Internal memo" on the front would give away the
+// clue you're paying to uncover. The name only appears once it's open.
+function DrawerFace({
+  cost,
+  disabled,
+  onOpen,
+}: {
+  cost: number
+  disabled?: boolean
+  onOpen: () => void
+}) {
+  return (
+    <button
+      onClick={onOpen}
+      disabled={disabled}
+      aria-label={`Pull open a drawer · ${cost} candle${cost === 1 ? '' : 's'}`}
+      className="archive-drawer w-full disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <span className="archive-drawer-inner">
+        <span className="archive-drawer-center">
+          <DrawerHandle />
+          <span className="font-display text-[10px] uppercase tracking-wider opacity-80 flex items-center gap-1 text-ink">
+            <Flame className="h-3 w-3" /> {cost}
+          </span>
+        </span>
+      </span>
+    </button>
+  )
+}
+
+function DrawerHandle() {
+  return (
+    <svg
+      width="46"
+      height="14"
+      viewBox="0 0 46 14"
+      aria-hidden
+      className="shrink-0"
+    >
+      <rect x="7" y="1" width="5" height="5" fill="var(--color-stroke)" />
+      <rect x="34" y="1" width="5" height="5" fill="var(--color-stroke)" />
+      <rect
+        x="1"
+        y="5"
+        width="44"
+        height="7"
+        rx="3.5"
+        fill="var(--color-cream-soft)"
+        stroke="var(--color-stroke)"
+        strokeWidth="2"
+      />
+    </svg>
+  )
+}
+
+// An opened clue in the room: it now admits what it points at (the subject chip
+// is deliberately absent while sealed), plus a compact rendering of its body.
+// Audio lives here — the desk just notes that it's playing in the room.
+function OpenedTile({
+  clue,
+  blurPx,
+  chest,
+}: {
+  clue: ArchiveClue
+  blurPx: number
+  chest?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        'archive-tile-open p-2.5 bg-cream-soft',
+        chest && 'archive-chest-open',
+      )}
+    >
+      <div className="flex items-center gap-1.5 mb-1.5 text-ink">
+        <span className="text-base leading-none">{clue.emoji || '📄'}</span>
+        <span className="font-display text-[10px] uppercase tracking-wider font-bold truncate flex-1 min-w-0">
+          {clue.name}
+        </span>
+        <SubjectChip subject={clue.subject} />
+      </div>
+      {clue.body.kind === 'image' && (
+        <div className="aspect-[4/3] overflow-hidden bg-paper relative border-[2px] border-stroke">
+          <img
+            src={clue.body.src}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover transition-[filter] duration-500 ease-out"
+            style={
+              clue.body.sharpens
+                ? {
+                    filter: `blur(${blurPx}px)`,
+                    transform: blurPx > 0 ? 'scale(1.08)' : 'scale(1)',
+                  }
+                : undefined
+            }
+          />
+        </div>
+      )}
+      {clue.body.kind === 'audio' && (
+        <ClueAudio src={clue.body.src} caption={clue.body.caption} />
+      )}
+      {clue.body.kind === 'text' && (
+        <div className="text-xs font-serif italic text-ink leading-snug line-clamp-3">
+          {clue.body.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SubjectChip({ subject }: { subject: ArchiveClueSubject }) {
+  const tone =
+    subject === 'herring'
+      ? 'bg-coral text-ink-static'
+      : subject === 'link'
+        ? 'bg-mustard text-ink-static'
+        : subject === 'both'
+          ? 'bg-blue text-paper-static'
+          : 'bg-paper text-ink'
+  return (
+    <span
+      className={cn(
+        'shrink-0 border-[2px] border-stroke px-1.5 py-[1px] font-display text-[8px] uppercase tracking-wider font-bold',
+        tone,
+      )}
+    >
+      {subjectChip(subject)}
+    </span>
+  )
+}
+
+function ClueAudio({ src, caption }: { src: string; caption?: string }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [playing, setPlaying] = useState(false)
+  const [volume, setVolume] = useState(0.7)
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume
+  }, [volume])
+  if (!src)
+    return (
+      <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
+        No reel filed.
+      </div>
+    )
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <Waveform playing={playing} />
+      <audio
+        ref={audioRef}
+        src={src}
+        onEnded={() => setPlaying(false)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+      />
+      <div className="flex items-center gap-2">
+        <NeoButton
+          tone="mustard"
+          size="sm"
+          onClick={() => {
+            const a = audioRef.current
+            if (!a) return
+            if (playing) a.pause()
+            else void a.play()
+          }}
+        >
+          {playing ? (
+            <Pause className="inline h-3 w-3 mr-1" />
+          ) : (
+            <Music className="inline h-3 w-3 mr-1" />
+          )}
+          {playing ? 'Pause' : 'Play'}
+        </NeoButton>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={volume}
+          onChange={(e) => setVolume(Number(e.target.value))}
+          aria-label="Volume"
+          title={`Volume · ${Math.round(volume * 100)}%`}
+          className="archive-volume w-14 h-1 cursor-pointer"
+        />
+      </div>
+      {caption && (
+        <div className="font-display text-[9px] uppercase tracking-wider text-ink-soft text-center">
+          {caption}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── room furniture + props ─────────────────────────────────────────────────
+
+function Furniture({
+  icon,
+  label,
+  children,
+}: {
+  icon: React.ReactNode
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="border-[3px] border-stroke bg-paper p-3 relative">
+      <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink-soft mb-3 flex items-center gap-2">
+        {icon} {label}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// Free to search, one click each (the trash keeps its rummaging beat). Finding
+// a spot only *reveals* what's stashed there — opening it still costs candles.
+function HidingSpot({
+  spot,
+  found,
+  disabled,
+  crossedOut,
+  onFind,
+}: {
+  spot: (typeof ARCHIVE_HIDING_SPOTS)[number]
+  found: boolean
+  disabled?: boolean
+  crossedOut?: string
+  onFind: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const isTrash = spot.id === 'trash'
+  function go() {
+    if (busy || found || disabled) return
+    if (!isTrash) return onFind()
+    setBusy(true)
+    window.setTimeout(() => {
+      setBusy(false)
+      onFind()
+    }, 1600)
+  }
+  if (found) {
+    return (
+      <div className="border-[3px] border-stroke bg-cream-soft px-3 py-2 max-w-full">
+        <div className="font-display text-[10px] uppercase tracking-wider text-ink flex items-center gap-1.5">
+          {isTrash ? <Trash2 className="h-3 w-3 stroke-[3]" /> : '🔎'} {spot.label}
+        </div>
+        <div className="text-xs font-serif italic text-ink mt-1">{spot.found}</div>
+        {isTrash && crossedOut && (
+          <div className="text-xs font-serif italic text-ink mt-1">
+            Also, a torn-up scrap:{' '}
+            <span className="line-through text-coral not-italic font-bold">
+              {crossedOut}
+            </span>
+          </div>
+        )}
+      </div>
+    )
+  }
+  return (
+    <button
+      onClick={go}
+      disabled={disabled || busy}
+      title={`Search: ${spot.label}`}
+      className={cn(
+        'archive-tile archive-tile-closed archive-glow px-3 py-2 flex items-center gap-2 text-ink',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        busy && 'archive-rummage',
+      )}
+    >
+      <span className="text-base leading-none">{isTrash ? '🗑️' : '🔎'}</span>
+      <span className="font-display text-[10px] uppercase tracking-wider font-bold">
+        {busy ? 'Rummaging…' : spot.label}
+      </span>
+    </button>
+  )
+}
+
+// A candle stub wedged behind the cabinet. One-time pickup, +1 candle, and it
+// only surfaces once the player is genuinely low so it reads as a rescue
+// rather than a flat freebie.
+function SpareCandle({
+  claimed,
+  visible,
+  disabled,
+  onClaim,
+}: {
+  claimed: boolean
+  visible: boolean
+  disabled?: boolean
+  onClaim: () => void
+}) {
+  if (claimed || !visible) return null
+  return (
+    <button
+      onClick={onClaim}
+      disabled={disabled}
+      className="archive-spare-glint absolute -bottom-2 -left-2 w-6 h-7 flex items-end justify-center disabled:!opacity-0"
+      aria-label="A candle stub flickers behind the cabinet"
+      title="A candle stub flickers behind the cabinet…"
+    >
+      <div className="w-3 h-5 bg-paper-static border-[2px] border-stroke" />
+      <div
+        className="archive-flame absolute -top-0.5 w-3 h-3"
+        style={{ animationDelay: '0.4s' }}
+      />
+    </button>
+  )
+}
+
+function CandleCounter({ candles, total }: { candles: number; total: number }) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {Array.from({ length: total }).map((_, i) => {
         const lit = i < candles
         return (
           <div
             key={i}
             className={cn(
-              'archive-candle relative w-5 h-7 flex items-end justify-center',
+              'archive-candle relative w-4 h-6 flex items-end justify-center',
               !lit && 'opacity-30 grayscale',
             )}
             aria-label={lit ? 'lit candle' : 'spent candle'}
           >
-            <div className="w-3 h-5 bg-paper-static border-[2px] border-stroke" />
+            <div className="w-2.5 h-4 bg-paper-static border-[2px] border-stroke" />
             <div
-              className="archive-flame absolute -top-1 w-3 h-3"
+              className="archive-flame absolute -top-1 w-2.5 h-2.5"
               style={{ animationDelay: `${i * 0.13}s` }}
             />
           </div>
         )
       })}
       <span className="ml-2 font-display text-[10px] uppercase tracking-wider text-ink">
-        {candles} / {ARCHIVE_TOTAL_CANDLES}
+        {candles} / {total}
       </span>
     </div>
   )
 }
 
-function WrongStamps({ wrongs, max }: { wrongs: WrongStamp[]; max: number }) {
+function WrongStamps({ wrongs, max }: { wrongs: ArchiveWrong[]; max: number }) {
   return (
     <div className="flex items-center gap-2">
       <span className="font-display text-[10px] uppercase tracking-wider text-ink">
@@ -674,7 +1025,7 @@ function WrongStamps({ wrongs, max }: { wrongs: WrongStamp[]; max: number }) {
         <div
           key={i}
           className={cn(
-            'w-6 h-6 border-[2px] border-stroke flex items-center justify-center font-display text-sm font-bold',
+            'w-5 h-5 border-[2px] border-stroke flex items-center justify-center font-display text-xs font-bold',
             wrongs[i] ? 'bg-coral text-ink-static' : 'bg-cream-soft text-ink-soft',
           )}
         >
@@ -685,555 +1036,9 @@ function WrongStamps({ wrongs, max }: { wrongs: WrongStamp[]; max: number }) {
   )
 }
 
-function ArchiveObject({
-  title,
-  icon,
-  hint,
-  cost,
-  opened,
-  locked,
-  disabled,
-  onOpen,
-  children,
-  toneOpen = 'bg-cream-soft',
-  glow = true,
-}: {
-  title: string
-  icon: React.ReactNode
-  hint?: string
-  cost?: number
-  opened: boolean
-  locked?: boolean
-  disabled?: boolean
-  onOpen: () => void
-  children?: React.ReactNode
-  toneOpen?: string
-  glow?: boolean
-}) {
-  if (locked) {
-    return (
-      <div className="archive-tile archive-locked p-3 flex flex-col items-center justify-center gap-1 min-h-[88px] text-ink-soft">
-        <Lock className="h-5 w-5 stroke-[2.5]" />
-        <div className="font-display text-[10px] uppercase tracking-wider font-bold">
-          Locked
-        </div>
-        <div className="text-[10px] font-display uppercase opacity-60">{title}</div>
-      </div>
-    )
-  }
-  if (opened) {
-    return (
-      <div className={cn('archive-tile-open p-3', toneOpen)}>
-        <div className="flex items-center gap-2 mb-2 text-ink">
-          {icon}
-          <div className="font-display text-[10px] uppercase tracking-wider font-bold">
-            {title}
-          </div>
-        </div>
-        {children}
-      </div>
-    )
-  }
-  return (
-    <button
-      onClick={onOpen}
-      disabled={disabled}
-      className={cn(
-        'archive-tile archive-tile-closed p-3 flex flex-col items-center justify-center gap-1 min-h-[88px] text-ink disabled:cursor-not-allowed disabled:opacity-50',
-        glow && !disabled && 'archive-glow',
-      )}
-    >
-      {icon}
-      <div className="font-display text-[10px] uppercase tracking-wider font-bold text-center">
-        {title}
-      </div>
-      {hint && (
-        <div className="text-[10px] font-display uppercase opacity-60">
-          {hint}
-        </div>
-      )}
-      {cost !== undefined && (
-        <div className="text-[10px] font-display uppercase opacity-80 flex items-center gap-1">
-          <Flame className="h-3 w-3" /> {cost}
-        </div>
-      )}
-    </button>
-  )
-}
-
-function Shelf({
-  opened,
-  locked,
-  disabled,
-  onOpen,
-  cost,
-  mysteryAFound,
-  onDiscoverMysteryA,
-}: {
-  opened: boolean[]
-  locked: boolean[]
-  disabled?: boolean
-  onOpen: (idx: number) => void
-  cost: number
-  mysteryAFound: boolean
-  onDiscoverMysteryA: () => void
-}) {
-  return (
-    <div className="border-[3px] border-stroke bg-paper p-3 relative">
-      <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink-soft mb-3 flex items-center gap-2">
-        <BookOpen className="h-3 w-3 stroke-[3]" /> Bookshelf
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        {(['A', 'B', 'C'] as const).map((label, i) => (
-          <ArchiveObject
-            key={i}
-            title={`Box ${label}`}
-            icon={<span className="text-2xl leading-none">📦</span>}
-            hint={i === 0 ? 'Year' : i === 1 ? 'Genre' : 'Platform'}
-            cost={cost}
-            opened={opened[i]}
-            locked={locked[i]}
-            disabled={disabled}
-            onOpen={() => onOpen(i)}
-          >
-            <div className="text-ink text-sm leading-snug">
-              {/* the actual clue text is rendered in the desk panel; show a
-                  small "opened" marker here to keep the room tidy. */}
-              <span className="font-display text-[10px] uppercase tracking-wider opacity-70">
-                Filed → see desk
-              </span>
-            </div>
-          </ArchiveObject>
-        ))}
-      </div>
-      {/* Hidden mystery box A: a faint glint at the corner of the shelf. */}
-      {!mysteryAFound && (
-        <button
-          onClick={onDiscoverMysteryA}
-          className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full bg-mustard animate-pulse opacity-70 border-[2px] border-stroke"
-          aria-label="Something glints behind the shelf"
-          title="Something glints behind the shelf…"
-        />
-      )}
-    </div>
-  )
-}
-
-function FilingCabinet({
-  opened,
-  locked,
-  disabled,
-  onOpen,
-  cost,
-  spareCandleClaimed,
-  spareCandleVisible,
-  spareCandleDisabled,
-  onClaimSpareCandle,
-}: {
-  opened: boolean[]
-  locked: boolean[]
-  disabled?: boolean
-  onOpen: (idx: number) => void
-  cost: number
-  spareCandleClaimed: boolean
-  spareCandleVisible: boolean
-  spareCandleDisabled?: boolean
-  onClaimSpareCandle: () => void
-}) {
-  return (
-    <div className="border-[3px] border-stroke bg-paper p-3 relative">
-      <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink-soft mb-3 flex items-center gap-2">
-        <Scroll className="h-3 w-3 stroke-[3]" /> Filing Cabinet
-      </div>
-      <div className="flex flex-col gap-2">
-        {(['Top', 'Middle', 'Bottom'] as const).map((label, i) => (
-          <ArchiveObject
-            key={i}
-            title={`${label} drawer`}
-            icon={<span className="text-xl leading-none">🗄️</span>}
-            hint={i === 0 ? 'Pitch' : i === 1 ? 'Memo' : 'Review'}
-            cost={cost}
-            opened={opened[i]}
-            locked={locked[i]}
-            disabled={disabled}
-            onOpen={() => onOpen(i)}
-          >
-            <div className="font-display text-[10px] uppercase tracking-wider opacity-70 text-ink">
-              Filed → see desk
-            </div>
-          </ArchiveObject>
-        ))}
-      </div>
-      {/* Hidden spare candle: a faint flicker wedged behind the cabinet.
-          One-time pickup, +1 candle (capped at total). Only surfaces when
-          the player is genuinely low (< 4 candles) so it stays a rescue,
-          not a flat freebie. */}
-      {!spareCandleClaimed && spareCandleVisible && (
-        <button
-          onClick={onClaimSpareCandle}
-          disabled={spareCandleDisabled}
-          className="archive-spare-glint absolute -bottom-2 -left-2 w-6 h-7 flex items-end justify-center disabled:!opacity-0"
-          aria-label="A candle stub flickers behind the cabinet"
-          title="A candle stub flickers behind the cabinet…"
-        >
-          <div className="w-3 h-5 bg-paper-static border-[2px] border-stroke" />
-          <div
-            className="archive-flame absolute -top-0.5 w-3 h-3"
-            style={{ animationDelay: '0.4s' }}
-          />
-        </button>
-      )}
-    </div>
-  )
-}
-
-function RadioPanel({
-  opened,
-  disabled,
-  onOpen,
-  audioUrl,
-  cost,
-}: {
-  opened: boolean
-  disabled?: boolean
-  onOpen: () => void
-  audioUrl?: string
-  cost: number
-}) {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [playing, setPlaying] = useState(false)
-  const [volume, setVolume] = useState(0.7)
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume
-  }, [volume])
-  return (
-    <div className="border-[3px] border-stroke bg-paper p-3">
-      <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink-soft mb-3 flex items-center gap-2">
-        <Radio className="h-3 w-3 stroke-[3]" /> Radio · OST
-      </div>
-      {opened ? (
-        <div className="bg-cream-soft border-[2px] border-stroke p-3 flex flex-col items-center gap-2">
-          <Waveform playing={playing} />
-          {audioUrl ? (
-            <>
-              <audio
-                ref={audioRef}
-                src={audioUrl}
-                onEnded={() => setPlaying(false)}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
-              />
-              <div className="flex items-center gap-2">
-                <NeoButton
-                  tone="mustard"
-                  size="sm"
-                  onClick={() => {
-                    const a = audioRef.current
-                    if (!a) return
-                    if (playing) a.pause()
-                    else a.play()
-                  }}
-                >
-                  <Music className="inline h-3 w-3 mr-1" />
-                  {playing ? 'Pause' : 'Play'}
-                </NeoButton>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={volume}
-                  onChange={(e) => setVolume(Number(e.target.value))}
-                  aria-label="Volume"
-                  title={`Volume · ${Math.round(volume * 100)}%`}
-                  className="archive-volume w-16 h-1 cursor-pointer"
-                />
-              </div>
-            </>
-          ) : (
-            <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
-              No reel filed this week.
-            </div>
-          )}
-        </div>
-      ) : (
-        <ArchiveObject
-          title="Spin the dial"
-          icon={<span className="text-2xl leading-none">📻</span>}
-          cost={cost}
-          opened={false}
-          disabled={disabled}
-          onOpen={onOpen}
-        />
-      )}
-    </div>
-  )
-}
-
-function WallFrame({
-  title,
-  imageUrl,
-  blurPx,
-  opened,
-  disabled,
-  onOpen,
-  cost,
-}: {
-  title: string
-  imageUrl: string
-  blurPx: number
-  opened: boolean
-  disabled?: boolean
-  onOpen: () => void
-  cost: number
-}) {
-  if (!opened) {
-    return (
-      <ArchiveObject
-        title={title}
-        icon={<span className="text-2xl leading-none">🖼️</span>}
-        cost={cost}
-        opened={false}
-        disabled={disabled}
-        onOpen={onOpen}
-        hint="Sharpens with each wrong guess"
-      />
-    )
-  }
-  return (
-    <div className="border-[3px] border-stroke bg-paper p-2">
-      <div className="font-display text-[10px] uppercase tracking-wider text-ink mb-2 flex items-center justify-between">
-        <span>{title}</span>
-        <span className="text-[9px] opacity-70">blur {blurPx}px</span>
-      </div>
-      <div className="aspect-[4/3] overflow-hidden bg-cream-soft relative border-[2px] border-stroke">
-        <img
-          src={imageUrl}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover transition-[filter] duration-500 ease-out"
-          style={{
-            filter: `blur(${blurPx}px)`,
-            transform: blurPx > 0 ? 'scale(1.08)' : 'scale(1)',
-          }}
-        />
-      </div>
-    </div>
-  )
-}
-
-function ChestPanel({
-  opened,
-  disabled,
-  onOpen,
-  chestLogoUrl,
-  jackpotUntil,
-}: {
-  opened: boolean
-  disabled?: boolean
-  onOpen: () => void
-  chestLogoUrl: string
-  jackpotUntil: number | null
-}) {
-  return opened ? (
-    <div className="border-[3px] border-stroke bg-paper p-2 archive-chest-open">
-      <div className="font-display text-[10px] uppercase tracking-wider text-mustard mb-2 flex items-center gap-2">
-        <KeyRound className="h-3 w-3 stroke-[3]" /> Sealed chest · partial logo
-      </div>
-      <div className="aspect-[4/3] overflow-hidden bg-cream-soft border-[2px] border-stroke">
-        <img src={chestLogoUrl} alt="" className="w-full h-full object-cover" />
-      </div>
-    </div>
-  ) : (
-    <ArchiveObject
-      title="Sealed chest"
-      icon={<span className="text-2xl leading-none">🔒</span>}
-      cost={ARCHIVE_COSTS.chest}
-      opened={false}
-      disabled={disabled || !!jackpotUntil}
-      onOpen={onOpen}
-      hint="Cropped title logo"
-    />
-  )
-}
-
-function MysteryBoxPanel({
-  label,
-  found,
-  opened,
-  box,
-  disabled,
-  finished,
-  cost,
-  onOpen,
-  wrongCount,
-  maxWrong,
-}: {
-  label: string
-  found: boolean
-  opened: boolean
-  box: ArchiveMysteryBox
-  disabled?: boolean
-  finished?: boolean
-  cost: number
-  onOpen: () => void
-  wrongCount: number
-  maxWrong: number
-}) {
-  if (!found) {
-    return (
-      <div className="border-[3px] border-dashed border-stroke bg-cream-soft p-3 min-h-[88px] flex items-center justify-center text-ink-soft">
-        <div className="font-display text-[10px] uppercase tracking-wider opacity-60">
-          ? hidden ?
-        </div>
-      </div>
-    )
-  }
-  // A jackpot box (full-art reveal) is too strong to crack open early — it
-  // shimmers gold the moment it's found, but stays sealed until the player is
-  // down to their final guess (one wrong left). Once unlocked it opens for
-  // FREE regardless of candles left, so the reveal is a guaranteed last-guess
-  // lifeline rather than something you can't afford after exploring the room.
-  if (box.type === 'jackpot' && !opened) {
-    const jackpotLocked = wrongCount < maxWrong - 1
-    return (
-      <button
-        onClick={onOpen}
-        disabled={finished || jackpotLocked}
-        className={cn(
-          'archive-jackpot-tile relative overflow-hidden p-3 flex flex-col items-center justify-center gap-1 min-h-[88px] w-full text-ink disabled:cursor-not-allowed',
-        )}
-      >
-        <span className="text-2xl leading-none">{jackpotLocked ? '🔒' : '📦'}</span>
-        <div className="font-display text-[10px] uppercase tracking-wider font-bold text-center">
-          {label}
-        </div>
-        {jackpotLocked ? (
-          <div className="font-display text-[9px] uppercase tracking-wider font-bold text-center leading-tight text-mustard-deep">
-            ★ Jackpot · sealed until your last guess
-          </div>
-        ) : (
-          <div className="font-display text-[10px] uppercase tracking-wider font-bold text-center text-mustard-deep">
-            ★ Jackpot · free — open it now!
-          </div>
-        )}
-      </button>
-    )
-  }
-  if (opened) {
-    const tone =
-      box.type === 'jackpot'
-        ? 'border-mustard'
-        : box.type === 'redHerring'
-          ? 'border-coral'
-          : box.type === 'lore'
-            ? 'border-lime'
-            : 'border-blue'
-    return (
-      <div className={cn('border-[3px] bg-paper p-3', tone)}>
-        <div className="font-display text-[10px] uppercase tracking-wider text-ink mb-2 flex items-center justify-between">
-          <span>{label}</span>
-          <span className="opacity-70">{box.type}</span>
-        </div>
-        <div className="text-sm font-serif italic text-ink leading-snug">
-          {box.text}
-        </div>
-        {box.type === 'redHerring' && box.game && (
-          <div className="mt-2 text-[10px] uppercase tracking-wider text-coral font-display">
-            ↑ this clue is about {box.game}, not the answer.
-          </div>
-        )}
-      </div>
-    )
-  }
-  return (
-    <ArchiveObject
-      title={label}
-      icon={<span className="text-2xl leading-none">📦</span>}
-      cost={cost}
-      opened={false}
-      disabled={disabled}
-      onOpen={onOpen}
-      hint="?"
-    />
-  )
-}
-
-function TrashCan({
-  rummaged,
-  outcome,
-  disabled,
-  onRummage,
-  crossedOut,
-}: {
-  rummaged: boolean
-  outcome: ArchiveSession['trashOutcome']
-  disabled?: boolean
-  onRummage: () => void
-  crossedOut: string
-}) {
-  const [rummaging, setRummaging] = useState(false)
-  function go() {
-    if (rummaging || rummaged || disabled) return
-    setRummaging(true)
-    window.setTimeout(() => {
-      setRummaging(false)
-      onRummage()
-    }, 2200)
-  }
-  if (rummaged) {
-    return (
-      <div className="border-[3px] border-stroke bg-paper p-3">
-        <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink mb-2 flex items-center gap-2">
-          <Trash2 className="h-3 w-3 stroke-[3]" /> Trash can · rummaged
-        </div>
-        {outcome === 'crossed' && (
-          <div className="font-serif italic text-ink">
-            A torn-up paper:{' '}
-            <span className="line-through text-coral not-italic font-bold">
-              {crossedOut}
-            </span>
-            <div className="text-[10px] uppercase tracking-wider opacity-70 mt-1 font-display">
-              Crossed out — not the answer.
-            </div>
-          </div>
-        )}
-        {outcome === 'mysteryB' && (
-          <div className="font-serif italic text-ink">
-            You fish out a small parcel. (See the mystery box.)
-          </div>
-        )}
-        {outcome === 'nothing' && (
-          <div className="font-serif italic text-ink-soft">
-            Just banana peels and old printouts. Nothing useful.
-          </div>
-        )}
-      </div>
-    )
-  }
-  return (
-    <button
-      onClick={go}
-      disabled={disabled || rummaging}
-      className={cn(
-        'archive-tile archive-tile-closed p-3 flex flex-col items-center justify-center gap-1 min-h-[88px] text-ink w-full',
-        'disabled:opacity-50',
-        rummaging && 'archive-rummage',
-      )}
-    >
-      <span className="text-2xl leading-none">🗑️</span>
-      <div className="font-display text-[10px] uppercase tracking-wider font-bold">
-        {rummaging ? 'Rummaging…' : 'Trash can · free'}
-      </div>
-      <div className="text-[10px] font-display uppercase opacity-70">
-        Crossed-out / box / nothing
-      </div>
-    </button>
-  )
-}
-
 function Waveform({ playing }: { playing: boolean }) {
   return (
-    <div className="flex items-end gap-[2px] h-8">
+    <div className="flex items-end gap-[2px] h-6">
       {Array.from({ length: 16 }).map((_, i) => (
         <div
           key={i}
@@ -1252,232 +1057,192 @@ function Waveform({ playing }: { playing: boolean }) {
   )
 }
 
-function CaseDossier({
+// ─── the dossier (opened clues, grouped by what they point at) ──────────────
+
+const SUBJECT_ORDER: ArchiveClueSubject[] = ['a', 'b', 'both', 'link', 'herring']
+
+function DossierClues({
+  clues,
+  blurPx,
   wrongs,
-  maxWrong,
-  weeklyTheme,
 }: {
-  wrongs: WrongStamp[]
-  maxWrong: number
-  weeklyTheme?: string
+  clues: ArchiveClue[]
+  blurPx: number
+  wrongs: ArchiveWrong[]
 }) {
+  const groups = SUBJECT_ORDER.map((subject) => ({
+    subject,
+    items: clues.filter((c) => c.subject === subject),
+  })).filter((g) => g.items.length > 0)
+
   return (
-    <div className="border-neo-2 bg-cream-soft p-3">
-      {weeklyTheme && (
-        <div className="font-display text-[10px] uppercase tracking-[0.2em] text-ink-soft mb-2">
-          ▸ Lead · {weeklyTheme}
+    <div className="mt-4 flex flex-col gap-3">
+      <div className="border-neo-2 bg-cream-soft p-3">
+        <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1 text-ink">
+          Dismissed · {wrongs.length}
         </div>
-      )}
-      <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1 text-ink">
-        Dismissed suspects · {wrongs.length} / {maxWrong}
+        {wrongs.length > 0 ? (
+          <ul className="space-y-0.5">
+            {wrongs.map((w, i) => (
+              <li key={i} className="text-sm font-serif italic text-ink">
+                <span className="text-coral font-bold mr-1">✗</span>
+                <span className="line-through opacity-80">{w.label}</span>
+                <span className="text-[10px] uppercase tracking-wider opacity-60 ml-2 font-display not-italic">
+                  {w.target === 'link' ? 'link' : 'game'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="text-sm font-serif italic text-ink-soft">
+            Nothing ruled out yet. Open clues, then name your subjects.
+          </div>
+        )}
       </div>
-      {wrongs.length > 0 ? (
-        <ul className="space-y-0.5">
-          {wrongs.map((w, i) => (
-            <li key={i} className="text-sm font-serif italic text-ink">
-              <span className="text-coral font-bold mr-1">✗</span>
-              <span className="line-through opacity-80">{w.name}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="text-sm font-serif italic text-ink-soft">
-          No suspects ruled out yet. Open clues to gather evidence, then name the
-          game.
+
+      {groups.map((g) => (
+        <div key={g.subject}>
+          <div className="font-display text-[10px] uppercase tracking-[0.2em] font-bold mb-2 flex items-center gap-2">
+            ▸ {subjectChip(g.subject)}
+            <span className="text-ink-soft opacity-70">· {g.items.length}</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {g.items.map((c) => (
+              <DossierCard key={c.id} clue={c} blurPx={blurPx} />
+            ))}
+          </div>
         </div>
-      )}
+      ))}
     </div>
   )
 }
 
-// ─── opened clues table (rendered on the desk) ───────────────────────────────
-
-type OpenedClue = {
-  key: string
-  label: string
-  body: string
-  tone?: 'paper' | 'mustard' | 'coral' | 'lime' | 'blue'
-}
-
-function buildOpenedClues(
-  s: ArchiveSession,
-  p: ArchivePuzzle,
-  trashOutcome: 'crossed' | 'mysteryB' | 'nothing',
-): OpenedClue[] {
-  const out: OpenedClue[] = []
-  if (s.opened.shelfA) out.push({ key: 'sa', label: 'Year', body: p.clue_year })
-  if (s.opened.shelfB) out.push({ key: 'sb', label: 'Genre', body: p.clue_genre })
-  if (s.opened.shelfC)
-    out.push({ key: 'sc', label: 'Platform', body: p.clue_platform })
-  if (s.opened.drawerTop)
-    out.push({ key: 'dt', label: 'Pitch', body: p.clue_pitch })
-  if (s.opened.drawerMid)
-    out.push({ key: 'dm', label: 'Memo (internal)', body: p.clue_memo })
-  if (s.opened.drawerBot)
-    out.push({ key: 'db', label: 'Review', body: p.clue_review })
-  if (s.radio) out.push({ key: 'r', label: 'OST', body: '(playing in the room)' })
-  if (s.mysteryAOpened)
-    out.push({
-      key: 'ma',
-      label: `Mystery A · ${p.mystery_a.type}`,
-      body: p.mystery_a.text,
-      tone:
-        p.mystery_a.type === 'jackpot'
-          ? 'mustard'
-          : p.mystery_a.type === 'redHerring'
-            ? 'coral'
-            : 'paper',
-    })
-  if (s.mysteryBOpened)
-    out.push({
-      key: 'mb',
-      label: `Mystery B · ${p.mystery_b.type}`,
-      body: p.mystery_b.text,
-      tone:
-        p.mystery_b.type === 'jackpot'
-          ? 'mustard'
-          : p.mystery_b.type === 'redHerring'
-            ? 'coral'
-            : 'paper',
-    })
-  if (s.trashRummaged && trashOutcome === 'crossed')
-    out.push({
-      key: 't',
-      label: 'Trash · crossed out',
-      body: `Not the answer: ${p.trash_crossed_out}`,
-      tone: 'coral',
-    })
-  return out
-}
-
-function ClueCard({ clue }: { clue: OpenedClue }) {
+function DossierCard({ clue, blurPx }: { clue: ArchiveClue; blurPx: number }) {
+  const tone =
+    clue.subject === 'herring'
+      ? 'coral'
+      : clue.subject === 'link'
+        ? 'mustard'
+        : 'paper'
   return (
-    <NeoCard tone={clue.tone ?? 'paper'} shadow="sm" className="p-3">
-      <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1">
-        {clue.label}
+    <NeoCard tone={tone} shadow="sm" className="p-3">
+      <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1 flex items-center gap-1.5">
+        <span className="text-sm leading-none">{clue.emoji || '📄'}</span>
+        {clue.name}
       </div>
-      <div className="text-sm font-serif italic">{clue.body}</div>
+      {clue.body.kind === 'text' && (
+        <div className="text-sm font-serif italic">{clue.body.text}</div>
+      )}
+      {clue.body.kind === 'image' && (
+        <div className="overflow-hidden bg-cream-soft border-[2px] border-stroke aspect-[4/3] relative">
+          <img
+            src={clue.body.src}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover transition-[filter] duration-500 ease-out"
+            style={
+              clue.body.sharpens
+                ? {
+                    filter: `blur(${blurPx}px)`,
+                    transform: blurPx > 0 ? 'scale(1.08)' : 'scale(1)',
+                  }
+                : undefined
+            }
+          />
+        </div>
+      )}
+      {clue.body.kind === 'audio' && (
+        <div className="text-sm font-serif italic opacity-80">
+          ♪ Playing in the room{clue.body.caption ? ` — ${clue.body.caption}` : ''}.
+        </div>
+      )}
     </NeoCard>
   )
 }
 
 // ─── end-of-game ─────────────────────────────────────────────────────────────
 
-function computeRank(s: ArchiveSession): {
-  title: string
-  blurb: string
-} {
-  const candles = s.candles
-  if (candles >= 4) return { title: 'Archivist', blurb: 'You barely lit a match.' }
-  if (candles >= 3) return { title: 'Detective', blurb: 'Calm and economical.' }
-  if (candles >= 2) return { title: 'Investigator', blurb: 'Solid work, agent.' }
-  if (candles >= 1) return { title: 'Intern', blurb: 'You’re learning.' }
-  return { title: 'Ghost', blurb: 'You burned the whole drawer.' }
-}
-
 function FinaleCard({
   status,
-  answer,
+  puzzle,
   rank,
   shareString,
   wrongCount,
   candlesLeft,
-  clues,
 }: {
   status: 'solved' | 'lost' | 'playing'
-  answer: Game
+  puzzle: ArchivePuzzle
   rank: { title: string; blurb: string } | null
   shareString: string | null
   wrongCount: number
   candlesLeft: number
-  clues: OpenedClue[]
 }) {
   const [copied, setCopied] = useState(false)
   return (
-    <div className="flex flex-col gap-4">
-      <NeoCard
-        tone={status === 'solved' ? 'lime' : 'coral'}
-        shadow="md"
-        className="p-4"
-      >
-        <div className="font-display text-[10px] uppercase tracking-wider font-bold">
-          {status === 'solved' ? 'Case closed' : 'Case file sealed'}
-        </div>
-        <div className="font-display text-2xl font-bold leading-tight mt-1">
-          {answer.name}
-        </div>
-        <div className="text-xs mt-1 uppercase tracking-wider opacity-80">
-          {answer.year} · {answer.genre}
-        </div>
-        {rank && (
-          <div className="mt-3 border-neo-2 bg-paper text-ink px-3 py-2 inline-block">
-            <span className="font-display text-[10px] uppercase tracking-wider font-bold mr-2">
-              Rank
-            </span>
-            <span className="font-display text-base font-bold">{rank.title}</span>
-            <span className="text-[10px] ml-2 opacity-70">{rank.blurb}</span>
-          </div>
-        )}
-        <div className="text-[10px] uppercase tracking-wider font-display mt-3 opacity-80">
-          Candles left {candlesLeft} / {ARCHIVE_TOTAL_CANDLES} · Wrong{' '}
-          {wrongCount} / {ARCHIVE_MAX_WRONG}
-        </div>
-        {shareString && (
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <NeoButton
-              tone="mustard"
-              size="sm"
-              onClick={() => {
-                navigator.clipboard?.writeText(shareString).then(() => {
-                  setCopied(true)
-                  window.setTimeout(() => setCopied(false), 1500)
-                })
-              }}
-            >
-              <Share2 className="inline h-3 w-3 mr-1" />{' '}
-              {copied ? 'Copied!' : 'Copy share'}
-            </NeoButton>
-            <pre className="bg-paper border-neo-2 text-ink p-2 text-[11px] font-display whitespace-pre overflow-x-auto">
-              {shareString}
-            </pre>
-          </div>
-        )}
-      </NeoCard>
-      {clues.length > 0 && (
+    <NeoCard
+      tone={status === 'solved' ? 'lime' : 'coral'}
+      shadow="md"
+      className="p-4"
+    >
+      <div className="font-display text-[10px] uppercase tracking-wider font-bold">
+        {status === 'solved' ? 'Case closed' : 'Case file sealed'}
+      </div>
+      <div className="mt-2 flex flex-col gap-1 text-sm">
         <div>
-          <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-2">
-            Clue breakdown
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {clues.map((c) => (
-              <ClueCard key={c.key} clue={c} />
-            ))}
-          </div>
+          <strong className="font-display text-[10px] uppercase tracking-wider mr-2">
+            A
+          </strong>
+          {puzzle.game_a.name}
+          {puzzle.game_a.year ? ` (${puzzle.game_a.year})` : ''}
+        </div>
+        <div>
+          <strong className="font-display text-[10px] uppercase tracking-wider mr-2">
+            B
+          </strong>
+          {puzzle.game_b.name}
+          {puzzle.game_b.year ? ` (${puzzle.game_b.year})` : ''}
+        </div>
+        <div>
+          <strong className="font-display text-[10px] uppercase tracking-wider mr-2">
+            Link
+          </strong>
+          {puzzle.link.answer}
+        </div>
+      </div>
+      {rank && (
+        <div className="mt-3 border-neo-2 bg-paper text-ink px-3 py-2 inline-block">
+          <span className="font-display text-[10px] uppercase tracking-wider font-bold mr-2">
+            Rank
+          </span>
+          <span className="font-display text-base font-bold">{rank.title}</span>
+          <span className="text-[10px] ml-2 opacity-70">{rank.blurb}</span>
         </div>
       )}
-    </div>
+      <div className="text-[10px] uppercase tracking-wider font-display mt-3 opacity-80">
+        Candles left {candlesLeft} / {puzzle.candles} · Wrong {wrongCount} /{' '}
+        {ARCHIVE_MAX_WRONG}
+      </div>
+      {shareString && (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <NeoButton
+            tone="mustard"
+            size="sm"
+            onClick={() => {
+              navigator.clipboard?.writeText(shareString).then(() => {
+                setCopied(true)
+                window.setTimeout(() => setCopied(false), 1500)
+              })
+            }}
+          >
+            <Share2 className="inline h-3 w-3 mr-1" />{' '}
+            {copied ? 'Copied!' : 'Copy share'}
+          </NeoButton>
+          <pre className="bg-paper border-neo-2 text-ink p-2 text-[11px] font-display whitespace-pre overflow-x-auto">
+            {shareString}
+          </pre>
+        </div>
+      )}
+    </NeoCard>
   )
-}
-
-function buildShareString(
-  s: ArchiveSession,
-  _p: ArchivePuzzle,
-  week: string,
-): string {
-  const candles = '🕯️'.repeat(s.candles) + '·'.repeat(ARCHIVE_TOTAL_CANDLES - s.candles)
-  const wrongs = '✗'.repeat(s.wrongs.length) + '·'.repeat(ARCHIVE_MAX_WRONG - s.wrongs.length)
-  const opened =
-    Object.values(s.opened).filter(Boolean).length +
-    (s.radio ? 1 : 0) +
-    s.frames.filter(Boolean).length +
-    (s.mysteryAOpened ? 1 : 0) +
-    (s.mysteryBOpened ? 1 : 0) +
-    (s.chestOpened ? 1 : 0)
-  const headline = s.status === 'solved' ? '★ Archived' : '✗ Cold case'
-  return `The Archive · Week ${weekNumber(week)}
-${headline}
-${candles}  ${wrongs}
-clues opened: ${opened}`
 }
 
 // ─── dust particles + style block ───────────────────────────────────────────
@@ -1542,7 +1307,7 @@ function ArchiveStyles() {
         border: 3px solid var(--color-stroke);
         color: var(--color-ink);
         /* Match the closed-tile floor so opening doesn't shrink the row. */
-        min-height: 88px;
+        min-height: 76px;
       }
       .archive-tile-closed:hover:not(:disabled) {
         background: var(--color-cream-soft);
@@ -1563,6 +1328,42 @@ function ArchiveStyles() {
       .archive-glow:hover {
         box-shadow: 0 0 0 1px var(--color-mustard), 3px 3px 0 var(--color-stroke);
       }
+
+      /* ── Filing-cabinet drawer ────────────────────────────────────────────
+         Outer face + an inner panel inset from it, which is what reads as a
+         recessed drawer front. Handle dead centre, candle cost beneath it. */
+      .archive-drawer {
+        display: block;
+        background: var(--color-paper);
+        border: 3px solid var(--color-stroke);
+        padding: 5px;
+        transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      }
+      .archive-drawer:hover:not(:disabled) {
+        background: var(--color-cream-soft);
+        transform: translate(-1px, -1px);
+        box-shadow: 3px 3px 0 var(--color-stroke);
+      }
+      .archive-drawer-inner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 58px;
+        padding: 6px 10px;
+        border: 2px solid var(--color-stroke);
+        background: linear-gradient(
+          180deg,
+          color-mix(in oklab, var(--color-cream-soft) 60%, transparent) 0%,
+          transparent 45%
+        );
+      }
+      .archive-drawer-center {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+      }
+
       @keyframes archive-flame {
         0%, 100% { transform: scale(1) translateY(0); opacity: 0.95; }
         40% { transform: scale(1.15, 0.85) translateY(-1px); opacity: 1; }
@@ -1620,6 +1421,9 @@ function ArchiveStyles() {
       .archive-rummage {
         animation: archive-rummage 0.5s ease-in-out infinite;
       }
+      .archive-chest-closed {
+        box-shadow: 0 0 12px color-mix(in oklab, var(--color-mustard) 18%, transparent) inset;
+      }
       .archive-chest-open {
         box-shadow: 0 0 20px color-mix(in oklab, var(--color-mustard) 25%, transparent) inset;
       }
@@ -1664,12 +1468,8 @@ function ArchiveStyles() {
         0% { transform: translateX(-130%); }
         60%, 100% { transform: translateX(130%); }
       }
-      .archive-jackpot-tile:disabled {
-        cursor: not-allowed;
-      }
-      .archive-jackpot-tile:not(:disabled):hover {
-        transform: translate(-1px, -1px);
-      }
+      .archive-jackpot-tile:disabled { cursor: not-allowed; }
+      .archive-jackpot-tile:not(:disabled):hover { transform: translate(-1px, -1px); }
       @keyframes archive-spare-glint {
         0%, 100% { opacity: 0; }
         50% { opacity: 0.3; }
@@ -1700,6 +1500,13 @@ function ArchiveStyles() {
         border: 2px solid var(--color-stroke);
         cursor: pointer;
         border-radius: 0;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .archive-dust, .archive-flame, .archive-wave,
+        .archive-jackpot-tile, .archive-jackpot-tile::after,
+        .archive-rummage, .archive-spare-glint {
+          animation: none !important;
+        }
       }
     `}</style>
   )

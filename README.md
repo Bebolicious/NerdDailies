@@ -4,9 +4,9 @@ Daily game-guessing hub. Five daily puzzles — **Screenshot**, **Trophy**,
 **Blur Reveal**, **Soundtrack**, **Mini Crossword** — plus weekly games that
 refresh every Monday: **Higher / Lower** (15-pair stat gauntlet with an Online
 Hot-seat multiplayer mode), **Connections** (sort 16 words into 4 secret
-groups), and **The Archive** (atmospheric clue-room — currently disabled in the
-sidebar while it's reworked). React + Vite + TypeScript, Tailwind v4, Supabase,
-neo-brutalist UI.
+groups), and **The Archive** (an atmospheric clue-room escape puzzle: spend
+candles on clues to name two mystery games and the thing they share).
+React + Vite + TypeScript, Tailwind v4, Supabase, neo-brutalist UI.
 
 ## Quick start
 
@@ -61,10 +61,15 @@ mocks otherwise — no code change needed when you flip it on.
   upload.
 - `/admin/crossword/:date` — author the grid, mark blocks, and write across
   / down clues. Numbering is derived from the solution.
-- `/admin/archive/:date` — snaps to the Monday of that week. Pick the
-  mystery game, fill the 6 clues (year/genre/platform + pitch/memo/review),
-  upload the radio clip + two wall frames + the chest's cropped logo, set
-  the two mystery-box outcomes, and pick the trash crossed-out title.
+- `/admin/archive/:date` — snaps to the Monday of that week. Pick the two
+  mystery games (subject A + B), then author the link: a category preset
+  (release year / developer / composer / …) fills in the player-facing
+  prompt, and you supply the answer plus any accepted alternates. Then build
+  the room: each container (wall, sealed chest, bookshelf, filing cabinet,
+  radio, mystery boxes) takes as many clues as you want, and every clue has
+  its own preset, emoji, name, subject, candle cost, placement (visible, or
+  hidden behind the bookshelf / under the rug / …) and body (text, image
+  upload, or auto-trimmed audio). Set the candle budget per week.
 - `/admin/higherlower/:date` — snaps to Monday. Per pair (15 by default):
   category dropdown, two `GamePicker` rows, numeric value, optional display
   override (`1:42:35` / `$220M` / `96%`), optional cover upload. ↑/↓ to

@@ -1,4 +1,5 @@
 import type {
+  ArchiveClue,
   ArchivePuzzle,
   BlurPuzzle,
   ConnectionsGroup,
@@ -10,7 +11,7 @@ import type {
   SoundtrackPuzzle,
   TrophyPuzzle,
 } from '../lib/types'
-import { HIGHERLOWER_PAIR_COUNT } from '../lib/types'
+import { ARCHIVE_DEFAULT_CANDLES, HIGHERLOWER_PAIR_COUNT } from '../lib/types'
 import { MOCK_CATALOG } from './mockCatalog'
 
 // SVG-based placeholder "screenshots" so the UI is playable without uploads.
@@ -119,35 +120,128 @@ export function getMockBlurPuzzle(date: string): BlurPuzzle {
   }
 }
 
+// A full mock archive room so the weekly is playable with no `.env`. Exercises
+// every container, both body kinds that don't need a real upload (text +
+// image), all five clue subjects, and two hidden clues — so the mock is a
+// genuine smoke test of the player page, not just a stub.
 export function getMockArchivePuzzle(week: string): ArchivePuzzle {
   const seed = hash(week + 'archive')
-  const game = pickGame(seed + 23)
+  const gameA = pickGame(seed + 23)
+  const gameB = pickGame(seed + 41)
   const herring = pickGame(seed + 51)
   const crossed = pickGame(seed + 77)
+  const linkYear = String(gameA.year ?? '2000')
+
+  const clue = (
+    n: number,
+    c: ArchiveClue['container'],
+    preset: string,
+    emoji: string,
+    name: string,
+    subject: ArchiveClue['subject'],
+    body: ArchiveClue['body'],
+    extra: Partial<ArchiveClue> = {},
+  ): ArchiveClue => ({
+    id: `mock-clue-${seed}-${n}`,
+    container: c,
+    preset,
+    emoji,
+    name,
+    subject,
+    cost: c === 'chest' ? 2 : 1,
+    body,
+    ...extra,
+  })
+
+  const clues: ArchiveClue[] = [
+    clue(1, 'wall', 'smeared-portrait', '🖼️', 'Smeared portrait', 'a', {
+      kind: 'image',
+      src: fakeCover(seed + 2, 'SUBJECT A'),
+      sharpens: true,
+    }),
+    clue(2, 'wall', 'framed-poster', '🖼️', 'Framed poster', 'b', {
+      kind: 'image',
+      src: fakeCover(seed + 5, 'SUBJECT B'),
+      sharpens: true,
+    }),
+    clue(3, 'chest', 'wax-letter', '🔒', 'Sealed chest', 'link', {
+      kind: 'text',
+      text: `Both files stamped the same year. Look at the ledger — ${linkYear[0]}${'•'.repeat(3)}.`,
+    }),
+    clue(4, 'shelf', 'ledger', '📒', 'Dated ledger', 'both', {
+      kind: 'text',
+      text: `Filed under ${linkYear}. Two entries, same shelf.`,
+    }),
+    clue(5, 'shelf', 'index-card', '🗂️', 'Genre index card', 'a', {
+      kind: 'text',
+      text: gameA.genre ?? 'Mixed',
+    }),
+    clue(6, 'shelf', 'manifest', '📋', 'Shipping manifest', 'b', {
+      kind: 'text',
+      text: gameB.platforms?.[0] ?? 'PC',
+    }),
+    clue(7, 'cabinet', 'memo', '📝', 'Internal memo', 'a', {
+      kind: 'text',
+      text: "Reminder: the protagonist's coat physics stay on the cutting-room floor.",
+    }),
+    clue(8, 'cabinet', 'review', '⭐', 'Review clipping', 'b', {
+      kind: 'text',
+      text: `9.${(seed % 5) + 2}/10 — "A landmark in player freedom." — Mock Gamer`,
+    }),
+    clue(9, 'cabinet', 'redacted', '⬛', 'Redacted report', 'link', {
+      kind: 'text',
+      text: 'Both ██████ shipped in the same ████ — that is the whole connection.',
+    }),
+    clue(10, 'radio', 'channel', '📻', 'Channel 7', 'a', {
+      kind: 'text',
+      text: `"…and that's why nobody goes near ${gameA.name.split(' ')[0]} after dark."`,
+    }),
+    clue(11, 'radio', 'broadcast', '📡', 'Emergency broadcast', 'herring', {
+      kind: 'text',
+      text: `This bulletin concerns ${herring.name}. It is not one of your two files.`,
+    }),
+    clue(
+      12,
+      'mystery',
+      'lore',
+      '📦',
+      'Mystery box',
+      'both',
+      {
+        kind: 'text',
+        text: `The original design doc called one of these "${gameA.name
+          .split(' ')
+          .reverse()
+          .join(' ')}".`,
+      },
+      { outcome: 'lore', hiddenSpot: 'shelf' },
+    ),
+    clue(
+      13,
+      'mystery',
+      'jackpot',
+      '📦',
+      'Mystery box',
+      'b',
+      { kind: 'image', src: fakeCover(seed + 9, gameB.name) },
+      { outcome: 'jackpot', hiddenSpot: 'vent' },
+    ),
+  ]
+
   return {
     id: 'mock-archive-' + seed,
     puzzle_week: week,
-    game,
+    game_a: gameA,
+    game_b: gameB,
+    link: {
+      preset: 'year',
+      prompt: 'Both games came out the same year. Which year?',
+      answer: linkYear,
+      accept: [`the year ${linkYear}`, `released in ${linkYear}`],
+    },
     weekly_theme: 'Weekly theme: dusty mock puzzle',
-    clue_year: String(game.year ?? '????'),
-    clue_genre: game.genre ?? 'Mixed',
-    clue_platform: game.platforms?.[0] ?? 'PC',
-    clue_pitch: 'A landmark title — the kind that defined what came next.',
-    clue_memo: 'Internal note: keep the protagonist\'s coat physics on the cutting-room floor.',
-    clue_review: `9.${(seed % 5) + 2}/10 — "A landmark in player freedom." — Mock Gamer`,
-    audio_url: '',
-    frame1_url: fakeCover(seed + 2, 'GAMEPLAY'),
-    frame2_url: fakeCover(seed + 5, 'KEY ART'),
-    chest_logo_url: fakeCover(seed + 9, game.name.slice(0, 3) + '…'),
-    mystery_a: {
-      type: 'lore',
-      text: `The original design doc called this game "${game.name.split(' ').reverse().join(' ')}".`,
-    },
-    mystery_b: {
-      type: 'redHerring',
-      game: herring.name,
-      text: `Misfiled by Gerald again — this note is about ${herring.name}.`,
-    },
+    candles: ARCHIVE_DEFAULT_CANDLES,
+    clues,
     trash_crossed_out: crossed.name,
   }
 }

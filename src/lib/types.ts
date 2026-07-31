@@ -106,68 +106,118 @@ export type Guess =
 
 // ── ARCHIVE (weekly) ────────────────────────────────────────────────────────
 //
-// A larger, slower puzzle that drops once a week (Monday). Players have 5
-// candles and 3 wrong-guess attempts to ID a mystery game by spending candles
-// on clue objects in an atmospheric "archive room".
+// A larger, slower puzzle that drops once a week (Monday). The player is a
+// game historian in a dark archive room, spending candles to open clue objects.
+//
+// The week has THREE answers: two mystery games (subject A + subject B) and a
+// freehand "what do these two have in common" link. That structure is the
+// point — a single perfect clue about one game can't end the round, which is
+// what used to collapse a group session into ten seconds.
+//
+// The room itself is authored, not hardcoded: `clues` is a flat list and every
+// entry carries its own container, emoji, name, cost and body. One shelf box or
+// nine, a radio with four cassettes, a chest holding audio instead of a logo —
+// all the same code. See `lib/archivePresets.ts` for the authoring catalog.
 
 export type ArchiveMysteryBoxOutcome = 'jackpot' | 'clue' | 'redHerring' | 'lore'
 
-export type ArchiveMysteryBox = {
-  type: ArchiveMysteryBoxOutcome
-  text: string
-  game?: string // for redHerring: name of the unrelated game (flavor)
+// Which piece of furniture a clue lives in. Drives chrome only — every
+// container renders the same underlying clue tile.
+export type ArchiveContainer =
+  | 'wall'
+  | 'chest'
+  | 'shelf'
+  | 'cabinet'
+  | 'radio'
+  | 'mystery'
+
+export const ARCHIVE_CONTAINERS: ArchiveContainer[] = [
+  'wall',
+  'chest',
+  'shelf',
+  'cabinet',
+  'radio',
+  'mystery',
+]
+
+// Which answer a clue points at. Deliberately NOT shown on a sealed clue —
+// the subject chip only appears once the player has paid to open it, so you
+// can't cherry-pick clues for the answer you're stuck on.
+export type ArchiveClueSubject = 'a' | 'b' | 'both' | 'link' | 'herring'
+
+// Where a clue is stashed. Absent ⇒ the clue sits in plain sight in the room.
+export type ArchiveHidingSpot =
+  | 'shelf'
+  | 'trash'
+  | 'rug'
+  | 'painting'
+  | 'vent'
+
+// `src` holds a path in the `archive` bucket in the DB, and a resolved public
+// URL once `fetchArchivePuzzle` has run.
+export type ArchiveClueBody =
+  | { kind: 'text'; text: string }
+  | { kind: 'image'; src: string; sharpens?: boolean }
+  | { kind: 'audio'; src: string; caption?: string }
+
+export type ArchiveClue = {
+  id: string // stable uuid — session open/lock state keys off this
+  container: ArchiveContainer
+  preset: string // id from ARCHIVE_PRESETS[container]
+  emoji: string
+  name: string
+  subject: ArchiveClueSubject
+  cost: number // candles
+  hiddenSpot?: ArchiveHidingSpot
+  body: ArchiveClueBody
+  outcome?: ArchiveMysteryBoxOutcome // 'mystery' container only
+}
+
+// The third answer — a freehand text guess. `accept` holds alternate spellings
+// so "the year 2000" passes when the canonical answer is "2000"; matching runs
+// through `archivePresets.ts → matchesLink`.
+export type ArchiveLink = {
+  preset: string
+  prompt: string
+  answer: string
+  accept: string[]
 }
 
 export type ArchivePuzzle = {
   id: string
   puzzle_week: string // ISO date of the Monday this puzzle runs
 
-  game: Game
+  game_a: Game
+  game_b: Game
+  link: ArchiveLink
+
   weekly_theme?: string
+  candles: number // per-week candle budget
+  clues: ArchiveClue[]
 
-  // Standard text clues (3 shelf boxes + 3 filing-cabinet drawers).
-  clue_year: string
-  clue_genre: string
-  clue_platform: string
-  clue_pitch: string
-  clue_memo: string
-  clue_review: string
-
-  // Audio (radio). Optional — silent if missing.
-  audio_url?: string
-
-  // Wall frames — gameplay + key art. Required so the sharpen mechanic has
-  // something to land on.
-  frame1_url: string
-  frame2_url: string
-
-  // Sealed chest — cropped partial of the official title logo.
-  chest_logo_url: string
-
-  // Mystery boxes + trash. Boxes are hidden until found; trash always visible.
-  mystery_a: ArchiveMysteryBox
-  mystery_b: ArchiveMysteryBox
-  trash_crossed_out: string // a plausible but wrong title
+  // Optional flavor: a crumpled, crossed-out title found when rummaging.
+  trash_crossed_out?: string
 } & PuzzleDecor
 
-// Visual blur level for the two wall frames, indexed by how many wrong guesses
-// have happened (0..3). 5 conceptual blur levels collapse to 4 reveal steps
-// since the game ends on the 3rd wrong guess.
-export const ARCHIVE_FRAME_BLUR_PX: number[] = [40, 24, 12, 0]
+// Blur level for any image clue flagged `sharpens`, indexed by how many wrong
+// guesses have happened (0..4). Fully sharp on the last wrong guess.
+export const ARCHIVE_FRAME_BLUR_PX: number[] = [40, 28, 18, 8, 0]
 
-export const ARCHIVE_TOTAL_CANDLES = 5
-export const ARCHIVE_MAX_WRONG = 3
+// Default candle budget for a new puzzle. The real budget is per-week
+// (`ArchivePuzzle.candles`) since a bigger room needs more light.
+export const ARCHIVE_DEFAULT_CANDLES = 7
+export const ARCHIVE_MAX_WRONG = 4
 
-// Cost in candles per object type.
-export const ARCHIVE_COSTS = {
-  shelfBox: 1,
-  cabinetDrawer: 1,
-  radio: 1,
-  frame: 1,
-  mysteryBox: 1,
+// Cost the editor seeds a fresh clue with, per container. Cost is per-clue now,
+// so these are only starting points the admin can override.
+export const ARCHIVE_DEFAULT_COSTS: Record<ArchiveContainer, number> = {
+  wall: 1,
   chest: 2,
-  trash: 0,
-} as const
+  shelf: 1,
+  cabinet: 1,
+  radio: 1,
+  mystery: 1,
+}
 
 // ── CROSSWORD (weekly) ──────────────────────────────────────────────────────
 //
