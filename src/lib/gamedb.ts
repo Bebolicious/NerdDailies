@@ -16,6 +16,11 @@ import type { Game } from './types'
 //     localStorage (versioned, 7-day TTL). Returning visitors reuse the cached
 //     copy and cost zero egress until the version is bumped or the TTL lapses.
 //   • Every subsequent search → pure client-side Fuse, no network at all.
+//   • Before trusting a cached copy, one `head: true` row-count request checks
+//     whether the table grew/shrank since the cache was written. That returns no
+//     rows (a few bytes of headers), so it costs effectively nothing, and it
+//     means a game added by hand in the SQL editor shows up on the next page
+//     load instead of whenever the 7-day TTL happens to lapse.
 //
 // Fuse over the full catalog also gives strictly better recall than the old
 // LIMIT-capped DB candidate passes, which could drop relevant rows before the
@@ -26,8 +31,9 @@ import type { Game } from './types'
 
 const DISPLAY_LIMIT = 20
 
-// Bump when the catalog schema/content changes enough that cached copies should
-// be discarded before their TTL expires (e.g. after a re-seed you want live).
+// Bump when the catalog *content* changes in a way the row-count check can't
+// see — a rename, a year/genre correction, or an add+delete that nets to zero.
+// Pure additions and deletions don't need a bump; the count check catches those.
 const CATALOG_VERSION = 1
 const CATALOG_CACHE_KEY = 'dailies/games-catalog/v1'
 const CATALOG_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
@@ -105,6 +111,22 @@ function writeCachedCatalog(games: Game[]) {
   }
 }
 
+// Row count only — `head: true` sends no rows back, so this is the cheapest
+// possible "is my cache still current?" probe. Returns null when the request
+// fails, which the caller reads as "can't tell, keep the cache".
+async function fetchCatalogCount(
+  sb: NonNullable<ReturnType<typeof getSupabase>>,
+): Promise<number | null> {
+  const { count, error } = await sb
+    .from('games')
+    .select('id', { count: 'exact', head: true })
+  if (error) {
+    console.warn('[gamedb] catalog count check failed, trusting cache:', error)
+    return null
+  }
+  return count ?? null
+}
+
 async function fetchAllGames(
   sb: NonNullable<ReturnType<typeof getSupabase>>,
 ): Promise<Game[]> {
@@ -133,7 +155,13 @@ function loadCatalog(): Promise<Game[]> {
     if (!sb) return sortedMock()
 
     const cached = readCachedCatalog()
-    if (cached) return cached
+    if (cached) {
+      const count = await fetchCatalogCount(sb)
+      // null ⇒ the probe itself failed (offline, RLS hiccup); a stale catalog
+      // beats no catalog, so keep it. Otherwise a changed row count means rows
+      // were added or removed since we cached, and we fall through to a refetch.
+      if (count === null || count === cached.length) return cached
+    }
 
     try {
       const games = await fetchAllGames(sb)
