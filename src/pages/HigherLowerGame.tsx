@@ -3,13 +3,13 @@ import {
   Check,
   ChevronRight,
   Crown,
+  Gavel,
   Minus,
   Play,
   Plus,
   Scale,
   Share2,
   SlidersHorizontal,
-  Sparkles,
   Trophy,
   Users,
   X,
@@ -30,15 +30,20 @@ import {
   HIGHERLOWER_PAIR_COUNT,
   type HigherLowerPair,
   type HigherLowerPuzzle,
+  type HigherLowerSide,
   type HighLowPairType,
   type SliderConfig,
 } from "../lib/types";
 import {
+  auctionPointsForRank,
   isSliderCorrect,
-  scorePiggyback,
+  ordinal,
+  rankAuctionGames,
+  scoreAuction,
   scoreSliderGuess,
   tagLabel,
-  type PiggybackPlayerResult,
+  type AuctionPlayerResult,
+  type SliderPlayerResult,
 } from "../lib/higherlowerScoring";
 import {
   CHARACTER_IDS,
@@ -55,8 +60,10 @@ type Pick = {
   choice: Choice;
   correct: boolean;
   at: number;
-  // For slider/piggyback pairs — the host's (or solo player's) guessed value.
+  // For slider pairs — the host's (or solo player's) guessed value.
   value?: number;
+  // For auction pairs — the shelf index the host (or solo player) claimed.
+  gameIndex?: number;
 };
 
 // A pair's play mode, defaulting to 'vs' for legacy rows with no pairType.
@@ -95,9 +102,13 @@ type Session = {
   // playerId → choice for the CURRENT pair only (vs pairs). Cleared when
   // advancing pairs. Order of keys is insertion order.
   currentPairPicks?: Record<string, Choice>;
-  // playerId → guessed value for the CURRENT pair only (slider/piggyback
-  // pairs). Cleared when advancing pairs. Insertion order = turn order taken.
+  // playerId → guessed value for the CURRENT pair only (slider pairs). Cleared
+  // when advancing pairs. Insertion order = turn order taken.
   currentPairValues?: Record<string, number>;
+  // playerId → claimed shelf index for the CURRENT pair only (auction pairs).
+  // Cleared when advancing pairs. A game index appears at most once — claiming
+  // takes the cover off the shelf.
+  currentAuctionPicks?: Record<string, number>;
   // Turn order for the CURRENT pair — player ids, fully reshuffled (host
   // included) at the start of every round so nobody can piggyback off the
   // previous picker. Regenerated on each advance; persisted so a reload keeps
@@ -271,12 +282,14 @@ function Gauntlet({
   const isMultiplayer = state.mode === "multiplayer";
   const kind = pairKind(currentPair);
 
-  // Unified "how many players have committed this round" — vs pairs live in
-  // currentPairPicks, slider/piggyback pairs in currentPairValues.
+  // Unified "how many players have committed this round" — each pair type
+  // records into its own map.
   const pickedCount =
     kind === "vs"
       ? Object.keys(state.currentPairPicks ?? {}).length
-      : Object.keys(state.currentPairValues ?? {}).length;
+      : kind === "auction"
+        ? Object.keys(state.currentAuctionPicks ?? {}).length
+        : Object.keys(state.currentPairValues ?? {}).length;
 
   const correctCount = state.picks.filter((p) => p.correct).length;
   const longestStreak = useMemo(() => longestRun(state.picks), [state.picks]);
@@ -290,47 +303,47 @@ function Gauntlet({
     return state.players.find((p) => p.id === id) ?? null;
   }, [isMultiplayer, state.players, state.pickOrder, pickedCount, revealed]);
 
-  // Per-player slider/piggyback results for the revealed round (display only —
-  // the scores were already committed in the reducer with the same functions).
-  const roundResults: Record<string, PiggybackPlayerResult> | null =
+  // Per-player slider results for the revealed round (display only — the scores
+  // were already committed in the reducer with the same functions).
+  const roundResults: Record<string, SliderPlayerResult> | null = useMemo(() => {
+    if (!isMultiplayer || !revealed || !currentPair || kind !== "slider")
+      return null;
+    const cfg = HIGHERLOWER_CATEGORIES[currentPair.category];
+    if (!cfg.slider || !state.pickOrder || !state.currentPairValues) return null;
+    const out: Record<string, SliderPlayerResult> = {};
+    for (const id of state.pickOrder) {
+      const v = state.currentPairValues[id];
+      if (v === undefined) continue;
+      const s = scoreSliderGuess(cfg.slider, currentPair.a.value, v);
+      out[id] = { value: v, points: s.points, tag: s.tag, diff: s.diff };
+    }
+    return out;
+  }, [
+    isMultiplayer,
+    revealed,
+    currentPair,
+    kind,
+    state.pickOrder,
+    state.currentPairValues,
+  ]);
+
+  // Per-player auction results for the revealed round — same story: the reducer
+  // already banked these points, this is the breakdown the reveal renders.
+  const auctionResults: Record<string, AuctionPlayerResult> | null =
     useMemo(() => {
-      if (!isMultiplayer || !revealed || !currentPair || kind === "vs")
+      if (!isMultiplayer || !revealed || !currentPair || kind !== "auction")
         return null;
-      const cfg = HIGHERLOWER_CATEGORIES[currentPair.category];
-      if (!cfg.slider || !state.pickOrder || !state.currentPairValues)
-        return null;
-      if (kind === "piggyback") {
-        return scorePiggyback(
-          cfg.slider,
-          currentPair.a.value,
-          state.pickOrder,
-          state.currentPairValues,
-        );
-      }
-      // slider — reuse the piggyback shape without split/bluff (all splits 1)
-      const out: Record<string, PiggybackPlayerResult> = {};
-      for (const id of state.pickOrder) {
-        const v = state.currentPairValues[id];
-        if (v === undefined) continue;
-        const s = scoreSliderGuess(cfg.slider, currentPair.a.value, v);
-        out[id] = {
-          value: v,
-          base: s.points,
-          split: 1,
-          points: s.points,
-          tag: s.tag,
-          diff: s.diff,
-          isBar: false,
-        };
-      }
-      return out;
+      const shelf = currentPair.games;
+      if (!shelf || !state.currentAuctionPicks) return null;
+      const lowerWins =
+        HIGHERLOWER_CATEGORIES[currentPair.category]?.lowerWins ?? false;
+      return scoreAuction(shelf, lowerWins, state.currentAuctionPicks);
     }, [
       isMultiplayer,
       revealed,
       currentPair,
       kind,
-      state.pickOrder,
-      state.currentPairValues,
+      state.currentAuctionPicks,
     ]);
 
   // The player who leads off the current round (pickOrder[0]). Drives the
@@ -411,7 +424,7 @@ function Gauntlet({
     [currentPair, revealed, finished],
   );
 
-  // Slider / piggyback: a player locks in a numeric guess.
+  // Slider: a player locks in a numeric guess.
   const onSubmitValue = useCallback(
     (value: number) => {
       if (!currentPair || revealed || finished) return;
@@ -419,8 +432,7 @@ function Gauntlet({
         if (prev.mode === "multiplayer") {
           return applyMultiplayerValue(prev, currentPair, value);
         }
-        // Solo slider — score the single guess. (Solo piggyback never reaches
-        // here; it's auto-resolved by onSoloPiggyback below.)
+        // Solo slider — score the single guess.
         const cfg = HIGHERLOWER_CATEGORIES[currentPair.category];
         const correct = cfg.slider
           ? isSliderCorrect(scoreSliderGuess(cfg.slider, currentPair.a.value, value))
@@ -438,19 +450,41 @@ function Gauntlet({
     [currentPair, revealed, finished],
   );
 
-  // Solo + piggyback: the bluff game is hot-seat only, so in solo we bank it as
-  // correct and reveal (the player just clicks through). No score interaction.
-  const onSoloPiggyback = useCallback(() => {
-    if (!currentPair || revealed || finished) return;
-    setState((prev) => ({
-      ...prev,
-      revealedForIndex: prev.index,
-      picks: [
-        ...prev.picks,
-        { pairId: currentPair.id, choice: "a", correct: true, at: Date.now() },
-      ],
-    }));
-  }, [currentPair, revealed, finished]);
+  // Auction: a player claims one cover off the shelf. Solo resolves on the
+  // single pick; hot-seat waits until everyone has claimed.
+  const onClaimGame = useCallback(
+    (gameIndex: number) => {
+      if (!currentPair || revealed || finished) return;
+      const shelf = currentPair.games;
+      if (!shelf || !shelf[gameIndex]) return;
+      setState((prev) => {
+        if (prev.mode === "multiplayer") {
+          return applyMultiplayerClaim(prev, currentPair, gameIndex);
+        }
+        // Solo — scored exactly like hot-seat: by where the claimed game truly
+        // ranks in the whole shelf. Top of the shelf counts as "correct" for
+        // the daily-streak mirror.
+        const lowerWins =
+          HIGHERLOWER_CATEGORIES[currentPair.category]?.lowerWins ?? false;
+        const { rankOf } = rankAuctionGames(shelf, lowerWins);
+        return {
+          ...prev,
+          revealedForIndex: prev.index,
+          picks: [
+            ...prev.picks,
+            {
+              pairId: currentPair.id,
+              choice: "a",
+              gameIndex,
+              correct: rankOf[gameIndex] === 0,
+              at: Date.now(),
+            },
+          ],
+        };
+      });
+    },
+    [currentPair, revealed, finished],
+  );
 
   const onNext = useCallback(() => {
     setState((prev) => {
@@ -493,6 +527,8 @@ function Gauntlet({
           prev.mode === "multiplayer" ? {} : prev.currentPairPicks,
         currentPairValues:
           prev.mode === "multiplayer" ? {} : prev.currentPairValues,
+        currentAuctionPicks:
+          prev.mode === "multiplayer" ? {} : prev.currentAuctionPicks,
         // Reshuffle the turn order for the new round (hot-seat only).
         pickOrder:
           prev.mode === "multiplayer" && prev.players
@@ -547,7 +583,7 @@ function Gauntlet({
         </h1>
         <InfoButton
           title="Higher / Lower"
-          text={`Weekly gauntlet of ${total} rounds. Most are VS — pick the side with the bigger stat. Some are SLIDER — drag to guess the exact value (Bang on = 150, Bullseye = 100, then it decays with distance). In hot-seat, PIGGYBACK rounds let the lead-off player bluff: copy someone and you split points; fool the table and the bluffer banks a bonus. Wrong picks never end the run — you always play all ${total}.`}
+          text={`Weekly gauntlet of ${total} rounds. Most are VS — pick the side with the bigger stat. Some are SLIDER — drag to guess the exact value (Bang on = 150, Bullseye = 100, then it decays with distance). AUCTION rounds put a shelf of games up for grabs: claim one on your turn, and you're paid by where it truly ranks among ALL of them — 150 for the best, 100 for second, less the further down it sits. Wrong picks never end the run — you always play all ${total}.`}
         />
       </div>
 
@@ -587,17 +623,15 @@ function Gauntlet({
         />
       )}
 
-      {!finished && currentPair && (kind === "slider" || kind === "piggyback") && (
+      {!finished && currentPair && kind === "slider" && (
         <SliderPairScreen
           pair={currentPair}
-          kind={kind}
           revealed={revealed}
           isMultiplayer={isMultiplayer}
           isLast={state.index === total - 1}
           activePlayer={activePlayer}
           players={state.players ?? null}
           pickOrder={state.pickOrder ?? null}
-          currentPairValues={state.currentPairValues ?? {}}
           roundResults={roundResults}
           soloValue={
             !isMultiplayer && revealed
@@ -605,7 +639,27 @@ function Gauntlet({
               : null
           }
           onSubmitValue={onSubmitValue}
-          onSoloPiggyback={onSoloPiggyback}
+          onNext={onNext}
+        />
+      )}
+
+      {!finished && currentPair && kind === "auction" && (
+        <AuctionPairScreen
+          pair={currentPair}
+          revealed={revealed}
+          isMultiplayer={isMultiplayer}
+          isLast={state.index === total - 1}
+          activePlayer={activePlayer}
+          players={state.players ?? null}
+          pickOrder={state.pickOrder ?? null}
+          claims={state.currentAuctionPicks ?? {}}
+          results={auctionResults}
+          soloClaim={
+            !isMultiplayer && revealed
+              ? (state.picks[state.picks.length - 1]?.gameIndex ?? null)
+              : null
+          }
+          onClaim={onClaimGame}
           onNext={onNext}
         />
       )}
@@ -632,8 +686,10 @@ function Gauntlet({
           activePlayerId={activePlayer?.id ?? null}
           currentPairPicks={state.currentPairPicks ?? {}}
           currentPairValues={state.currentPairValues ?? {}}
+          currentAuctionPicks={state.currentAuctionPicks ?? {}}
           kind={kind}
           roundResults={roundResults}
+          auctionResults={auctionResults}
           revealed={revealed}
           currentPair={currentPair}
           playReadyIndex={playReadyIndex}
@@ -737,9 +793,8 @@ function applyMultiplayerPick(
   };
 }
 
-// Hot-seat slider / piggyback: record the active player's numeric guess. On the
-// last guess, score the whole round (slider curve, plus piggyback split + bluff
-// bonuses) and reveal.
+// Hot-seat slider: record the active player's numeric guess. On the last guess,
+// score the whole round on the slider curve and reveal.
 function applyMultiplayerValue(
   prev: Session,
   pair: HigherLowerPair,
@@ -760,17 +815,11 @@ function applyMultiplayerValue(
   }
 
   // Everyone has guessed — compute points and reveal.
-  const kind = pairKind(pair);
   const perPlayerPoints: Record<string, number> = {};
-  if (kind === "piggyback") {
-    const res = scorePiggyback(cfg.slider, pair.a.value, prev.pickOrder, nextVals);
-    for (const id of Object.keys(res)) perPlayerPoints[id] = res[id].points;
-  } else {
-    for (const p of prev.players) {
-      const v = nextVals[p.id];
-      if (v === undefined) continue;
-      perPlayerPoints[p.id] = scoreSliderGuess(cfg.slider, pair.a.value, v).points;
-    }
+  for (const p of prev.players) {
+    const v = nextVals[p.id];
+    if (v === undefined) continue;
+    perPlayerPoints[p.id] = scoreSliderGuess(cfg.slider, pair.a.value, v).points;
   }
 
   const nextScores: Record<string, number> = { ...prev.scores };
@@ -795,6 +844,68 @@ function applyMultiplayerValue(
   return {
     ...prev,
     currentPairValues: nextVals,
+    scores: nextScores,
+    picks: nextPicks,
+    revealedForIndex: prev.index,
+  };
+}
+
+// Hot-seat auction: the active player claims a shelf slot. Once everyone has
+// claimed (or the shelf ran dry), rank every game — claimed or not — and pay
+// out by the claimed game's true position.
+function applyMultiplayerClaim(
+  prev: Session,
+  pair: HigherLowerPair,
+  gameIndex: number,
+): Session {
+  if (!prev.players || !prev.scores || !prev.pickOrder) return prev;
+  const shelf = pair.games;
+  if (!shelf || !shelf[gameIndex]) return prev;
+  const claims = prev.currentAuctionPicks ?? {};
+  const count = Object.keys(claims).length;
+  const playerId = prev.pickOrder[count];
+  if (!playerId || claims[playerId] !== undefined) return prev;
+  // A cover leaves the shelf when it's claimed — never let two players take it.
+  if (Object.values(claims).includes(gameIndex)) return prev;
+
+  const nextClaims: Record<string, number> = { ...claims, [playerId]: gameIndex };
+  // The round also ends early if the shelf runs out of covers, which the admin
+  // can allow by authoring fewer games than there are players.
+  const isLast =
+    count + 1 === prev.players.length || count + 1 === shelf.length;
+  if (!isLast) {
+    return { ...prev, currentAuctionPicks: nextClaims };
+  }
+
+  const lowerWins = HIGHERLOWER_CATEGORIES[pair.category]?.lowerWins ?? false;
+  const results = scoreAuction(shelf, lowerWins, nextClaims);
+
+  const nextScores: Record<string, number> = { ...prev.scores };
+  for (const [id, r] of Object.entries(results)) {
+    nextScores[id] = (nextScores[id] ?? 0) + r.points;
+  }
+
+  // Mirror the host's claim into the solo-style picks array for the daily
+  // streak. Taking the best game on the shelf counts as "correct".
+  const host = prev.players.find((p) => p.isHost);
+  let nextPicks = prev.picks;
+  if (host) {
+    const hostResult = results[host.id];
+    nextPicks = [
+      ...prev.picks,
+      {
+        pairId: pair.id,
+        choice: "a",
+        gameIndex: hostResult?.gameIndex,
+        correct: hostResult?.rank === 0,
+        at: Date.now(),
+      },
+    ];
+  }
+
+  return {
+    ...prev,
+    currentAuctionPicks: nextClaims,
     scores: nextScores,
     picks: nextPicks,
     revealedForIndex: prev.index,
@@ -1467,7 +1578,7 @@ function CoverArt({ side }: { side: HigherLowerPair["a"] }) {
   );
 }
 
-// ─── slider / piggyback pairs ────────────────────────────────────────────────
+// ─── slider pairs ───────────────────────────────────────────────────────────
 
 function formatSliderValue(v: number, slider: SliderConfig): string {
   if (!Number.isInteger(v)) return `${v.toFixed(1)}${slider.unit ?? ""}`;
@@ -1618,73 +1729,14 @@ function SingleGameCard({
   );
 }
 
-// Piggyback only: the guesses already on the table, so followers can see (and
-// decide to trust or fade) the bar.
-function LockedGuessList({
-  players,
-  pickOrder,
-  values,
-  slider,
-}: {
-  players: Player[];
-  pickOrder: string[];
-  values: Record<string, number>;
-  slider: SliderConfig;
-}) {
-  const locked = pickOrder.filter((id) => values[id] !== undefined);
-  if (locked.length === 0) return null;
-  return (
-    <div className="mt-4 border-neo-2 bg-cream-soft p-3">
-      <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-2 flex items-center gap-1">
-        <Sparkles className="h-3 w-3 stroke-[3]" /> On the table
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {locked.map((id) => {
-          const p = players.find((x) => x.id === id);
-          if (!p) return null;
-          const isBar = pickOrder[0] === id;
-          return (
-            <div
-              key={id}
-              className={cn(
-                "border-neo-2 px-2 py-1 flex items-center gap-2",
-                isBar ? "bg-mustard text-ink-static" : "bg-paper",
-              )}
-            >
-              <CharacterAvatar
-                characterId={p.character}
-                isHost={p.isHost}
-                size={20}
-              />
-              <span className="font-display text-[11px] uppercase tracking-wider font-bold">
-                {p.name}
-              </span>
-              <span className="font-display text-sm font-bold tabular-nums">
-                {formatSliderValue(values[id], slider)}
-              </span>
-              {isBar && (
-                <span className="font-display text-[9px] uppercase tracking-wider opacity-80">
-                  the bar
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function SliderResultRow({
   player,
   result,
   slider,
-  piggyback,
 }: {
   player: Player;
-  result: PiggybackPlayerResult;
+  result: SliderPlayerResult;
   slider: SliderConfig;
-  piggyback: boolean;
 }) {
   const good = result.tag !== "off";
   return (
@@ -1704,28 +1756,13 @@ function SliderResultRow({
         size={28}
       />
       <div className="min-w-0 flex-1">
-        <div className="font-display text-xs uppercase tracking-wider font-bold truncate flex items-center gap-2">
+        <div className="font-display text-xs uppercase tracking-wider font-bold truncate">
           {player.name}
-          {result.isBar && (
-            <span className="border-neo-2 bg-paper text-ink px-1.5 py-0.5 text-[9px] leading-none">
-              Bar
-            </span>
-          )}
         </div>
         <div className="font-display text-[10px] uppercase tracking-wider opacity-80">
           Guessed {formatSliderValue(result.value, slider)} · {tagLabel(result.tag)}
           {result.tag === "off" && ` · ${result.diff} off`}
         </div>
-        {piggyback && (result.split > 1 || !!result.bluffBonus) && (
-          <div className="font-display text-[10px] uppercase tracking-wider font-bold mt-0.5 flex flex-wrap gap-x-3">
-            {result.split > 1 && <span>Piggybacked ÷{result.split}</span>}
-            {result.bluffBonus ? (
-              <span>
-                Bluff fooled {result.fooled} · +{result.bluffBonus}
-              </span>
-            ) : null}
-          </div>
-        )}
       </div>
       <div className="font-display text-xl font-bold tabular-nums shrink-0">
         +{result.points}
@@ -1768,46 +1805,39 @@ function SoloSliderResult({
 
 function SliderPairScreen({
   pair,
-  kind,
   revealed,
   isMultiplayer,
   isLast,
   activePlayer,
   players,
   pickOrder,
-  currentPairValues,
   roundResults,
   soloValue,
   onSubmitValue,
-  onSoloPiggyback,
   onNext,
 }: {
   pair: HigherLowerPair;
-  kind: HighLowPairType;
   revealed: boolean;
   isMultiplayer: boolean;
   isLast: boolean;
   activePlayer: Player | null;
   players: Player[] | null;
   pickOrder: string[] | null;
-  currentPairValues: Record<string, number>;
-  roundResults: Record<string, PiggybackPlayerResult> | null;
+  roundResults: Record<string, SliderPlayerResult> | null;
   soloValue: number | null;
   onSubmitValue: (v: number) => void;
-  onSoloPiggyback: () => void;
   onNext: () => void;
 }) {
   const cfg = HIGHERLOWER_CATEGORIES[pair.category];
   const slider = cfg.slider;
-  const isPiggyback = kind === "piggyback";
 
   if (!slider) {
-    // Shouldn't happen (editor restricts single-game pairs to slider cats), but
-    // fail soft so a bad row doesn't wedge the gauntlet.
+    // Shouldn't happen (the editor restricts slider pairs to slider-capable
+    // categories), but fail soft so a bad row doesn't wedge the gauntlet.
     return (
       <NeoCard tone="paper" shadow="md" className="p-5 mt-2">
         <div className="text-sm text-ink-soft">
-          This category can't be played as a {kind} pair.
+          This category can't be played as a slider round.
         </div>
         <NeoButton tone="teal" className="mt-3" onClick={onNext}>
           Next pair
@@ -1817,24 +1847,13 @@ function SliderPairScreen({
   }
 
   const actualDisplay = pair.a.display ?? formatSliderValue(pair.a.value, slider);
-  const barIsActive =
-    isPiggyback && pickOrder && activePlayer && pickOrder[0] === activePlayer.id;
 
   return (
     <NeoCard tone="paper" shadow="md" className="p-5 mt-2">
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <TagPill tone={isPiggyback ? "mustard" : "teal"}>
-          {isPiggyback ? (
-            <>
-              <Sparkles className="inline h-3 w-3 stroke-[3] mr-1" /> Piggyback
-              Bluff
-            </>
-          ) : (
-            <>
-              <SlidersHorizontal className="inline h-3 w-3 stroke-[3] mr-1" />{" "}
-              {cfg.label} slider
-            </>
-          )}
+        <TagPill tone="teal">
+          <SlidersHorizontal className="inline h-3 w-3 stroke-[3] mr-1" />{" "}
+          {cfg.label} slider
         </TagPill>
         <div className="font-display text-sm md:text-base uppercase tracking-wider font-bold text-right">
           {cfg.sliderQuestion ?? `Guess the ${cfg.valueLabel}`}
@@ -1848,48 +1867,19 @@ function SliderPairScreen({
         actualDisplay={actualDisplay}
       />
 
-      {isPiggyback && isMultiplayer && !revealed && players && pickOrder && (
-        <LockedGuessList
-          players={players}
-          pickOrder={pickOrder}
-          values={currentPairValues}
-          slider={slider}
-        />
-      )}
-
       {!revealed &&
         (isMultiplayer ? (
           activePlayer ? (
             <div className="mt-2">
-              {barIsActive && (
-                <div className="font-display text-[10px] uppercase tracking-wider text-mustard-deep font-bold mb-1">
-                  ▸ You set the bar — bluff if you dare
-                </div>
-              )}
               <SliderInput
                 key={activePlayer.id}
                 slider={slider}
-                tone={isPiggyback ? "mustard" : "teal"}
+                tone="teal"
                 submitLabel={`Lock in ${activePlayer.name}'s guess`}
                 onSubmit={onSubmitValue}
               />
             </div>
           ) : null
-        ) : isPiggyback ? (
-          <div className="mt-4 border-neo-2 bg-cream-soft p-4 flex flex-col gap-3">
-            <div className="font-display text-xs uppercase tracking-wider font-bold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 stroke-[3]" /> Hot-seat only
-            </div>
-            <div className="text-xs text-ink-soft leading-snug">
-              Piggyback Bluff needs a table of players. In solo it's banked as
-              correct so your gauntlet keeps flowing.
-            </div>
-            <div className="flex justify-end">
-              <NeoButton tone="lime" onClick={onSoloPiggyback}>
-                Count as correct →
-              </NeoButton>
-            </div>
-          </div>
         ) : (
           <SliderInput
             key="solo"
@@ -1914,7 +1904,6 @@ function SliderPairScreen({
                     player={p}
                     result={r}
                     slider={slider}
-                    piggyback={isPiggyback}
                   />
                 );
               })}
@@ -1925,11 +1914,6 @@ function SliderPairScreen({
               actual={pair.a.value}
               guess={soloValue}
             />
-          ) : isPiggyback ? (
-            <div className="border-neo-2 bg-lime text-ink-static px-3 py-2 font-display text-xs uppercase tracking-wider font-bold flex items-center gap-2">
-              <Check className="h-4 w-4 stroke-[3]" /> Counted as correct
-              (hot-seat game)
-            </div>
           ) : null}
           <div className="flex justify-end">
             <NeoButton tone="teal" onClick={onNext}>
@@ -1943,6 +1927,385 @@ function SliderPairScreen({
   );
 }
 
+// ─── auction pairs ──────────────────────────────────────────────────────────
+//
+// Two shelves of covers. On their turn a player claims one; the cover leaves
+// the shelf and a bare dark slot stays behind. When everyone has claimed, every
+// game on the shelf — claimed or not — is ranked and points pay out by the
+// claimed game's true position, so a table that collectively misses the best
+// game all score badly.
+
+// Split the shelf into two rows of at most five. Odd counts put the extra cover
+// on the top shelf, so 7 reads 4 + 3 rather than 5 + 2.
+function shelfRows<T>(items: T[]): [T[], T[]] {
+  if (items.length <= 1) return [items, []];
+  const top = Math.ceil(items.length / 2);
+  return [items.slice(0, top), items.slice(top)];
+}
+
+function AuctionPairScreen({
+  pair,
+  revealed,
+  isMultiplayer,
+  isLast,
+  activePlayer,
+  players,
+  pickOrder,
+  claims,
+  results,
+  soloClaim,
+  onClaim,
+  onNext,
+}: {
+  pair: HigherLowerPair;
+  revealed: boolean;
+  isMultiplayer: boolean;
+  isLast: boolean;
+  activePlayer: Player | null;
+  players: Player[] | null;
+  pickOrder: string[] | null;
+  claims: Record<string, number>;
+  results: Record<string, AuctionPlayerResult> | null;
+  soloClaim: number | null;
+  onClaim: (gameIndex: number) => void;
+  onNext: () => void;
+}) {
+  const cfg = HIGHERLOWER_CATEGORIES[pair.category];
+  const shelf = pair.games;
+
+  if (!shelf || shelf.length < 2) {
+    // A half-authored auction row — fail soft rather than wedging the run.
+    return (
+      <NeoCard tone="paper" shadow="md" className="p-5 mt-2">
+        <div className="text-sm text-ink-soft">
+          This auction round has no shelf of games authored.
+        </div>
+        <NeoButton tone="teal" className="mt-3" onClick={onNext}>
+          Next pair
+        </NeoButton>
+      </NeoCard>
+    );
+  }
+
+  const lowerWins = cfg?.lowerWins ?? false;
+  const { rankOf } = rankAuctionGames(shelf, lowerWins);
+  const claimedIndices = new Set(Object.values(claims));
+  if (soloClaim !== null) claimedIndices.add(soloClaim);
+  const prompt =
+    cfg?.auctionQuestion ??
+    `Pick the game with the ${lowerWins ? "lowest" : "highest"} ${cfg?.valueLabel ?? "value"}`;
+
+  // Who claimed which slot — only used once the round is revealed, where
+  // showing the owner is the whole point of the payout table.
+  const ownerOf: Record<number, Player> = {};
+  if (players) {
+    for (const [id, idx] of Object.entries(claims)) {
+      const p = players.find((x) => x.id === id);
+      if (p) ownerOf[idx] = p;
+    }
+  }
+
+  const canClaim = !revealed && (isMultiplayer ? !!activePlayer : true);
+  const [topRow, bottomRow] = shelfRows(shelf.map((g, i) => ({ g, i })));
+
+  return (
+    <NeoCard tone="paper" shadow="md" className="p-5 mt-2">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <TagPill tone="mustard">
+          <Gavel className="inline h-3 w-3 stroke-[3] mr-1" /> {cfg?.label ?? pair.category}{" "}
+          auction
+        </TagPill>
+        <div className="font-display text-sm md:text-base uppercase tracking-wider font-bold text-right">
+          {prompt}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        {[topRow, bottomRow].map((row, rowIdx) =>
+          row.length === 0 ? null : (
+            <Shelf key={rowIdx}>
+              {row.map(({ g, i }) => (
+                <ShelfSlot
+                  key={i}
+                  game={g}
+                  claimed={claimedIndices.has(i)}
+                  owner={revealed ? ownerOf[i] : undefined}
+                  revealed={revealed}
+                  rank={revealed ? rankOf[i] : null}
+                  valueLabel={cfg?.valueLabel ?? "value"}
+                  canClaim={canClaim && !claimedIndices.has(i)}
+                  onClaim={() => onClaim(i)}
+                />
+              ))}
+            </Shelf>
+          ),
+        )}
+      </div>
+
+      {!revealed && (
+        <div className="mt-4 font-display text-[11px] uppercase tracking-wider text-ink-soft text-center">
+          {isMultiplayer && activePlayer
+            ? `▸ Click ${activePlayer.name}'s pick`
+            : "▸ Click the cover you're claiming"}
+        </div>
+      )}
+
+      {revealed && (
+        <div className="mt-5 flex flex-col gap-3">
+          {isMultiplayer && results && players && pickOrder ? (
+            <div className="flex flex-col gap-2">
+              {[...pickOrder]
+                .filter((id) => results[id])
+                .sort((a, b) => results[a].rank - results[b].rank)
+                .map((id) => {
+                  const p = players.find((x) => x.id === id)!;
+                  return (
+                    <AuctionResultRow
+                      key={id}
+                      player={p}
+                      result={results[id]}
+                      game={shelf[results[id].gameIndex]}
+                      shelfSize={shelf.length}
+                    />
+                  );
+                })}
+            </div>
+          ) : soloClaim !== null ? (
+            <SoloAuctionResult
+              game={shelf[soloClaim]}
+              rank={rankOf[soloClaim]}
+              shelfSize={shelf.length}
+            />
+          ) : null}
+          <div className="flex justify-end">
+            <NeoButton tone="teal" onClick={onNext}>
+              {isLast ? "See results" : "Next pair"}{" "}
+              <ChevronRight className="inline h-4 w-4 ml-1" />
+            </NeoButton>
+          </div>
+        </div>
+      )}
+    </NeoCard>
+  );
+}
+
+// A physical shelf: the row of covers sitting on a thick plank.
+function Shelf({ children }: { children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-end justify-center gap-2 sm:gap-3 flex-wrap">
+        {children}
+      </div>
+      <div className="h-2 bg-ink border-neo-2 border-t-0 mt-0" />
+    </div>
+  );
+}
+
+// One slot on the shelf. Sealed = the cover art, clickable on your turn.
+// Claimed = a bare dark rectangle exactly the size of the cover it replaced.
+// Once the round reveals, every slot flips face-up with its value + rank.
+function ShelfSlot({
+  game,
+  claimed,
+  owner,
+  revealed,
+  rank,
+  valueLabel,
+  canClaim,
+  onClaim,
+}: {
+  game: HigherLowerSide;
+  claimed: boolean;
+  owner: Player | undefined;
+  revealed: boolean;
+  rank: number | null;
+  valueLabel: string;
+  canClaim: boolean;
+  onClaim: () => void;
+}) {
+  const valueDisplay = game.display ?? formatNumber(game.value);
+  const initial = game.game_name.charAt(0).toUpperCase();
+
+  // Mid-round: a claimed cover is simply gone. No label, no owner — all that's
+  // left is the shadow the cover was casting, so the slot reads as an absence
+  // rather than a new object. (The bottom HUD is where "who has picked" lives.)
+  //
+  // Deliberately a literal black rather than the `ink` token: ink flips light in
+  // dark mode, which would make the hole glow. Two stacked blurred rectangles —
+  // a soft wide one and a tighter core — give it a cast-shadow falloff instead
+  // of a hard edge.
+  if (claimed && !revealed) {
+    return (
+      <div
+        className="w-[92px] sm:w-[112px] aspect-[3/4] relative"
+        aria-label={`${game.game_name} — claimed`}
+      >
+        <div
+          className="absolute inset-[3px]"
+          style={{ background: "rgba(0,0,0,0.45)", filter: "blur(7px)" }}
+        />
+        <div
+          className="absolute inset-[9px]"
+          style={{ background: "rgba(0,0,0,0.7)", filter: "blur(5px)" }}
+        />
+      </div>
+    );
+  }
+
+  const body = (
+    <>
+      <div className="absolute inset-0">
+        {game.cover_url ? (
+          <img
+            src={game.cover_url}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-cream-soft flex items-center justify-center">
+            <span className="font-display text-4xl font-bold text-ink-soft">
+              {initial}
+            </span>
+          </div>
+        )}
+      </div>
+      {revealed && (
+        <>
+          {/* Face-up: dim the art so the value reads over any cover. */}
+          <div className="absolute inset-0 bg-ink/70" />
+          <div className="absolute inset-0 p-1.5 flex flex-col items-center justify-center text-center text-paper-static">
+            <div className="font-display text-[9px] uppercase tracking-wider opacity-80">
+              {valueLabel}
+            </div>
+            <div className="font-display text-base sm:text-lg font-bold tabular-nums leading-none mt-0.5">
+              {valueDisplay}
+            </div>
+            <div className="font-display text-[9px] uppercase tracking-wider opacity-80 mt-1 line-clamp-2">
+              {game.game_name}
+            </div>
+          </div>
+          {rank !== null && (
+            <div
+              className={cn(
+                "absolute top-1 left-1 border-neo-2 px-1.5 py-0.5 font-display text-[9px] uppercase tracking-wider font-bold leading-none",
+                rank === 0 ? "bg-lime text-ink-static" : "bg-paper text-ink",
+              )}
+            >
+              {ordinal(rank + 1)}
+            </div>
+          )}
+          {owner && (
+            <div className="absolute bottom-1 right-1">
+              <CharacterAvatar
+                characterId={owner.character}
+                isHost={owner.isHost}
+                showHostBadge={false}
+                size={22}
+              />
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+
+  const shell =
+    "w-[92px] sm:w-[112px] aspect-[3/4] border-neo shadow-neo relative overflow-hidden bg-cream-soft";
+
+  if (!canClaim) {
+    return <div className={shell}>{body}</div>;
+  }
+  return (
+    <button
+      onClick={onClaim}
+      className={cn(
+        shell,
+        "transition-all hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-neo-lg focus-visible:outline-2 focus-visible:outline-offset-2",
+      )}
+      aria-label={`Claim ${game.game_name}`}
+    >
+      {body}
+    </button>
+  );
+}
+
+function AuctionResultRow({
+  player,
+  result,
+  game,
+  shelfSize,
+}: {
+  player: Player;
+  result: AuctionPlayerResult;
+  game: HigherLowerSide;
+  shelfSize: number;
+}) {
+  const won = result.rank === 0;
+  return (
+    <div
+      className={cn(
+        "border-neo-2 px-3 py-2 flex items-center gap-3",
+        won
+          ? "bg-lime text-ink-static"
+          : result.points > 0
+            ? "bg-mustard text-ink-static"
+            : "bg-coral text-ink-static",
+      )}
+    >
+      <CharacterAvatar
+        characterId={player.character}
+        isHost={player.isHost}
+        size={28}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="font-display text-xs uppercase tracking-wider font-bold truncate">
+          {player.name}
+        </div>
+        <div className="font-display text-[10px] uppercase tracking-wider opacity-80 truncate">
+          {game.game_name} · {game.display ?? formatNumber(game.value)} ·{" "}
+          {ordinal(result.rank + 1)} of {shelfSize}
+        </div>
+      </div>
+      <div className="font-display text-xl font-bold tabular-nums shrink-0">
+        +{result.points}
+      </div>
+    </div>
+  );
+}
+
+function SoloAuctionResult({
+  game,
+  rank,
+  shelfSize,
+}: {
+  game: HigherLowerSide;
+  rank: number;
+  shelfSize: number;
+}) {
+  const points = auctionPointsForRank(rank);
+  const won = rank === 0;
+  return (
+    <div
+      className={cn(
+        "border-neo-2 px-3 py-2 font-display text-xs uppercase tracking-wider font-bold flex items-center justify-between gap-2",
+        won ? "bg-lime text-ink-static" : "bg-cream-soft",
+      )}
+    >
+      <span className="flex items-center gap-2 min-w-0">
+        {won ? (
+          <Check className="h-4 w-4 stroke-[3] shrink-0" />
+        ) : (
+          <X className="h-4 w-4 stroke-[3] shrink-0" />
+        )}
+        <span className="truncate">
+          You took {game.game_name} · {ordinal(rank + 1)} of {shelfSize}
+        </span>
+      </span>
+      <span className="text-lg tabular-nums shrink-0">+{points}</span>
+    </div>
+  );
+}
+
 // ─── player HUD ────────────────────────────────────────────────────────────
 
 function PlayerHud({
@@ -1951,8 +2314,10 @@ function PlayerHud({
   activePlayerId,
   currentPairPicks,
   currentPairValues,
+  currentAuctionPicks,
   kind,
   roundResults,
+  auctionResults,
   revealed,
   currentPair,
   playReadyIndex,
@@ -1964,8 +2329,10 @@ function PlayerHud({
   activePlayerId: string | null;
   currentPairPicks: Record<string, Choice>;
   currentPairValues: Record<string, number>;
+  currentAuctionPicks: Record<string, number>;
   kind: HighLowPairType;
-  roundResults: Record<string, PiggybackPlayerResult> | null;
+  roundResults: Record<string, SliderPlayerResult> | null;
+  auctionResults: Record<string, AuctionPlayerResult> | null;
   revealed: boolean;
   currentPair: HigherLowerPair | undefined;
   playReadyIndex: number | null;
@@ -1991,10 +2358,10 @@ function PlayerHud({
     <div className="sticky bottom-3 mt-6 z-20">
       <NeoCard tone="paper" shadow="lg" className="p-3">
         <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-          <TagPill tone={kind === "piggyback" ? "mustard" : "teal"}>
-            {kind === "piggyback" ? (
+          <TagPill tone={kind === "auction" ? "mustard" : "teal"}>
+            {kind === "auction" ? (
               <>
-                <Sparkles className="inline h-3 w-3 stroke-[3] mr-1" /> Piggyback
+                <Gavel className="inline h-3 w-3 stroke-[3] mr-1" /> Auction
               </>
             ) : kind === "slider" ? (
               <>
@@ -2008,14 +2375,20 @@ function PlayerHud({
             )}
           </TagPill>
           <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
-            {isVs ? `+${POINTS_PER_CORRECT} per correct pick` : "closest wins"}
+            {isVs
+              ? `+${POINTS_PER_CORRECT} per correct pick`
+              : kind === "auction"
+                ? "best game on the shelf wins"
+                : "closest wins"}
           </div>
         </div>
         <div className="flex items-stretch gap-2 overflow-x-auto pt-1 pb-2 px-1">
           {ordered.map((p) => {
             const hasPicked = isVs
               ? currentPairPicks[p.id] !== undefined
-              : currentPairValues[p.id] !== undefined;
+              : kind === "auction"
+                ? currentAuctionPicks[p.id] !== undefined
+                : currentPairValues[p.id] !== undefined;
             const isActive = p.id === activePlayerId;
             let revealPoints: number | null = null;
             let revealGood: boolean | null = null;
@@ -2029,6 +2402,12 @@ function PlayerHud({
                 revealGood = ok;
                 revealPoints =
                   ok === null ? null : ok ? POINTS_PER_CORRECT : 0;
+              } else if (kind === "auction") {
+                const r = auctionResults?.[p.id];
+                revealPoints = r ? r.points : null;
+                // Only taking the best game on the shelf is a clean "win";
+                // everything else shades by whether it still scored.
+                revealGood = r ? r.rank === 0 : null;
               } else {
                 const r = roundResults?.[p.id];
                 revealPoints = r ? r.points : null;

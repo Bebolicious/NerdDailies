@@ -35,6 +35,9 @@ export type ArchiveSession = {
   linkSolved: boolean
   wrongs: ArchiveWrong[]
   status: 'playing' | 'solved' | 'lost'
+  // Post-game only: the player asked to see the rest of the room. Optional so
+  // sessions written before this existed still load as v2.
+  revealedAll?: boolean
   spareCandleClaimed: boolean
   jackpotUntil: number | null
   jackpotSrc: string | null
@@ -55,6 +58,7 @@ export function emptySession(now: number, candles: number): ArchiveSession {
     linkSolved: false,
     wrongs: [],
     status: 'playing',
+    revealedAll: false,
     spareCandleClaimed: false,
     jackpotUntil: null,
     jackpotSrc: null,
@@ -150,6 +154,17 @@ export function searchSpot(
 ): ArchiveSession {
   if (s.status !== 'playing' || s.foundSpots[spot]) return s
   return { ...s, foundSpots: { ...s.foundSpots, [spot]: true } }
+}
+
+// Once the case is closed — won or lost — the room has nothing left to protect,
+// so the player can throw everything open and read/listen to what they never
+// paid for. Deliberately one-way and post-game only: it spends no candles and
+// records nothing, it's just the tour of what you missed. The session keeps
+// counting `opened` separately, so the score, rank and share string are all
+// still the run the player actually played.
+export function revealAllClues(s: ArchiveSession): ArchiveSession {
+  if (s.status === 'playing' || s.revealedAll) return s
+  return { ...s, revealedAll: true }
 }
 
 export function claimSpareCandle(

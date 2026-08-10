@@ -11,6 +11,7 @@ import {
   Search,
   Share2,
   Trash2,
+  Unlock,
 } from 'lucide-react'
 import { GameSearch } from '../components/game/GameSearch'
 import { NeoCard } from '../components/ui/NeoCard'
@@ -37,6 +38,7 @@ import {
   loadSession,
   openClue as open,
   persistSession,
+  revealAllClues,
   searchSpot,
   type ArchiveSession,
   type ArchiveWrong,
@@ -87,6 +89,9 @@ export function ArchiveRoom({
   const wrongCount = state.wrongs.length
   const finished = state.status !== 'playing'
   const clues = puzzle.clues
+  // Post-game "show me the rest of the room" — every clue reads as open, every
+  // hiding spot as found. Never true while playing (`revealAllClues` guards it).
+  const revealedAll = !!state.revealedAll
 
   // Mirror a finished run to the global score store (streak / stats / sidebar).
   // Done in an effect rather than inside a reducer so the write happens after
@@ -164,6 +169,9 @@ export function ArchiveRoom({
     () => clues.filter((c) => state.opened[c.id]),
     [clues, state.opened],
   )
+  // The dossier files everything once the room is thrown open, but the counter
+  // below it still reports what was actually paid for.
+  const dossierClues = revealedAll ? clues : openedClues
 
   const rank = useMemo(
     () =>
@@ -181,6 +189,7 @@ export function ArchiveRoom({
   const tileProps = {
     state,
     finished,
+    revealedAll,
     blurPx: blur,
     jackpotSealed: sealed,
     onOpen: openClue,
@@ -329,7 +338,7 @@ export function ArchiveRoom({
                   <HidingSpot
                     key={spot.id}
                     spot={spot}
-                    found={!!state.foundSpots[spot.id]}
+                    found={!!state.foundSpots[spot.id] || revealedAll}
                     disabled={finished}
                     crossedOut={
                       spot.id === 'trash' ? puzzle.trash_crossed_out : undefined
@@ -394,12 +403,15 @@ export function ArchiveRoom({
                   shareString={shareString}
                   wrongCount={wrongCount}
                   candlesLeft={state.candles}
+                  revealedAll={revealedAll}
+                  onRevealAll={() => setState(revealAllClues)}
                 />
               </div>
             )}
 
             <DossierClues
-              clues={openedClues}
+              clues={dossierClues}
+              opened={state.opened}
               blurPx={blur}
               wrongs={state.wrongs}
             />
@@ -583,6 +595,7 @@ type TileProps = {
   clue: ArchiveClue
   state: ArchiveSession
   finished: boolean
+  revealedAll: boolean
   blurPx: number
   jackpotSealed: boolean
   onOpen: (clue: ArchiveClue) => void
@@ -593,8 +606,12 @@ type TileProps = {
 }
 
 function ClueTile(props: TileProps) {
-  const { clue, state, finished, blurPx, jackpotSealed, onOpen, isFound } = props
-  const opened = !!state.opened[clue.id]
+  const { clue, state, finished, revealedAll, blurPx, jackpotSealed, onOpen, isFound } =
+    props
+  // After the case closes the player can throw the room open: everything reads
+  // as opened, including clues that were still stashed, locked or sealed.
+  const bought = !!state.opened[clue.id]
+  const opened = bought || revealedAll
   const locked = !!state.locked[clue.id]
   const found = isFound(clue)
   const isJackpot = clue.outcome === 'jackpot'
@@ -628,7 +645,15 @@ function ClueTile(props: TileProps) {
     )
   }
 
-  if (opened) return <OpenedTile clue={clue} blurPx={blurPx} chest={props.chest} />
+  if (opened)
+    return (
+      <OpenedTile
+        clue={clue}
+        blurPx={blurPx}
+        chest={props.chest}
+        missed={!bought}
+      />
+    )
 
   if (props.drawer)
     return (
@@ -739,19 +764,34 @@ function OpenedTile({
   clue,
   blurPx,
   chest,
+  missed,
 }: {
   clue: ArchiveClue
   blurPx: number
   chest?: boolean
+  // Only ever set after the case closed and the player unlocked the room: this
+  // one they never actually paid for. Marked so the reveal stays honest about
+  // which clues were really theirs.
+  missed?: boolean
 }) {
   return (
     <div
       className={cn(
         'archive-tile-open p-2.5 bg-cream-soft',
         chest && 'archive-chest-open',
+        missed && 'archive-tile-missed',
       )}
     >
       <div className="flex items-center gap-1.5 mb-1.5 text-ink">
+        {missed && (
+          <span
+            className="text-coral font-bold leading-none"
+            title="You never opened this one"
+            aria-label="Never opened"
+          >
+            ✗
+          </span>
+        )}
         <span className="text-base leading-none">{clue.emoji || '📄'}</span>
         <span className="font-display text-[10px] uppercase tracking-wider font-bold truncate flex-1 min-w-0">
           {clue.name}
@@ -1063,10 +1103,14 @@ const SUBJECT_ORDER: ArchiveClueSubject[] = ['a', 'b', 'both', 'link', 'herring'
 
 function DossierClues({
   clues,
+  opened,
   blurPx,
   wrongs,
 }: {
   clues: ArchiveClue[]
+  // What was actually paid for. Only differs from `clues` once the room has
+  // been thrown open post-game, where it tells the missed clues apart.
+  opened: Record<string, boolean>
   blurPx: number
   wrongs: ArchiveWrong[]
 }) {
@@ -1108,7 +1152,12 @@ function DossierClues({
           </div>
           <div className="flex flex-col gap-2">
             {g.items.map((c) => (
-              <DossierCard key={c.id} clue={c} blurPx={blurPx} />
+              <DossierCard
+                key={c.id}
+                clue={c}
+                blurPx={blurPx}
+                missed={!opened[c.id]}
+              />
             ))}
           </div>
         </div>
@@ -1117,7 +1166,15 @@ function DossierClues({
   )
 }
 
-function DossierCard({ clue, blurPx }: { clue: ArchiveClue; blurPx: number }) {
+function DossierCard({
+  clue,
+  blurPx,
+  missed,
+}: {
+  clue: ArchiveClue
+  blurPx: number
+  missed?: boolean
+}) {
   const tone =
     clue.subject === 'herring'
       ? 'coral'
@@ -1125,10 +1182,19 @@ function DossierCard({ clue, blurPx }: { clue: ArchiveClue; blurPx: number }) {
         ? 'mustard'
         : 'paper'
   return (
-    <NeoCard tone={tone} shadow="sm" className="p-3">
+    <NeoCard
+      tone={tone}
+      shadow="sm"
+      className={cn('p-3', missed && 'archive-tile-missed')}
+    >
       <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1 flex items-center gap-1.5">
         <span className="text-sm leading-none">{clue.emoji || '📄'}</span>
-        {clue.name}
+        <span className="min-w-0 truncate">{clue.name}</span>
+        {missed && (
+          <span className="ml-auto shrink-0 text-[9px] tracking-wider opacity-70">
+            ✗ never opened
+          </span>
+        )}
       </div>
       {clue.body.kind === 'text' && (
         <div className="text-sm font-serif italic">{clue.body.text}</div>
@@ -1168,6 +1234,8 @@ function FinaleCard({
   shareString,
   wrongCount,
   candlesLeft,
+  revealedAll,
+  onRevealAll,
 }: {
   status: 'solved' | 'lost' | 'playing'
   puzzle: ArchivePuzzle
@@ -1175,6 +1243,8 @@ function FinaleCard({
   shareString: string | null
   wrongCount: number
   candlesLeft: number
+  revealedAll: boolean
+  onRevealAll: () => void
 }) {
   const [copied, setCopied] = useState(false)
   return (
@@ -1241,6 +1311,20 @@ function FinaleCard({
           </pre>
         </div>
       )}
+
+      {/* The case is closed either way, so there's nothing left to protect:
+          open every drawer, box and cassette and go see what you missed. */}
+      <div className="mt-3">
+        {revealedAll ? (
+          <div className="font-display text-[10px] uppercase tracking-wider opacity-80">
+            🔓 Room unlocked · every clue is open — go have a look
+          </div>
+        ) : (
+          <NeoButton tone="paper" size="sm" onClick={onRevealAll}>
+            <Unlock className="inline h-3 w-3 mr-1" /> Unlock the whole room
+          </NeoButton>
+        )}
+      </div>
     </NeoCard>
   )
 }
@@ -1313,6 +1397,12 @@ function ArchiveStyles() {
         background: var(--color-cream-soft);
         transform: translate(-1px, -1px);
         box-shadow: 3px 3px 0 var(--color-stroke);
+      }
+      /* A clue only visible because the room was unlocked after the case
+         closed — dashed edge so a post-game browse never reads as part of
+         the run the player actually made. */
+      .archive-tile-missed {
+        border-style: dashed;
       }
       .archive-locked {
         background: repeating-linear-gradient(

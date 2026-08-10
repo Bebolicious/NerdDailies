@@ -6,6 +6,7 @@ import type {
   ConnectionsPuzzle,
   CrosswordPuzzle,
   HigherLowerCategory,
+  HigherLowerPair,
   HigherLowerPuzzle,
   ScreenshotPuzzle,
   SoundtrackPuzzle,
@@ -305,35 +306,43 @@ export function getMockHigherLowerPuzzle(week: string): HigherLowerPuzzle {
     'steam_reviews',
     'twitch_peak',
   ]
-  // Sprinkle a few single-game pair types in so the slider / piggyback flows
-  // are playable with no Supabase configured.
-  const pairType = (i: number): 'vs' | 'slider' | 'piggyback' =>
-    i === 2 || i === 6 ? 'slider' : i === 9 ? 'piggyback' : 'vs'
+  // Sprinkle a few non-vs pair types in so the slider / auction flows are
+  // playable with no Supabase configured.
+  const pairType = (i: number): 'vs' | 'slider' | 'auction' =>
+    i === 2 || i === 6 ? 'slider' : i === 4 || i === 9 ? 'auction' : 'vs'
   const pairs = Array.from({ length: HIGHERLOWER_PAIR_COUNT }, (_, i) => {
     const type = pairType(i)
     const a = pickGame(seed + i * 5)
     let b = pickGame(seed + i * 5 + 1)
     if (b.id === a.id) b = pickGame(seed + i * 5 + 2)
-    // Single-game types force a slider-capable category.
+    // Slider rounds force a slider-capable category; auction works with any.
     const category: HigherLowerCategory =
-      type === 'vs'
-        ? categories[(seed + i) % categories.length]
-        : i === 6
+      type === 'slider'
+        ? i === 6
           ? 'hltb_main'
           : 'metacritic'
+        : categories[(seed + i) % categories.length]
     const [va, vb] = mockValues(category, seed + i)
+    // Auction shelves get a full rack of distinct games with distinct values.
+    const games =
+      type === 'auction'
+        ? mockAuctionShelf(category, seed + i * 31, i === 4 ? 10 : 6)
+        : undefined
     return {
       id: `mock-pair-${seed}-${i}`,
       position: i,
       pairType: type,
       category,
-      a: {
-        game_id: a.id,
-        game_name: a.name,
-        game_year: a.year,
-        value: va.value,
-        display: va.display,
-      },
+      // Auction mirrors games[0] into side A, same as the real editor does.
+      a: games
+        ? games[0]
+        : {
+            game_id: a.id,
+            game_name: a.name,
+            game_year: a.year,
+            value: va.value,
+            display: va.display,
+          },
       b:
         type === 'vs'
           ? {
@@ -344,6 +353,7 @@ export function getMockHigherLowerPuzzle(week: string): HigherLowerPuzzle {
               display: vb.display,
             }
           : undefined,
+      games,
     }
   })
   return {
@@ -352,6 +362,37 @@ export function getMockHigherLowerPuzzle(week: string): HigherLowerPuzzle {
     theme: 'Mock weekly gauntlet · seeded values',
     pairs,
   }
+}
+
+// A deterministic auction shelf: `count` distinct games, each with a value
+// drawn from the category's normal range. Values are forced distinct so the
+// mock always has a clean 1st..Nth ranking to score against.
+function mockAuctionShelf(
+  category: HigherLowerCategory,
+  seed: number,
+  count: number,
+): HigherLowerPair['games'] {
+  const used = new Set<number>()
+  const seenValues = new Set<number>()
+  const out: NonNullable<HigherLowerPair['games']> = []
+  for (let i = 0; out.length < count && i < count * 6; i++) {
+    const g = pickGame(seed + i * 7)
+    if (used.has(g.id)) continue
+    // mockValues returns a pair; alternate which half we take so consecutive
+    // shelf slots don't share a draw.
+    const v = mockValues(category, seed + i * 13)[i % 2]
+    if (seenValues.has(v.value)) continue
+    used.add(g.id)
+    seenValues.add(v.value)
+    out.push({
+      game_id: g.id,
+      game_name: g.name,
+      game_year: g.year,
+      value: v.value,
+      display: v.display,
+    })
+  }
+  return out
 }
 
 function mockValues(

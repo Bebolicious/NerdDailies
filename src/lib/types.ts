@@ -271,18 +271,25 @@ export type HigherLowerCategory =
 // ── Pair types ───────────────────────────────────────────────────────────────
 //
 // Each pair in the gauntlet plays one of three ways:
-//   'vs'        — the classic: two games, pick which side wins the stat.
-//   'slider'    — one game; every player drags a slider to guess the exact
-//                 value. Scored by how close they land (see higherlowerScoring).
-//   'piggyback' — one game; hot-seat only. The lead-off player sets "the bar"
-//                 (and can bluff); followers see it and choose to trust or
-//                 diverge. Solo play skips it and banks it as correct.
-export type HighLowPairType = 'vs' | 'slider' | 'piggyback'
+//   'vs'      — the classic: two games, pick which side wins the stat.
+//   'slider'  — one game; every player drags a slider to guess the exact
+//               value. Scored by how close they land (see higherlowerScoring).
+//   'auction' — a shelf of up to AUCTION_MAX_GAMES covers. Each player claims
+//               one game on their turn ("pick the highest rated on
+//               Metacritic"); a claimed cover leaves an empty slot behind.
+//               Points come from where the claimed game truly ranks in the
+//               WHOLE shelf, unpicked games included (see scoreAuction).
+export type HighLowPairType = 'vs' | 'slider' | 'auction'
 
-// Slider/piggyback tuning for a single-value category. `bullseye` is the abs
-// diff (>0) that still counts as a full-points "Bullseye!". `spread` is the
-// raw-unit distance at which an off-guess decays to zero points — so the same
-// scoring curve works whether the value is a 0–100 score, a year, or hours.
+// An auction shelf holds at most this many games — laid out as two shelves of
+// five. The admin can author anywhere from AUCTION_MIN_GAMES up to this.
+export const AUCTION_MAX_GAMES = 10
+export const AUCTION_MIN_GAMES = 2
+
+// Slider tuning for a single-value category. `bullseye` is the abs diff (>0)
+// that still counts as a full-points "Bullseye!". `spread` is the raw-unit
+// distance at which an off-guess decays to zero points — so the same scoring
+// curve works whether the value is a 0–100 score, a year, or hours.
 export type SliderConfig = {
   min: number
   max: number
@@ -303,13 +310,17 @@ export type HigherLowerCategoryConfig = {
   // where a lower number is the better answer. The admin still stores the real
   // number (seconds, year); only the win direction flips.
   lowerWins?: boolean
-  // Present only on categories that can also be played as 'slider' /
-  // 'piggyback' pairs. Absent ⇒ the category is vs-only (the editor hides it
-  // from the type dropdown for single-value pairs).
+  // Present only on categories that can also be played as 'slider' pairs.
+  // Absent ⇒ the category can't be played as a slider (the editor hides it from
+  // the category dropdown for slider pairs). Auction pairs need no config —
+  // they only rank raw values — so every category is auction-capable.
   slider?: SliderConfig
-  // Full-sentence prompt for slider/piggyback rounds (e.g. "Guess how long it
-  // takes to beat the main story"). Falls back to `Guess the <valueLabel>`.
+  // Full-sentence prompt for slider rounds (e.g. "Guess how long it takes to
+  // beat the main story"). Falls back to `Guess the <valueLabel>`.
   sliderQuestion?: string
+  // Full-sentence prompt for auction rounds (e.g. "Pick the highest rated game
+  // on Metacritic"). Falls back to a generated line off `lowerWins`.
+  auctionQuestion?: string
 }
 
 // Default direction is "pick the side with the larger value". Categories that
@@ -327,6 +338,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     valueLabel: 'Metacritic',
     slider: { min: 0, max: 100, step: 1, bullseye: 1, spread: 100 },
     sliderQuestion: 'Guess the Metacritic score',
+    auctionQuestion: 'Pick the highest rated game on Metacritic',
   },
   steam_rating: {
     id: 'steam_rating',
@@ -336,6 +348,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     valueLabel: 'Steam %',
     slider: { min: 0, max: 100, step: 1, bullseye: 1, spread: 100, unit: '%' },
     sliderQuestion: 'Guess the Steam rating (%)',
+    auctionQuestion: 'Pick the highest rated game on Steam',
   },
   copies_sold: {
     id: 'copies_sold',
@@ -345,6 +358,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     valueLabel: 'Copies sold',
     slider: { min: 0, max: 60, step: 0.5, bullseye: 1, spread: 30, unit: 'M' },
     sliderQuestion: 'Guess how many copies it sold (millions)',
+    auctionQuestion: 'Pick the best-selling game',
   },
   release_year: {
     id: 'release_year',
@@ -354,6 +368,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     valueLabel: 'Released',
     slider: { min: 1972, max: 2026, step: 1, bullseye: 1, spread: 20 },
     sliderQuestion: 'Guess the release year',
+    auctionQuestion: 'Pick the most recently released game',
   },
   speedrun_wr: {
     id: 'speedrun_wr',
@@ -362,6 +377,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     unitHint: 'seconds — e.g. 1827 for 30:27 (lower = faster wins)',
     valueLabel: 'Any% WR',
     lowerWins: true,
+    auctionQuestion: 'Pick the game with the FASTEST any% world record',
   },
   budget: {
     id: 'budget',
@@ -371,6 +387,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     valueLabel: 'Budget',
     slider: { min: 0, max: 400, step: 5, bullseye: 5, spread: 200, unit: 'M' },
     sliderQuestion: 'Guess the development budget ($M)',
+    auctionQuestion: 'Pick the game with the biggest development budget',
   },
   hltb_main: {
     id: 'hltb_main',
@@ -380,6 +397,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     valueLabel: 'Main story',
     slider: { min: 0, max: 100, step: 0.5, bullseye: 1, spread: 40, unit: 'h' },
     sliderQuestion: 'Guess how long it takes to beat the main story',
+    auctionQuestion: 'Pick the game that takes LONGEST to beat (main story)',
   },
   hltb_completionist: {
     id: 'hltb_completionist',
@@ -389,6 +407,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     valueLabel: '100%',
     slider: { min: 0, max: 200, step: 1, bullseye: 2, spread: 90, unit: 'h' },
     sliderQuestion: 'Guess how long it takes to 100% complete',
+    auctionQuestion: 'Pick the game that takes LONGEST to 100% complete',
   },
   steam_peak: {
     id: 'steam_peak',
@@ -396,6 +415,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which had the higher all-time Steam peak player count?',
     unitHint: 'peak concurrent players — e.g. 90000',
     valueLabel: 'Steam peak',
+    auctionQuestion: 'Pick the game with the highest all-time Steam peak',
   },
   movie_adaptation: {
     id: 'movie_adaptation',
@@ -404,6 +424,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     unitHint: 'year of first film — e.g. 1994 (earlier wins)',
     valueLabel: '1st movie',
     lowerWins: true,
+    auctionQuestion: 'Pick the game that got a movie adaptation FIRST',
   },
   // ── Recommended additions (easy to source, fun to guess) ──
   steam_reviews: {
@@ -412,6 +433,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which has more Steam user reviews?',
     unitHint: 'total reviews — e.g. 250000',
     valueLabel: 'Steam reviews',
+    auctionQuestion: 'Pick the game with the most Steam reviews',
   },
   twitch_peak: {
     id: 'twitch_peak',
@@ -419,6 +441,7 @@ export const HIGHERLOWER_CATEGORIES: Record<
     question: 'Which hit the higher peak concurrent Twitch viewers?',
     unitHint: 'peak viewers — e.g. 1200000',
     valueLabel: 'Twitch peak',
+    auctionQuestion: 'Pick the game with the highest Twitch viewer peak',
   },
 }
 
@@ -438,11 +461,15 @@ export type HigherLowerPair = {
   // How this pair is played. Defaults to 'vs' for legacy rows (missing column).
   pairType: HighLowPairType
   // Side A is always present. For 'vs' it's one of the two contenders; for
-  // 'slider'/'piggyback' it's the single game and `a.value` is the correct
-  // answer players are guessing.
+  // 'slider' it's the single game and `a.value` is the correct answer players
+  // are guessing. For 'auction' it mirrors `games[0]` so every row still has a
+  // side A (the DB column is NOT NULL).
   a: HigherLowerSide
   // Only present for 'vs' pairs — the second contender.
   b?: HigherLowerSide
+  // Only present for 'auction' pairs — the whole shelf in the display order the
+  // admin authored. AUCTION_MIN_GAMES..AUCTION_MAX_GAMES entries.
+  games?: HigherLowerSide[]
 }
 
 export type HigherLowerPuzzle = {

@@ -230,6 +230,27 @@ export async function fetchCrosswordPuzzle(
   }
 }
 
+// One entry of the `games` JSONB shelf as stored by the admin editor (bucket
+// paths, not URLs).
+type AuctionGameRow = {
+  game_id: number
+  game_name: string
+  game_year?: number | null
+  value: number | string
+  display?: string | null
+  cover_path?: string | null
+}
+
+// 'piggyback' rounds were removed in favor of 'auction'. A stored piggyback row
+// is a single game + its true value, which is exactly a slider round, so play
+// it as one rather than dropping authored content. (schema.sql migrates the
+// column too — this keeps a not-yet-migrated database playable.)
+function normalizePairType(raw: string | null): HighLowPairType {
+  if (raw === 'piggyback') return 'slider'
+  if (raw === 'slider' || raw === 'auction' || raw === 'vs') return raw
+  return 'vs'
+}
+
 export async function fetchHigherLowerPuzzle(
   week: string,
 ): Promise<HigherLowerPuzzle> {
@@ -244,7 +265,7 @@ export async function fetchHigherLowerPuzzle(
   const { data: pairRows } = await sb
     .from('higherlower_pairs')
     .select(
-      'id,position,pair_type,category,game_a_id,game_a_name,game_a_year,game_a_cover_path,game_a_value,game_a_display,game_b_id,game_b_name,game_b_year,game_b_cover_path,game_b_value,game_b_display',
+      'id,position,pair_type,category,games,game_a_id,game_a_name,game_a_year,game_a_cover_path,game_a_value,game_a_display,game_b_id,game_b_name,game_b_year,game_b_cover_path,game_b_value,game_b_display',
     )
     .eq('puzzle_id', data.id)
     .order('position', { ascending: true })
@@ -252,7 +273,7 @@ export async function fetchHigherLowerPuzzle(
   const pairs: HigherLowerPair[] = (pairRows ?? []).map((r) => ({
     id: r.id,
     position: r.position,
-    pairType: (r.pair_type as HighLowPairType) ?? 'vs',
+    pairType: normalizePairType(r.pair_type),
     category: r.category as HigherLowerCategory,
     a: {
       game_id: r.game_a_id,
@@ -276,6 +297,18 @@ export async function fetchHigherLowerPuzzle(
             display: r.game_b_display ?? undefined,
           }
         : undefined,
+    // The auction shelf. Stored as JSONB with bucket paths; resolve each to a
+    // public URL here so the player page only ever sees URLs.
+    games: Array.isArray(r.games) && r.games.length > 0
+      ? (r.games as AuctionGameRow[]).map((g) => ({
+          game_id: g.game_id,
+          game_name: g.game_name,
+          game_year: g.game_year ?? undefined,
+          cover_url: g.cover_path ? url(g.cover_path) : undefined,
+          value: Number(g.value),
+          display: g.display ?? undefined,
+        }))
+      : undefined,
   }))
   return {
     id: data.id,

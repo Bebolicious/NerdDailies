@@ -177,8 +177,8 @@ create table if not exists public.higherlower_pairs (
   position int not null check (position between 0 and 99),
 
   -- How this pair is played: 'vs' (two games), 'slider' (one game, guess the
-  -- value), or 'piggyback' (one game, bluff-and-trust; hot-seat only). Free
-  -- text so new types can ship without a migration; the player UI defaults
+  -- value), or 'auction' (a shelf of games, each player claims one). Free text
+  -- so new types can ship without a migration; the player UI defaults
   -- unknown/missing values to 'vs'.
   pair_type text not null default 'vs',
 
@@ -193,14 +193,22 @@ create table if not exists public.higherlower_pairs (
   game_a_display text,
   game_a_cover_path text,
 
-  -- Side B is only populated for 'vs' pairs; nullable so slider/piggyback rows
-  -- can store just one game.
+  -- Side B is only populated for 'vs' pairs; nullable so single-game (slider)
+  -- and auction rows can store just one game in the a/b columns.
   game_b_id bigint,
   game_b_name text,
   game_b_year int,
   game_b_value numeric,
   game_b_display text,
   game_b_cover_path text,
+
+  -- The auction shelf: an ordered JSON array of
+  --   { game_id, game_name, game_year, value, display, cover_path }
+  -- with 2..10 entries. Only populated for pair_type = 'auction' (which also
+  -- mirrors games[0] into the game_a_* columns, since those are NOT NULL).
+  -- JSONB rather than a child table — the shelf is always read and written
+  -- whole, same call the Archive's `clues` makes.
+  games jsonb not null default '[]',
 
   created_at timestamptz default now(),
   unique (puzzle_id, position)
@@ -209,13 +217,20 @@ create table if not exists public.higherlower_pairs (
 create index if not exists higherlower_pairs_puzzle_idx
   on public.higherlower_pairs (puzzle_id, position);
 
--- Migrate pre-existing databases: add the pair_type column and relax the
--- (formerly NOT NULL) side-B columns so single-game pairs are allowed.
+-- Migrate pre-existing databases: add the pair_type + games columns and relax
+-- the (formerly NOT NULL) side-B columns so single-game pairs are allowed.
 alter table public.higherlower_pairs
   add column if not exists pair_type text not null default 'vs';
+alter table public.higherlower_pairs
+  add column if not exists games jsonb not null default '[]';
 alter table public.higherlower_pairs alter column game_b_id    drop not null;
 alter table public.higherlower_pairs alter column game_b_name  drop not null;
 alter table public.higherlower_pairs alter column game_b_value drop not null;
+
+-- The 'piggyback' pair type was removed in favor of 'auction'. Old rows carry a
+-- single game + its true value, which is exactly a slider round, so demote them
+-- rather than deleting authored content.
+update public.higherlower_pairs set pair_type = 'slider' where pair_type = 'piggyback';
 
 -- The weekly mini-crossword. Keyed by puzzle_week (Monday of the ISO week).
 -- No IGDB game reference — the puzzle is the answer. `solution` is a flat
