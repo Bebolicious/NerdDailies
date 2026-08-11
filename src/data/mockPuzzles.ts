@@ -113,11 +113,19 @@ function fakeCover(seed: number, name: string): string {
 export function getMockBlurPuzzle(date: string): BlurPuzzle {
   const seed = hash(date + 'blur')
   const game = pickGame(seed + 19)
+  // Back Cover hard mode is an occasional drop in production, so the mock
+  // switches it on for roughly every third day — enough to exercise both the
+  // enabled and disabled paths just by changing ?date=.
+  const backGame = pickGame(seed + 61)
+  const hasBack = seed % 3 === 0 && backGame.id !== game.id
   return {
     id: 'mock-' + seed,
     puzzle_date: date,
     game,
     cover_url: fakeCover(seed, game.name),
+    back: hasBack
+      ? { game: backGame, cover_url: fakeCover(seed + 7, backGame.name) }
+      : undefined,
   }
 }
 

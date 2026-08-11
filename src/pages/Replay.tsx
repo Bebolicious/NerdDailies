@@ -1,4 +1,4 @@
-import { Camera, Eye, LayoutGrid, Music, Trophy, Check, X } from 'lucide-react'
+import { Camera, Eye, EyeOff, LayoutGrid, Music, Trophy, Check, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { addDays, format, parseISO } from 'date-fns'
 import { NeoCard } from '../components/ui/NeoCard'
@@ -7,15 +7,20 @@ import { getResult } from '../lib/scoreStore'
 import type { GameType } from '../lib/types'
 import { cn } from '../lib/cn'
 
-const DAILY_GAMES: Array<{
+type ReplayGame = {
   type: GameType
   label: string
   icon: typeof Camera
-  tone: 'coral' | 'blue' | 'lime' | 'mustard' | 'orange'
-}> = [
+  tone: 'coral' | 'blue' | 'lime' | 'mustard' | 'orange' | 'ink'
+  /** Only drops on some days — hidden entirely unless it was played. */
+  occasional?: boolean
+}
+
+const DAILY_GAMES: ReplayGame[] = [
   { type: 'screenshot', label: 'Screenshot', icon: Camera, tone: 'coral' },
   { type: 'trophy', label: 'Trophy', icon: Trophy, tone: 'blue' },
   { type: 'blur', label: 'Blur Reveal', icon: Eye, tone: 'lime' },
+  { type: 'blurback', label: 'Back Cover (hard)', icon: EyeOff, tone: 'ink', occasional: true },
   { type: 'soundtrack', label: 'Soundtrack', icon: Music, tone: 'mustard' },
   { type: 'connections', label: 'Connections', icon: LayoutGrid, tone: 'orange' },
 ]
@@ -74,14 +79,20 @@ export function Replay() {
 }
 
 function DailyDots({ dateISO }: { dateISO: string }) {
-  const solvedCount = DAILY_GAMES.filter(
+  // Back Cover only runs on some days, and we can't know which without a
+  // query — so it earns a dot only on days it was actually played, and the
+  // denominator follows suit rather than showing a permanent x/6.
+  const games = DAILY_GAMES.filter(
+    (g) => !g.occasional || !!getResult(dateISO, g.type),
+  )
+  const solvedCount = games.filter(
     (g) => getResult(dateISO, g.type)?.status === 'solved',
   ).length
 
   return (
     <div className="w-full flex flex-col items-center gap-2 mt-2">
       <div className="flex items-center gap-1.5">
-        {DAILY_GAMES.map((g) => {
+        {games.map((g) => {
           const result = getResult(dateISO, g.type)
           const solved = result?.status === 'solved'
           const lost = result?.status === 'lost'
@@ -101,7 +112,9 @@ function DailyDots({ dateISO }: { dateISO: string }) {
                         ? 'bg-lime text-ink-static'
                         : g.tone === 'mustard'
                           ? 'bg-mustard text-ink-static'
-                          : 'bg-orange text-ink-static'
+                          : g.tone === 'ink'
+                            ? 'bg-emphasis text-paper-static'
+                            : 'bg-orange text-ink-static'
                   : lost
                     ? 'bg-coral text-ink-static'
                     : 'bg-paper text-ink-soft opacity-50',
@@ -127,7 +140,7 @@ function DailyDots({ dateISO }: { dateISO: string }) {
       <div className="font-display text-[10px] uppercase tracking-wider text-ink-soft">
         {solvedCount === 0
           ? 'Not played'
-          : `${solvedCount}/${DAILY_GAMES.length} solved`}
+          : `${solvedCount}/${games.length} solved`}
       </div>
     </div>
   )

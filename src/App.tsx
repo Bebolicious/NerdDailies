@@ -133,8 +133,11 @@ function App() {
               </ShellLayout>
             }
           />
+          {/* Splat so /blur and /blur/back (Back Cover hard mode) resolve to
+              the same match — React Router then keeps BlurGame mounted across
+              the switch and the puzzle row is fetched once, not per mode. */}
           <Route
-            path="/blur"
+            path="/blur/*"
             element={
               <ShellLayout>
                 <BlurGame />

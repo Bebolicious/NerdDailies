@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
-import { Archive, Camera, Eye, Flag, Grid3x3, LayoutGrid, Music, Scale, Trophy, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Archive, Camera, Eye, EyeOff, Flag, Grid3x3, LayoutGrid, Music, Scale, Trophy, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { NeoCard } from '../ui/NeoCard'
 import { TagPill } from '../ui/TagPill'
-import { dayNumber, todayISO, weekNumber, weekStartISO } from '../../lib/dates'
+import { todayISO, weekNumber, weekStartISO } from '../../lib/dates'
 import { getResult } from '../../lib/scoreStore'
+import { useBlurPuzzle } from '../../hooks/usePuzzle'
 import { TOUR_REQUEST_EVENT } from '../../lib/tourState'
 import type { GameType } from '../../lib/types'
 import { cn } from '../../lib/cn'
@@ -123,9 +124,31 @@ export function TodaySidebar({ mobileOpen, onClose }: Props) {
   )
 }
 
+// Results are read straight from localStorage at render, so the sidebar needs a
+// nudge to re-read when a round finishes on the page next to it. Route changes
+// already re-render it; this covers finishing without navigating.
+function useResultsVersion(): number {
+  const [v, setV] = useState(0)
+  useEffect(() => {
+    function bump() {
+      setV((n) => n + 1)
+    }
+    window.addEventListener('dailies:result-saved', bump)
+    return () => window.removeEventListener('dailies:result-saved', bump)
+  }, [])
+  return v
+}
+
 function SidebarContent() {
   const today = todayISO()
   const location = useLocation()
+  useResultsVersion()
+
+  // Cached module-level fetch shared with /blur and TourController — one query
+  // per session, not one per page. Only used to decide whether today's drop
+  // carries the Back Cover hard-mode round.
+  const blurPuzzle = useBlurPuzzle(today)
+  const backAvailable = !!blurPuzzle?.back
 
   return (
     <>
@@ -149,14 +172,27 @@ function SidebarContent() {
               ? 'in_progress'
               : 'play'
           const Icon = g.icon
+          const showHardTile = g.type === 'blur' && backAvailable
 
           return (
-            <Link key={g.type} to={g.path} className="block group">
-              <NeoCard
-                tone={active ? g.tone : 'paper'}
-                shadow="md"
-                className="p-3 relative overflow-hidden transition-all group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 group-hover:shadow-neo-lg group-active:translate-x-[2px] group-active:translate-y-[2px] group-active:shadow-none"
-              >
+            // The card is a plain box with a stretched link filling it, rather
+            // than a <Link> wrapper — Blur's hard-mode tile is a second link
+            // inside the card, and nesting anchors is invalid HTML.
+            <NeoCard
+              key={g.type}
+              tone={active ? g.tone : 'paper'}
+              shadow="md"
+              className="group p-3 relative overflow-hidden transition-all hover:-translate-y-0.5 hover:-translate-x-0.5 hover:shadow-neo-lg active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+            >
+              <Link
+                to={g.path}
+                aria-label={g.title}
+                className="absolute inset-0 z-0"
+              />
+
+              {/* Content sits above the stretched link but lets clicks fall
+                  through to it, so the whole card stays one big target. */}
+              <div className="relative z-10 pointer-events-none">
                 <div className="flex items-start gap-3">
                   <div
                     className={cn(
@@ -173,20 +209,64 @@ function SidebarContent() {
                     <div className="text-xs mt-1 opacity-80">{g.blurb}</div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between mt-2">
-                  <div className="font-display text-[10px] uppercase tracking-wider opacity-80">
-                    Day #{dayNumber(today)}
-                  </div>
+                <div
+                  className={cn(
+                    'flex items-center mt-2',
+                    showHardTile ? 'justify-between' : 'justify-end',
+                  )}
+                >
+                  {showHardTile && (
+                    <HardModeTile
+                      today={today}
+                      active={location.pathname.startsWith('/blur/back')}
+                    />
+                  )}
                   <StatusPill status={status} cadence="daily" />
                 </div>
-              </NeoCard>
-            </Link>
+              </div>
+            </NeoCard>
           )
         })}
       </div>
 
       <div className="pb-4" />
     </>
+  )
+}
+
+// The Blur card's second entry point: a square icon tile, same shape as the
+// Weekly box tiles, sitting where the "Day #N" label used to. Corner dot is
+// lime when hard mode was solved, coral when it was failed.
+function HardModeTile({ today, active }: { today: string; active: boolean }) {
+  const result = getResult(today, 'blurback')
+  const solved = result?.status === 'solved'
+  const lost = result?.status === 'lost'
+
+  return (
+    <Link
+      to="/blur/back"
+      title={`Back Cover · hard mode${solved ? ' · solved' : lost ? ' · failed' : ''}`}
+      aria-label={`Blur Reveal Back Cover, hard mode${solved ? ', solved' : lost ? ', failed' : ''}`}
+      className={cn(
+        'pointer-events-auto border-neo-2 p-1.5 shadow-neo-sm transition-all relative',
+        'hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-neo',
+        'active:translate-x-[1px] active:translate-y-[1px] active:shadow-none',
+        active
+          ? 'bg-emphasis text-paper-static'
+          : 'bg-cream-soft text-ink hover:bg-paper',
+      )}
+    >
+      <EyeOff className="h-4 w-4 stroke-[2.5]" />
+      {(solved || lost) && !active && (
+        <span
+          className={cn(
+            'absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full border-[2px] border-stroke',
+            solved ? 'bg-lime' : 'bg-coral',
+          )}
+          aria-hidden
+        />
+      )}
+    </Link>
   )
 }
 

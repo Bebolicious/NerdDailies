@@ -47,6 +47,7 @@ const GAME_TONE: Record<GameType, Tone> = {
   screenshot: 'coral',
   trophy: 'blue',
   blur: 'lime',
+  blurback: 'lime', // same drop as blur — never rendered separately today
   soundtrack: 'mustard',
   crossword: 'pink',
   archive: 'violet',

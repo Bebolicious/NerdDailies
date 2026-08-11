@@ -3,6 +3,7 @@ export type GameType =
   | 'trophy'
   | 'soundtrack'
   | 'blur'
+  | 'blurback'
   | 'archive'
   | 'crossword'
   | 'higherlower'
@@ -71,11 +72,29 @@ export type BlurPuzzle = {
   puzzle_date: string
   game: Game
   cover_url: string // official game cover (portrait 3:4)
+  back?: BlurBackRound // optional "Back Cover" hard mode — see below
 } & PuzzleDecor
+
+// ── Blur Reveal · Back Cover (hard mode) ────────────────────────────────────
+//
+// An optional second round bolted onto the day's Blur puzzle, enabled per-day
+// from the admin. Same rules, same 5 guesses, same blur curve — but the image
+// is a game's *back* cover, and the answer is a DIFFERENT game from the front
+// round (otherwise anyone who solved the front round already knows it).
+//
+// It rides along on the `blur_puzzles` row rather than living in its own
+// table, so `/blur` still costs exactly one query on days it's off. The
+// back-cover image is only requested once the player actually opts in — the
+// player page mounts that <img> lazily.
+export type BlurBackRound = {
+  game: Game
+  cover_url: string // the back cover (portrait 3:4)
+}
 
 // How blurred the image is per wrong-guess step. Index 0 = before any wrong
 // guess, last = at the final (5th) guess — still lightly blurred; the image
 // only goes fully clear once the round finishes. 5 steps = 5 guesses.
+// Back Cover hard mode deliberately reuses this same curve.
 export const BLUR_LEVELS_PX: number[] = [40, 28, 20, 14, 4]
 
 export type SoundtrackPuzzle = {

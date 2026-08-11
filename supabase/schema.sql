@@ -106,6 +106,17 @@ create table if not exists public.blur_puzzles (
 -- from the 'covers' bucket, so the separate blur_images path is redundant).
 alter table public.blur_puzzles drop column if exists image_path;
 
+-- Blur Reveal · Back Cover (hard mode). An optional second round on the same
+-- day, enabled per-puzzle from the admin. Lives on this row rather than in its
+-- own table so /blur stays a single query on the days it's switched off. The
+-- answer is a DIFFERENT game from the front round.
+alter table public.blur_puzzles add column if not exists backcover_enabled boolean not null default false;
+alter table public.blur_puzzles add column if not exists backcover_path text;      -- path in the 'covers' bucket
+alter table public.blur_puzzles add column if not exists backcover_game_id bigint;
+alter table public.blur_puzzles add column if not exists backcover_game_name text;
+alter table public.blur_puzzles add column if not exists backcover_game_year int;
+alter table public.blur_puzzles add column if not exists backcover_game_genre text;
+
 create table if not exists public.soundtrack_puzzles (
   id uuid primary key default gen_random_uuid(),
   puzzle_date date not null unique,

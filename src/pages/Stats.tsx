@@ -5,6 +5,30 @@ import { allResults, currentStreak } from '../lib/scoreStore'
 import { todayISO } from '../lib/dates'
 import type { PuzzleResult, GameType } from '../lib/types'
 
+const TONE: Record<GameType, 'coral' | 'blue' | 'lime' | 'ink' | 'mustard' | 'paper' | 'teal' | 'orange' | 'violet'> = {
+  screenshot: 'coral',
+  trophy: 'blue',
+  blur: 'lime',
+  blurback: 'ink',
+  soundtrack: 'mustard',
+  crossword: 'paper',
+  archive: 'violet',
+  higherlower: 'teal',
+  connections: 'orange',
+}
+
+const LABEL: Record<GameType, string> = {
+  screenshot: 'screenshot',
+  trophy: 'trophy',
+  blur: 'blur',
+  blurback: 'blur · back cover',
+  soundtrack: 'soundtrack',
+  crossword: 'crossword',
+  archive: 'archive',
+  higherlower: 'higherlower',
+  connections: 'connections',
+}
+
 export function Stats() {
   const [results, setResults] = useState<PuzzleResult[]>([])
   const [streak, setStreak] = useState(0)
@@ -18,6 +42,7 @@ export function Stats() {
     screenshot: [],
     trophy: [],
     blur: [],
+    blurback: [],
     soundtrack: [],
     archive: [],
     crossword: [],
@@ -42,7 +67,7 @@ export function Stats() {
         <div className="text-xs mt-2">Days with at least one puzzle solved.</div>
       </NeoCard>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(['screenshot', 'trophy', 'blur', 'soundtrack', 'crossword', 'archive', 'higherlower', 'connections'] as GameType[]).map((t) => {
+        {(['screenshot', 'trophy', 'blur', 'blurback', 'soundtrack', 'crossword', 'archive', 'higherlower', 'connections'] as GameType[]).map((t) => {
           const rs = byType[t]
           const solved = rs.filter((r) => r.status === 'solved').length
           // For score-based games (crossword has no guesses, higherlower's
@@ -65,25 +90,9 @@ export function Stats() {
                         .reduce((a, b) => a + b.guessCount, 0) / solved
                     ).toFixed(1)} guesses`
                   : 'solved · avg — guesses'
-          const tone =
-            t === 'screenshot'
-              ? 'coral'
-              : t === 'trophy'
-                ? 'blue'
-                : t === 'blur'
-                  ? 'lime'
-                  : t === 'soundtrack'
-                    ? 'mustard'
-                    : t === 'crossword'
-                      ? 'paper'
-                      : t === 'higherlower'
-                        ? 'teal'
-                        : t === 'connections'
-                          ? 'orange'
-                          : 'violet'
           return (
             <NeoCard key={t} tone="paper" shadow="md" className="p-4">
-              <TagPill tone={tone}>{t}</TagPill>
+              <TagPill tone={TONE[t]}>{LABEL[t]}</TagPill>
               <div className="font-display text-2xl font-bold mt-3">{solved}</div>
               <div className="text-xs text-ink-soft">{subline}</div>
               <div className="text-xs text-ink-soft mt-1">{rs.length} played</div>

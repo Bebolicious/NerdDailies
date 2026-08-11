@@ -19,6 +19,10 @@ export function BlurEditor() {
   const { date } = useParams<{ date: string }>()
   const [game, setGame] = useState<Game | null>(null)
   const [coverPath, setCoverPath] = useState<string | null>(null)
+  // Back Cover hard mode — an optional second round on this same day.
+  const [backEnabled, setBackEnabled] = useState(false)
+  const [backGame, setBackGame] = useState<Game | null>(null)
+  const [backCoverPath, setBackCoverPath] = useState<string | null>(null)
   const [decor, setDecor] = useState<PuzzleDecor>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -48,6 +52,16 @@ export function BlurEditor() {
           genre: data.game_genre ?? undefined,
         })
         setCoverPath((data.cover_path as string | null) ?? null)
+        setBackEnabled(!!data.backcover_enabled)
+        setBackCoverPath((data.backcover_path as string | null) ?? null)
+        if (data.backcover_game_id) {
+          setBackGame({
+            id: data.backcover_game_id,
+            name: data.backcover_game_name ?? '',
+            year: data.backcover_game_year ?? undefined,
+            genre: data.backcover_game_genre ?? undefined,
+          })
+        }
         setDecor(rowToDecor(data))
       }
       setLoading(false)
@@ -58,12 +72,15 @@ export function BlurEditor() {
     }
   }, [date])
 
-  async function uploadCover(file: File) {
+  // `slot` keeps the two covers in distinct filenames inside the shared
+  // covers/<date>/ prefix, so clearing one never guesses at the other's path.
+  async function uploadCover(file: File, slot: 'front' | 'back') {
     const sb = getSupabase()
     if (!sb || !date) return
     const compressed = await compressImage(file, IMG_PRESETS.blurCover)
     const ext = compressed.name.split('.').pop() ?? 'webp'
-    const path = `${date}/cover-${crypto.randomUUID()}.${ext}`
+    const prefix = slot === 'back' ? 'backcover' : 'cover'
+    const path = `${date}/${prefix}-${crypto.randomUUID()}.${ext}`
     const { error } = await sb.storage
       .from('covers')
       .upload(path, compressed, { upsert: true, cacheControl: '31536000' })
@@ -71,7 +88,8 @@ export function BlurEditor() {
       setMsg(`Cover upload failed: ${error.message}`)
       return
     }
-    setCoverPath(path)
+    if (slot === 'back') setBackCoverPath(path)
+    else setCoverPath(path)
   }
 
   async function clearPuzzle() {
@@ -86,11 +104,15 @@ export function BlurEditor() {
     setClearing(true)
     setMsg(null)
 
-    // covers/ is shared with the Screenshot game — only delete this puzzle's cover.
-    if (coverPath) {
+    // covers/ is shared with the Screenshot game — only delete this puzzle's
+    // own files (front cover, plus the back cover if hard mode was set up).
+    const ownFiles = [coverPath, backCoverPath].filter(
+      (p): p is string => !!p,
+    )
+    if (ownFiles.length > 0) {
       const { error: coverErr } = await sb.storage
         .from('covers')
-        .remove([coverPath])
+        .remove(ownFiles)
       if (coverErr) {
         setMsg(`Could not delete cover file: ${coverErr.message}`)
         setClearing(false)
@@ -110,6 +132,9 @@ export function BlurEditor() {
 
     setGame(null)
     setCoverPath(null)
+    setBackEnabled(false)
+    setBackGame(null)
+    setBackCoverPath(null)
     setDecor({})
     setMsg('Cleared.')
     setClearing(false)
@@ -120,6 +145,17 @@ export function BlurEditor() {
     if (!sb || !date) return
     if (!game) return setMsg('Pick a game first.')
     if (!coverPath) return setMsg('Upload the game cover first.')
+    if (backEnabled) {
+      if (!backGame) return setMsg('Back Cover is on — pick its game first.')
+      if (!backCoverPath)
+        return setMsg('Back Cover is on — upload the back cover image first.')
+      // A shared answer would hand the hard round to anyone who solved the
+      // front one, which defeats the whole point of the mode.
+      if (backGame.id === game.id)
+        return setMsg(
+          'Back Cover must be a different game from the front round.',
+        )
+    }
     setSaving(true)
     setMsg(null)
     const { error } = await sb.from('blur_puzzles').upsert(
@@ -130,6 +166,14 @@ export function BlurEditor() {
         game_year: game.year,
         game_genre: game.genre,
         cover_path: coverPath,
+        backcover_enabled: backEnabled,
+        // Toggling hard mode off blanks its fields rather than orphaning them,
+        // so a disabled day can't leak a half-configured round.
+        backcover_path: backEnabled ? backCoverPath : null,
+        backcover_game_id: backEnabled ? backGame?.id ?? null : null,
+        backcover_game_name: backEnabled ? backGame?.name ?? null : null,
+        backcover_game_year: backEnabled ? backGame?.year ?? null : null,
+        backcover_game_genre: backEnabled ? backGame?.genre ?? null : null,
         ...decorToRow(decor),
         updated_at: new Date().toISOString(),
       },
@@ -140,10 +184,10 @@ export function BlurEditor() {
   }
 
   const sb = getSupabase()
-  const coverUrl =
-    coverPath && sb
-      ? sb.storage.from('covers').getPublicUrl(coverPath).data.publicUrl
-      : null
+  const publicUrl = (p: string | null) =>
+    p && sb ? sb.storage.from('covers').getPublicUrl(p).data.publicUrl : null
+  const coverUrl = publicUrl(coverPath)
+  const backCoverUrl = publicUrl(backCoverPath)
   const blurPx = BLUR_LEVELS_PX[previewStep]
 
   return (
@@ -179,7 +223,7 @@ export function BlurEditor() {
             <div className="w-48">
               <CoverSlot
                 url={coverUrl}
-                onUpload={uploadCover}
+                onUpload={(f) => uploadCover(f, 'front')}
                 onClear={() => setCoverPath(null)}
               />
             </div>
@@ -215,6 +259,60 @@ export function BlurEditor() {
                       #{i + 1} · {px}px
                     </button>
                   ))}
+                </div>
+              </div>
+            )}
+          </NeoCard>
+
+          <NeoCard tone="paper" shadow="md" className="p-5">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={backEnabled}
+                onChange={(e) => setBackEnabled(e.target.checked)}
+                className="mt-1 h-4 w-4 shrink-0 accent-black"
+              />
+              <span>
+                <span className="font-display text-[10px] uppercase tracking-wider font-bold flex items-center gap-2">
+                  Back Cover — hard mode
+                  <span className="border-neo-2 bg-emphasis text-paper-static px-1.5 py-0.5 text-[9px]">
+                    Hard
+                  </span>
+                </span>
+                <span className="block text-[11px] text-ink-soft mt-1">
+                  Adds an optional second round on this day only. Players are
+                  offered it once the normal round is solved or failed. Same 5
+                  guesses and the same blur curve, but the image is a{' '}
+                  <strong>back</strong> cover and the answer must be a{' '}
+                  <strong>different game</strong>.
+                </span>
+              </span>
+            </label>
+
+            {backEnabled && (
+              <div className="mt-5 flex flex-col gap-4 border-t-[3px] border-stroke pt-5">
+                <GamePicker value={backGame} onChange={setBackGame} />
+                {backGame && game && backGame.id === game.id && (
+                  <div className="border-neo-2 bg-coral text-ink-static px-3 py-2 text-[11px]">
+                    ⚠ This is the same game as the front round — pick a
+                    different one or the hard round is a free win.
+                  </div>
+                )}
+                <div>
+                  <div className="font-display text-[10px] uppercase tracking-wider font-bold mb-1">
+                    Back cover image
+                  </div>
+                  <div className="text-[11px] text-ink-soft mb-3">
+                    Portrait 3:4 — min 600 × 900 px. Blurs on the same
+                    5-step curve as the front cover.
+                  </div>
+                  <div className="w-48">
+                    <CoverSlot
+                      url={backCoverUrl}
+                      onUpload={(f) => uploadCover(f, 'back')}
+                      onClear={() => setBackCoverPath(null)}
+                    />
+                  </div>
                 </div>
               </div>
             )}

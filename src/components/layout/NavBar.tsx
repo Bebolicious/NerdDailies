@@ -19,7 +19,7 @@ export function NavBar({ onOpenSidebar }: { onOpenSidebar?: () => void }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   return (
     <header className="border-b-[3px] border-stroke bg-cream">
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex items-center justify-between px-6 py-3.5">
         <Link
           to="/"
           onClick={() => clearDateOverride()}

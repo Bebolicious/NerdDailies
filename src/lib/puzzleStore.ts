@@ -120,17 +120,57 @@ export async function fetchSoundtrackPuzzle(
   }
 }
 
-export async function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
+// The blur row is the one puzzle two surfaces both need: the /blur page, and
+// the sidebar (which has to know whether Back Cover hard mode is enabled today
+// to decide if it renders the hard-mode tile — and the sidebar is on every
+// page). Caching the in-flight promise per date collapses all of that to a
+// single query per session, which is strictly less egress than the old
+// one-query-per-/blur-visit behaviour.
+//
+// Staleness is the trade: an admin editing today's puzzle mid-session won't be
+// picked up until reload. That was already true within a page view, and a
+// daily drop doesn't move once it's live.
+const blurCache = new Map<string, Promise<BlurPuzzle>>()
+
+export function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
+  const hit = blurCache.get(date)
+  if (hit) return hit
+  const p = loadBlurPuzzle(date).catch((err) => {
+    // Never cache a rejection — a transient network blip would otherwise
+    // poison this date for the rest of the session.
+    blurCache.delete(date)
+    throw err
+  })
+  blurCache.set(date, p)
+  return p
+}
+
+async function loadBlurPuzzle(date: string): Promise<BlurPuzzle> {
   const sb = getSupabase()
   if (!sb) return getMockBlurPuzzle(date)
   const { data, error } = await sb
     .from('blur_puzzles')
     .select(
-      'id,puzzle_date,game_id,game_name,game_year,game_genre,cover_path,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,cover_path,backcover_enabled,backcover_path,backcover_game_id,backcover_game_name,backcover_game_year,backcover_game_genre,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_date', date)
     .maybeSingle()
   if (error || !data) return getMockBlurPuzzle(date)
+  // Hard mode only materializes when the admin enabled it AND both of its
+  // required fields are set — a half-filled row must not offer the player a
+  // round with no image or no answer.
+  const back =
+    data.backcover_enabled && data.backcover_path && data.backcover_game_id
+      ? {
+          game: {
+            id: data.backcover_game_id,
+            name: data.backcover_game_name ?? '',
+            year: data.backcover_game_year ?? undefined,
+            genre: data.backcover_game_genre ?? undefined,
+          },
+          cover_url: toPublicUrl('covers')(data.backcover_path),
+        }
+      : undefined
   return {
     id: data.id,
     puzzle_date: data.puzzle_date,
@@ -141,6 +181,7 @@ export async function fetchBlurPuzzle(date: string): Promise<BlurPuzzle> {
       genre: data.game_genre ?? undefined,
     },
     cover_url: toPublicUrl('covers')(data.cover_path),
+    back,
     ...rowToDecor(data),
   }
 }
