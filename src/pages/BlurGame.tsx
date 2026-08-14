@@ -14,7 +14,7 @@ import { BlurBackAskModal } from '../components/game/BlurBackAskModal'
 import { useGameState } from '../hooks/useGameState'
 import { useBlurPuzzle } from '../hooks/usePuzzle'
 import { todayISO } from '../lib/dates'
-import { BLUR_LEVELS_PX } from '../lib/types'
+import { BLUR_LEVELS_PX, BLUR_BACK_LEVELS_PX } from '../lib/types'
 import type { BlurPuzzle, Game, GameType } from '../lib/types'
 import { sharesFranchise } from '../lib/franchise'
 import { wasBackCoverAsked, markBackCoverAsked } from '../lib/blurBackPrompt'
@@ -211,9 +211,12 @@ function BlurRound({
     answerGameId: answer.id,
   })
 
+  const isBack = variant === 'back'
+
   const finished = game.status !== 'playing'
-  const stepIndex = Math.min(game.wrongCount, BLUR_LEVELS_PX.length - 1)
-  const blurPx = finished ? 0 : BLUR_LEVELS_PX[stepIndex]
+  const levels = isBack ? BLUR_BACK_LEVELS_PX : BLUR_LEVELS_PX
+  const stepIndex = Math.min(game.wrongCount, levels.length - 1)
+  const blurPx = finished ? 0 : levels[stepIndex]
 
   const zoomComp = useBrowserZoomCompensation()
   const coverWidthPx = Math.round(BASE_COVER_WIDTH_PX * zoomComp)
@@ -225,8 +228,6 @@ function BlurRound({
     if (g.kind === 'wrong' && sharesFranchise(g.game, answer)) return 'close'
     return 'wrong'
   }) as ('empty' | 'wrong' | 'close' | 'correct' | 'active')[]
-
-  const isBack = variant === 'back'
 
   return (
     <div className="flex flex-col gap-4 md:flex-1 md:min-h-0">

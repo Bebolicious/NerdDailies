@@ -12,7 +12,7 @@ import { GamePicker } from '../../components/game/GamePicker'
 import { getSupabase, isSupabaseConfigured } from '../../lib/supabase'
 import { compressImage, IMG_PRESETS } from '../../lib/imageCompress'
 import type { Game } from '../../lib/types'
-import { BLUR_LEVELS_PX } from '../../lib/types'
+import { BLUR_LEVELS_PX, BLUR_BACK_LEVELS_PX } from '../../lib/types'
 import { formatLong } from '../../lib/dates'
 
 export function BlurEditor() {
@@ -282,7 +282,8 @@ export function BlurEditor() {
                 <span className="block text-[11px] text-ink-soft mt-1">
                   Adds an optional second round on this day only. Players are
                   offered it once the normal round is solved or failed. Same 5
-                  guesses and the same blur curve, but the image is a{' '}
+                  guesses on its own, slightly gentler blur curve, but the image
+                  is a{' '}
                   <strong>back</strong> cover and the answer must be a{' '}
                   <strong>different game</strong>.
                 </span>
@@ -303,8 +304,8 @@ export function BlurEditor() {
                     Back cover image
                   </div>
                   <div className="text-[11px] text-ink-soft mb-3">
-                    Portrait 3:4 — min 600 × 900 px. Blurs on the same
-                    5-step curve as the front cover.
+                    Portrait 3:4 — min 600 × 900 px. Blurs on its own 5-step
+                    curve: {BLUR_BACK_LEVELS_PX.join(' → ')}px.
                   </div>
                   <div className="w-48">
                     <CoverSlot

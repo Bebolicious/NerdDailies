@@ -94,8 +94,11 @@ export type BlurBackRound = {
 // How blurred the image is per wrong-guess step. Index 0 = before any wrong
 // guess, last = at the final (5th) guess — still lightly blurred; the image
 // only goes fully clear once the round finishes. 5 steps = 5 guesses.
-// Back Cover hard mode deliberately reuses this same curve.
 export const BLUR_LEVELS_PX: number[] = [40, 28, 20, 14, 4]
+
+// Back Cover hard mode runs its own, gentler curve: back covers carry more
+// text and small art, so they need less blur to stay a real puzzle.
+export const BLUR_BACK_LEVELS_PX: number[] = [30, 20, 14, 8, 3]
 
 export type SoundtrackPuzzle = {
   id: string
