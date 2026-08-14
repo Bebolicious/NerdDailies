@@ -25,6 +25,8 @@ export function TrophyEditor() {
   const [platforms, setPlatforms] = useState<string[]>([])
   const [gamerscore, setGamerscore] = useState('')
   const [coverPath, setCoverPath] = useState<string | null>(null)
+  const [iconEnabled, setIconEnabled] = useState(false)
+  const [iconPath, setIconPath] = useState<string | null>(null)
   const [decor, setDecor] = useState<PuzzleDecor>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -65,6 +67,9 @@ export function TrophyEditor() {
         )
         setGamerscore(data.gamerscore?.toString() ?? '')
         setCoverPath((data.cover_path as string | null) ?? null)
+        const savedIcon = (data.icon_path as string | null) ?? null
+        setIconPath(savedIcon)
+        setIconEnabled(!!savedIcon)
         setDecor(rowToDecor(data))
       }
       setLoading(false)
@@ -91,12 +96,30 @@ export function TrophyEditor() {
     setCoverPath(path)
   }
 
+  // Square achievement art. Same shared 'covers' bucket as the reveal cover,
+  // but an 'icon-' filename prefix so Clear can delete exactly this file.
+  async function uploadIcon(file: File) {
+    const sb = getSupabase()
+    if (!sb || !date) return
+    const compressed = await compressImage(file, IMG_PRESETS.trophyIcon)
+    const ext = compressed.name.split('.').pop() ?? 'webp'
+    const path = `${date}/icon-${crypto.randomUUID()}.${ext}`
+    const { error } = await sb.storage
+      .from('covers')
+      .upload(path, compressed, { upsert: true, cacheControl: '31536000' })
+    if (error) {
+      setMsg(`Achievement image upload failed: ${error.message}`)
+      return
+    }
+    setIconPath(path)
+  }
+
   async function clearPuzzle() {
     const sb = getSupabase()
     if (!sb || !date) return
     if (
       !window.confirm(
-        `Delete the trophy puzzle for ${date} and this puzzle's cover? This cannot be undone.`,
+        `Delete the trophy puzzle for ${date} and this puzzle's images? This cannot be undone.`,
       )
     )
       return
@@ -104,13 +127,12 @@ export function TrophyEditor() {
     setMsg(null)
 
     // covers/ is shared with Screenshot/Blur/Soundtrack — only delete this
-    // puzzle's cover, never the whole date prefix.
-    if (coverPath) {
-      const { error: coverErr } = await sb.storage
-        .from('covers')
-        .remove([coverPath])
-      if (coverErr) {
-        setMsg(`Could not delete cover file: ${coverErr.message}`)
+    // puzzle's own files, never the whole date prefix.
+    const ownFiles = [coverPath, iconPath].filter(Boolean) as string[]
+    if (ownFiles.length) {
+      const { error: fileErr } = await sb.storage.from('covers').remove(ownFiles)
+      if (fileErr) {
+        setMsg(`Could not delete image files: ${fileErr.message}`)
         setClearing(false)
         return
       }
@@ -133,6 +155,8 @@ export function TrophyEditor() {
     setPlatforms([])
     setGamerscore('')
     setCoverPath(null)
+    setIconEnabled(false)
+    setIconPath(null)
     setDecor({})
     setMsg('Cleared.')
     setClearing(false)
@@ -144,6 +168,10 @@ export function TrophyEditor() {
     if (!game) return setMsg('Pick a game first.')
     if (!trophyName.trim() || !trophyDesc.trim())
       return setMsg('Trophy name and description are required.')
+    if (iconEnabled && !iconPath)
+      return setMsg(
+        'Upload an achievement image, or uncheck "Use a custom achievement image".',
+      )
     setSaving(true)
     setMsg(null)
     const { error } = await sb.from('trophy_puzzles').upsert(
@@ -160,6 +188,9 @@ export function TrophyEditor() {
         platform: platforms.join(', ') || null,
         gamerscore: gamerscore ? Number(gamerscore) : null,
         cover_path: coverPath,
+        // Unchecked ⇒ blank the column rather than orphaning it on the row;
+        // local state keeps the upload so re-checking restores it.
+        icon_path: iconEnabled ? iconPath : null,
         ...decorToRow(decor),
         updated_at: new Date().toISOString(),
       },
@@ -206,6 +237,40 @@ export function TrophyEditor() {
                 onClear={() => setCoverPath(null)}
               />
             </div>
+          </NeoCard>
+
+          <NeoCard tone="paper" shadow="md" className="p-5">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={iconEnabled}
+                onChange={(e) => setIconEnabled(e.target.checked)}
+                className="mt-1 h-4 w-4 shrink-0 accent-black"
+              />
+              <span>
+                <span className="font-display text-[10px] uppercase tracking-wider font-bold block">
+                  Custom achievement image
+                </span>
+                <span className="block text-[11px] text-ink-soft mt-1">
+                  A small <strong>square</strong> image shown in place of the
+                  orange trophy icon on the achievement card. Leave this off and
+                  players see the usual trophy.
+                </span>
+              </span>
+            </label>
+            {iconEnabled && (
+              <div className="mt-5 border-t-[3px] border-stroke pt-5">
+                <div className="w-28">
+                  <CoverSlot
+                    square
+                    label="Icon"
+                    path={iconPath}
+                    onUpload={uploadIcon}
+                    onClear={() => setIconPath(null)}
+                  />
+                </div>
+              </div>
+            )}
           </NeoCard>
 
           <NeoCard tone="paper" shadow="md" className="p-5 flex flex-col gap-3">
@@ -305,19 +370,28 @@ function CoverSlot({
   path,
   onUpload,
   onClear,
+  square = false,
+  label = 'Cover',
 }: {
   path: string | null
   onUpload: (f: File) => void
   onClear: () => void
+  square?: boolean
+  label?: string
 }) {
   const sb = getSupabase()
   const preview =
     path && sb ? sb.storage.from('covers').getPublicUrl(path).data.publicUrl : null
   return (
-    <div className="border-neo bg-cream-soft aspect-[3/4] relative flex items-center justify-center overflow-hidden">
+    <div
+      className={
+        'border-neo bg-cream-soft relative flex items-center justify-center overflow-hidden ' +
+        (square ? 'aspect-square' : 'aspect-[3/4]')
+      }
+    >
       {preview ? (
         <>
-          <img src={preview} alt="cover" className="w-full h-full object-cover" />
+          <img src={preview} alt={label} className="w-full h-full object-cover" />
           <button
             onClick={onClear}
             className="absolute top-1 right-1 border-neo-2 bg-paper p-1"
@@ -326,7 +400,7 @@ function CoverSlot({
           </button>
         </>
       ) : (
-        <UploadZone onUpload={onUpload} label="Cover" />
+        <UploadZone onUpload={onUpload} label={label} />
       )}
     </div>
   )

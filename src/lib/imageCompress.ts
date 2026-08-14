@@ -79,6 +79,9 @@ export const IMG_PRESETS = {
   // Reveal-only covers (Screenshot / Soundtrack / Trophy): shown at 170px wide
   // in AnswerReveal. 512 covers 3× retina with room to spare.
   cover: { maxWidth: 512, quality: 0.82 } satisfies CompressOpts,
+  // Trophy achievement art: a square tile rendered at 80px on the card. 256
+  // covers 3× retina; alpha survives (WebP) so a cut-out badge stays clean.
+  trophyIcon: { maxWidth: 256, maxHeight: 256, quality: 0.85 } satisfies CompressOpts,
   // Blur cover IS the puzzle, rendered large (BlurGame BASE_COVER_WIDTH_PX 520,
   // up to ~832 with zoom comp). Keep it sharp for the final unblurred reveal.
   blurCover: { maxWidth: 1000, quality: 0.85 } satisfies CompressOpts,

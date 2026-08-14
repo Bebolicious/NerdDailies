@@ -100,11 +100,19 @@ function TrophyInner({
           />
           <div className="flex items-start gap-5">
             <NeoCard
-              tone="mustard"
+              tone={puzzle.icon_url ? 'paper' : 'mustard'}
               shadow="sm"
-              className="w-20 h-20 flex items-center justify-center shrink-0"
+              className="w-20 h-20 flex items-center justify-center shrink-0 overflow-hidden"
             >
-              <TrophyIcon className="h-10 w-10 stroke-[2.5]" />
+              {puzzle.icon_url ? (
+                <img
+                  src={puzzle.icon_url}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <TrophyIcon className="h-10 w-10 stroke-[2.5]" />
+              )}
             </NeoCard>
             <div className="flex-1 min-w-0">
               <div className="font-display text-[10px] uppercase tracking-[0.25em] text-lime mb-2">

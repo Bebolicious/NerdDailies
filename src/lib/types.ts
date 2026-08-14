@@ -65,6 +65,7 @@ export type TrophyPuzzle = {
   platform?: string
   gamerscore?: number
   cover_url?: string // optional official cover, shown on the answer-reveal card
+  icon_url?: string // optional square achievement art, replaces the trophy glyph
 } & PuzzleDecor
 
 export type BlurPuzzle = {

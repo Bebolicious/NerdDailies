@@ -315,6 +315,12 @@ alter table public.crossword_puzzles
 alter table public.trophy_puzzles     add column if not exists cover_path text;
 alter table public.soundtrack_puzzles add column if not exists cover_path text;
 
+-- Optional square achievement art for Trophy. When set it replaces the built-in
+-- mustard trophy glyph on the achievement card. Lives in the shared 'covers'
+-- bucket under a distinct 'icon-' filename prefix so Clear-puzzle's targeted
+-- delete can find it without touching the other games' covers.
+alter table public.trophy_puzzles     add column if not exists icon_path text;
+
 alter table public.screenshot_puzzles add column if not exists submitter text;
 alter table public.trophy_puzzles     add column if not exists submitter text;
 alter table public.blur_puzzles       add column if not exists submitter text;

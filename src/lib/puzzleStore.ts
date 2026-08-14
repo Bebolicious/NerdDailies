@@ -65,7 +65,7 @@ export async function fetchTrophyPuzzle(date: string): Promise<TrophyPuzzle> {
   const { data, error } = await sb
     .from('trophy_puzzles')
     .select(
-      'id,puzzle_date,game_id,game_name,game_year,game_genre,trophy_name,trophy_description,clues,rarity_pct,platform,gamerscore,cover_path,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
+      'id,puzzle_date,game_id,game_name,game_year,game_genre,trophy_name,trophy_description,clues,rarity_pct,platform,gamerscore,cover_path,icon_path,submitter,banner_text,banner_color,banner_text_color,banner_style,effect_type,effect_emoji,effect_color',
     )
     .eq('puzzle_date', date)
     .maybeSingle()
@@ -86,6 +86,7 @@ export async function fetchTrophyPuzzle(date: string): Promise<TrophyPuzzle> {
     platform: data.platform ?? undefined,
     gamerscore: data.gamerscore ?? undefined,
     cover_url: data.cover_path ? toPublicUrl('covers')(data.cover_path) : undefined,
+    icon_url: data.icon_path ? toPublicUrl('covers')(data.icon_path) : undefined,
     ...rowToDecor(data),
   }
 }
